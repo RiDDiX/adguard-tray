@@ -1,0 +1,6 @@
+# Runtime dependency – install via pacman, not pip
+# sudo pacman -S python-pyqt6
+#
+# PyQt6 >= 6.4.0 is required (ships with Qt 6.4+, Wayland SNI support stable).
+# On Arch Linux this is always satisfied by the official package.
+PyQt6>=6.4.0

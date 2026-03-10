@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=AdGuard Tray
+GenericName=AdGuard CLI Monitor
+Comment=System tray monitor and controller for adguard-cli
+Exec=/usr/local/bin/adguard-tray
+Icon=security-high
+Categories=Network;Security;System;
+Keywords=adguard;dns;privacy;security;ad-blocker;filter;
+StartupNotify=false
+NoDisplay=false

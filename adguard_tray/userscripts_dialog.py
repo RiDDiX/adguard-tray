@@ -1,0 +1,306 @@
+"""
+Userscript management dialog.
+
+Userscripts are identified by their string name (e.g. "adguard-extra"),
+not by a numeric ID – unlike filters.
+
+Commands used:
+  adguard-cli userscripts list
+  adguard-cli userscripts enable  <name>
+  adguard-cli userscripts disable <name>
+  adguard-cli userscripts remove  <name>
+  adguard-cli userscripts install <url>
+"""
+
+import logging
+
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QHBoxLayout,
+    QHeaderView,
+    QInputDialog,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+)
+
+from .cli import AdGuardCLI, UserscriptEntry, UserscriptListResult
+
+logger = logging.getLogger(__name__)
+
+_COL_NAME  = 0
+_COL_ID    = 1
+_COL_UPDATED = 2
+
+
+# ── Background workers ─────────────────────────────────────────────────────
+
+class _LoadWorker(QThread):
+    done = pyqtSignal(object)   # UserscriptListResult
+    def __init__(self, cli): super().__init__(); self.cli = cli
+    def run(self): self.done.emit(self.cli.get_userscripts())
+
+class _ToggleWorker(QThread):
+    done = pyqtSignal(bool, str, str, bool)  # ok, msg, name, new_enabled
+    def __init__(self, cli, name, enable):
+        super().__init__(); self.cli = cli; self.name = name; self.enable = enable
+    def run(self):
+        fn = self.cli.enable_userscript if self.enable else self.cli.disable_userscript
+        ok, msg = fn(self.name)
+        self.done.emit(ok, msg, self.name, self.enable)
+
+class _RemoveWorker(QThread):
+    done = pyqtSignal(bool, str, str)   # ok, msg, name
+    def __init__(self, cli, name): super().__init__(); self.cli = cli; self.name = name
+    def run(self):
+        ok, msg = self.cli.remove_userscript(self.name)
+        self.done.emit(ok, msg, self.name)
+
+class _InstallWorker(QThread):
+    done = pyqtSignal(bool, str)
+    def __init__(self, cli, url): super().__init__(); self.cli = cli; self.url = url
+    def run(self): self.done.emit(*self.cli.install_userscript(self.url))
+
+
+# ── Dialog ─────────────────────────────────────────────────────────────────
+
+class UserscriptsDialog(QDialog):
+    def __init__(self, cli: AdGuardCLI, parent=None) -> None:
+        super().__init__(parent)
+        self.cli = cli
+        self._workers: list[QThread] = []
+        self._script_map: dict[str, UserscriptEntry] = {}
+
+        self.setWindowTitle("AdGuard Tray – Userscripts")
+        self.setMinimumSize(600, 400)
+        self.resize(660, 440)
+        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
+        self._build_ui()
+        self._load()
+
+    def _build_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setSpacing(8)
+
+        # Toolbar
+        bar = QHBoxLayout()
+
+        self.btn_add = QPushButton("Installieren (URL)…")
+        self.btn_add.setToolTip("Userscript von einer direkten .js-URL installieren")
+        self.btn_add.clicked.connect(self._install)
+        bar.addWidget(self.btn_add)
+
+        bar.addStretch()
+
+        self.btn_reload = QPushButton("↺ Neu laden")
+        self.btn_reload.clicked.connect(self._load)
+        bar.addWidget(self.btn_reload)
+
+        layout.addLayout(bar)
+
+        # Progress
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 0)
+        self.progress.setMaximumHeight(4)
+        self.progress.hide()
+        layout.addWidget(self.progress)
+
+        self.lbl_status = QLabel("")
+        self.lbl_status.setWordWrap(True)
+        layout.addWidget(self.lbl_status)
+
+        # Tree
+        self.tree = QTreeWidget()
+        self.tree.setColumnCount(3)
+        self.tree.setHeaderLabels(["Userscript", "ID / Name", "Zuletzt aktualisiert"])
+        self.tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.tree.header().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.tree.setAlternatingRowColors(True)
+        self.tree.setUniformRowHeights(True)
+        layout.addWidget(self.tree)
+
+        # Info label
+        info = QLabel(
+            "<small>Rechtsklick auf ein Userscript zum Entfernen.<br>"
+            "Userscripts werden bei <i>Filter aktualisieren</i> automatisch mit aktualisiert.</small>"
+        )
+        info.setTextFormat(Qt.TextFormat.RichText)
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        # Close
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    # ── Load ───────────────────────────────────────────────────────────────
+
+    def _load(self) -> None:
+        self._set_busy(True)
+        self.lbl_status.setText("Userscripts werden geladen…")
+        w = _LoadWorker(self.cli)
+        w.done.connect(self._on_loaded)
+        w.finished.connect(lambda: self._workers.remove(w))
+        self._workers.append(w)
+        w.start()
+
+    def _on_loaded(self, result: UserscriptListResult) -> None:
+        self._set_busy(False)
+        self.tree.clear()
+        self._script_map.clear()
+
+        if result.error:
+            self.lbl_status.setText(f"Fehler: {result.error}")
+            return
+        if not result.scripts:
+            self.lbl_status.setText("Keine Userscripts installiert.")
+            return
+
+        active = sum(1 for s in result.scripts if s.enabled)
+        self.lbl_status.setText(f"{active} von {len(result.scripts)} Userscripts aktiv")
+
+        for s in result.scripts:
+            self._script_map[s.name] = s
+            item = QTreeWidgetItem(self.tree)
+            item.setData(0, Qt.ItemDataRole.UserRole, s.name)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(
+                0, Qt.CheckState.Checked if s.enabled else Qt.CheckState.Unchecked
+            )
+            item.setText(_COL_NAME, s.title)
+            item.setText(_COL_ID, s.name)
+            item.setText(_COL_UPDATED, s.last_update)
+            item.setToolTip(0, f"{s.title} ({s.name})")
+
+        self.tree.itemChanged.connect(self._on_item_changed)
+
+    # ── Toggle ─────────────────────────────────────────────────────────────
+
+    def _on_item_changed(self, item: QTreeWidgetItem, column: int) -> None:
+        if column != 0:
+            return
+        name = item.data(0, Qt.ItemDataRole.UserRole)
+        if not name:
+            return
+        enable = item.checkState(0) == Qt.CheckState.Checked
+        self._set_busy(True)
+        self.lbl_status.setText(
+            f"Userscript '{name}' wird {'aktiviert' if enable else 'deaktiviert'}…"
+        )
+        self.tree.itemChanged.disconnect(self._on_item_changed)
+        w = _ToggleWorker(self.cli, name, enable)
+        w.done.connect(self._on_toggle_done)
+        w.finished.connect(lambda: self._workers.remove(w))
+        self._workers.append(w)
+        w.start()
+
+    def _on_toggle_done(self, ok: bool, msg: str, name: str, new_enabled: bool) -> None:
+        self._set_busy(False)
+        if ok:
+            if name in self._script_map:
+                self._script_map[name].enabled = new_enabled
+            state = "aktiviert" if new_enabled else "deaktiviert"
+            self.lbl_status.setText(f"Userscript '{name}' {state}.")
+        else:
+            # Revert checkbox
+            for i in range(self.tree.topLevelItemCount()):
+                child = self.tree.topLevelItem(i)
+                if child.data(0, Qt.ItemDataRole.UserRole) == name:
+                    child.setCheckState(
+                        0,
+                        Qt.CheckState.Checked if not new_enabled else Qt.CheckState.Unchecked,
+                    )
+                    break
+            self.lbl_status.setText(f"Fehler: {msg}")
+        self.tree.itemChanged.connect(self._on_item_changed)
+
+    # ── Install ────────────────────────────────────────────────────────────
+
+    def _install(self) -> None:
+        url, ok = QInputDialog.getText(
+            self,
+            "Userscript installieren",
+            "Userscript-URL (direkte .js-URL):",
+            QLineEdit.EchoMode.Normal,
+        )
+        if not ok or not url.strip():
+            return
+        self._set_busy(True)
+        self.lbl_status.setText(f"Installiere: {url.strip()}")
+        w = _InstallWorker(self.cli, url.strip())
+        w.done.connect(self._on_install_done)
+        w.finished.connect(lambda: self._workers.remove(w))
+        self._workers.append(w)
+        w.start()
+
+    def _on_install_done(self, ok: bool, msg: str) -> None:
+        self._set_busy(False)
+        if ok:
+            self.lbl_status.setText("Userscript installiert.")
+            self._load()
+        else:
+            self.lbl_status.setText(f"Fehler: {msg}")
+
+    # ── Context menu / remove ──────────────────────────────────────────────
+
+    def _on_context_menu(self, pos) -> None:
+        from PyQt6.QtWidgets import QMenu
+        item = self.tree.itemAt(pos)
+        if item is None:
+            return
+        name = item.data(0, Qt.ItemDataRole.UserRole)
+        if not name:
+            return
+        menu = QMenu(self)
+        act = menu.addAction(f"«{name}» entfernen")
+        act.triggered.connect(lambda: self._remove(name))
+        menu.exec(self.tree.viewport().mapToGlobal(pos))
+
+    def _remove(self, name: str) -> None:
+        s = self._script_map.get(name)
+        display = s.title if s else name
+        reply = QMessageBox.question(
+            self,
+            "Userscript entfernen",
+            f"Userscript «{display}» wirklich entfernen?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self._set_busy(True)
+        self.lbl_status.setText(f"Entferne '{name}'…")
+        w = _RemoveWorker(self.cli, name)
+        w.done.connect(self._on_remove_done)
+        w.finished.connect(lambda: self._workers.remove(w))
+        self._workers.append(w)
+        w.start()
+
+    def _on_remove_done(self, ok: bool, msg: str, name: str) -> None:
+        self._set_busy(False)
+        if ok:
+            self.lbl_status.setText(f"'{name}' entfernt.")
+            self._load()
+        else:
+            self.lbl_status.setText(f"Fehler: {msg}")
+
+    # ── Helpers ────────────────────────────────────────────────────────────
+
+    def _set_busy(self, busy: bool) -> None:
+        self.btn_add.setEnabled(not busy)
+        self.btn_reload.setEnabled(not busy)
+        self.tree.setEnabled(not busy)
+        self.progress.setVisible(busy)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tree.customContextMenuRequested.connect(self._on_context_menu)

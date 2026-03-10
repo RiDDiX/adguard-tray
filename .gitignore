@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# PyInstaller
+*.spec
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.kate-swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project runtime files (user-local, not part of the repo)
+*.log
