@@ -34,14 +34,23 @@ fi
 
 if ! command -v adguard-cli &>/dev/null; then
     red "  WARNING: adguard-cli not found."
-    red "  Install it first:  paru -S adguard-cli-bin"
+    red "  Install via official script:"
+    red "    curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/release/install.sh | sh -s -- -v"
+    red "  Or via AUR:  paru -S adguard-cli-bin"
     echo ""
 fi
 
 # ── 2. Install application files ───────────────────────────────────────────
+if [[ -f "${LIB_DIR}/adguard-tray.py" ]]; then
+    info "Existing installation detected in ${LIB_DIR} – upgrading"
+fi
+
 green "==> Installing application to ${LIB_DIR}"
 
 mkdir -p "${LIB_DIR}" "${BIN_DIR}" "${DESKTOP_DIR}"
+
+# Clean previous install to avoid stale files
+rm -rf "${LIB_DIR}/adguard_tray"
 
 # Copy package
 cp -r "${SCRIPT_DIR}/adguard_tray" "${LIB_DIR}/"

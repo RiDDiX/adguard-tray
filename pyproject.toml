@@ -1,0 +1,15 @@
+[project]
+name = "adguard-tray"
+version = "1.0.0"
+description = "System tray monitor and controller for adguard-cli"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+dependencies = ["PyQt6>=6.4.0"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = ["E501"]

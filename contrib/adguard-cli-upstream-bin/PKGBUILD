@@ -1,0 +1,64 @@
+# Maintainer: RiDDiX <github@egu-rel.de>
+# NOTE: This is a CONCEPT PKGBUILD. Before publishing to AUR, verify that
+#       the AdGuard EULA permits binary redistribution via third-party repos.
+#       See: https://adguard.com/en/eula.html
+pkgname=adguard-cli-upstream-bin
+pkgver=1.3.35
+pkgrel=1
+pkgdesc="AdGuard CLI – official upstream binary (ad blocker, DNS filter, userscripts)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/AdguardTeam/AdGuardCLI"
+license=('custom:AdGuard EULA')
+provides=('adguard-cli')
+conflicts=('adguard-cli' 'adguard-cli-bin')
+depends=('glibc')
+optdepends=(
+    'adguard-tray: system tray GUI for adguard-cli'
+)
+_channel=release
+source_x86_64=("adguard-cli-${pkgver}-linux-x86_64.tar.gz::https://github.com/AdguardTeam/AdGuardCLI/releases/download/v${pkgver}-${_channel}/adguard-cli-${pkgver}-linux-x86_64.tar.gz")
+source_aarch64=("adguard-cli-${pkgver}-linux-aarch64.tar.gz::https://github.com/AdguardTeam/AdGuardCLI/releases/download/v${pkgver}-${_channel}/adguard-cli-${pkgver}-linux-aarch64.tar.gz")
+# TODO: Replace SKIP with actual sha256sums from upstream release
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+
+package() {
+    cd "$srcdir"
+
+    # Find the extracted directory
+    local _extracted
+    _extracted="$(find . -maxdepth 1 -type d -name 'adguard-cli-*' | head -1)"
+    if [[ -z "$_extracted" ]]; then
+        _extracted="."
+    fi
+
+    # Main binary
+    install -Dm755 "${_extracted}/adguard-cli" \
+        "$pkgdir/opt/adguard-cli/adguard-cli"
+
+    # Signature file
+    install -Dm644 "${_extracted}/adguard-cli.sig" \
+        "$pkgdir/opt/adguard-cli/adguard-cli.sig"
+
+    # Root helper
+    install -Dm755 "${_extracted}/adguard_root_helper" \
+        "$pkgdir/opt/adguard-cli/adguard_root_helper"
+    install -Dm644 "${_extracted}/adguard_root_helper.sig" \
+        "$pkgdir/opt/adguard-cli/adguard_root_helper.sig"
+
+    # Supporting files
+    install -Dm755 "${_extracted}/certutil" \
+        "$pkgdir/opt/adguard-cli/certutil" 2>/dev/null || true
+    install -Dm644 "${_extracted}/certutil.sig" \
+        "$pkgdir/opt/adguard-cli/certutil.sig" 2>/dev/null || true
+    install -Dm644 "${_extracted}/defaults.zip" \
+        "$pkgdir/opt/adguard-cli/defaults.zip" 2>/dev/null || true
+    install -Dm755 "${_extracted}/install_cert.sh" \
+        "$pkgdir/opt/adguard-cli/install_cert.sh" 2>/dev/null || true
+    install -Dm644 "${_extracted}/bash-completion.sh" \
+        "$pkgdir/opt/adguard-cli/bash-completion.sh" 2>/dev/null || true
+
+    # Symlink to /usr/local/bin (matches upstream installer default)
+    install -dm755 "$pkgdir/usr/local/bin"
+    ln -sf /opt/adguard-cli/adguard-cli "$pkgdir/usr/local/bin/adguard-cli"
+}

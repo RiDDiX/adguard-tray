@@ -160,9 +160,13 @@ _DE: dict[str, str] = {
 
     # ── cli.py ────────────────────────────────────────────────────────────
     "adguard-cli was not found.\n"
-    "Install it with: paru -S adguard-cli-bin":
+    "Install via official script or AUR:\n"
+    "  curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/release/install.sh | sh -s -- -v\n"
+    "  paru -S adguard-cli-bin":
         "adguard-cli wurde nicht gefunden.\n"
-        "Installiere es mit: paru -S adguard-cli-bin",
+        "Installation über offizielles Skript oder AUR:\n"
+        "  curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/release/install.sh | sh -s -- -v\n"
+        "  paru -S adguard-cli-bin",
     "Unknown error retrieving status":
         "Unbekannter Fehler beim Statusabruf",
     "AdGuard {} successful":                "AdGuard {} erfolgreich",
@@ -197,6 +201,13 @@ _DE: dict[str, str] = {
     "Userscript installed":                 "Userscript installiert",
     "Other":                                "Sonstige",
 
+    # ── search (filters_dialog / userscripts_dialog) ────────────────────
+    "Search filters…":                  "Filter durchsuchen…",
+    "Search userscripts…":              "Userscripts durchsuchen…",
+
+    # ── userscripts_dialog.py ────────────────────────────────────────────
+    "AdGuard Tray – Userscripts":       "AdGuard Tray – Userscripts",
+
     # ── main.py ───────────────────────────────────────────────────────────
     "System tray not available":
         "Kein System-Tray verfügbar",
@@ -206,6 +217,21 @@ _DE: dict[str, str] = {
         "Das System-Tray ist in dieser Desktop-Umgebung nicht verfügbar.\n\n"
         "Unter Hyprland: waybar mit aktiviertem [tray]-Modul oder sfwbar benötigt.\n"
         "Unter KDE Plasma sollte es sofort funktionieren.",
+    "adguard-cli not found":            "adguard-cli nicht gefunden",
+    "adguard-cli could not be found on this system.\n\n"
+    "Recommended install method (official):\n"
+    "  curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/release/install.sh | sh -s -- -v\n\n"
+    "Alternative (Arch Linux AUR):\n"
+    "  paru -S adguard-cli-bin\n\n"
+    "The application will start but protection controls will not work until adguard-cli is installed.":
+        "adguard-cli konnte auf diesem System nicht gefunden werden.\n\n"
+        "Empfohlene Installation (offiziell):\n"
+        "  curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/release/install.sh | sh -s -- -v\n\n"
+        "Alternative (Arch Linux AUR):\n"
+        "  paru -S adguard-cli-bin\n\n"
+        "Die Anwendung startet, aber Schutzfunktionen sind erst nach der Installation von adguard-cli verfügbar.",
+    "Copy install command":             "Installationsbefehl kopieren",
+    "Continue":                         "Weiter",
 }
 
 # ── Translation registry ──────────────────────────────────────────────────

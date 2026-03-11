@@ -13,11 +13,13 @@ The UI language is detected automatically from the system locale. English is the
 - Shows AdGuard status in the tray (green = running, grey = stopped, red = error)
 - Start / stop / restart from the tray menu
 - Toggle individual filters without opening a terminal
+- Search / filter in the filter and userscript management dialogs
 - Manage userscripts (install, enable/disable, remove)
 - Update all filters with one click
 - Install custom filter lists by URL
-- Desktop notifications when status changes
+- Desktop notifications when status changes (with dedup to prevent spam)
 - Autostart toggle right in the tray menu
+- `--version` / `-V` flag
 
 ---
 
@@ -26,7 +28,21 @@ The UI language is detected automatically from the system locale. English is the
 - `python` >= 3.11
 - `python-pyqt6`
 - `libnotify` (for notifications)
-- `adguard-cli` — [AUR: adguard-cli-bin](https://aur.archlinux.org/packages/adguard-cli-bin)
+- `adguard-cli` — install via **official script** (recommended) or [AUR: adguard-cli-bin](https://aur.archlinux.org/packages/adguard-cli-bin)
+
+### Installing adguard-cli
+
+Recommended (official upstream):
+```bash
+curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/release/install.sh | sh -s -- -v
+```
+
+Alternative (Arch Linux AUR):
+```bash
+paru -S adguard-cli-bin
+```
+
+If adguard-cli is not found at startup, the app shows a helpful dialog with install instructions and a copy-to-clipboard button.
 
 ---
 
@@ -101,11 +117,14 @@ Start/stop requires root. The app tries in order:
 {
   "refresh_interval": 30,
   "notifications_enabled": true,
-  "log_level": "INFO"
+  "log_level": "INFO",
+  "adguard_cli_path": ""
 }
 ```
 
-Logs go to `~/.local/share/adguard-tray/adguard-tray.log`.
+- **adguard_cli_path**: Leave empty to auto-detect via PATH. Set to a full path (e.g. `/opt/adguard-cli/adguard-cli`) if installed in a non-standard location.
+
+Logs go to `~/.local/share/adguard-tray/adguard-tray.log` (auto-rotated, 5 MB max, 3 backups).
 
 ---
 

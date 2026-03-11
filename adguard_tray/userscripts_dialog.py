@@ -80,7 +80,7 @@ class UserscriptsDialog(QDialog):
         self._workers: list[QThread] = []
         self._script_map: dict[str, UserscriptEntry] = {}
 
-        self.setWindowTitle("AdGuard Tray – Userscripts")
+        self.setWindowTitle(_t("AdGuard Tray – Userscripts"))
         self.setMinimumSize(600, 400)
         self.resize(660, 440)
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
@@ -117,6 +117,13 @@ class UserscriptsDialog(QDialog):
         self.lbl_status = QLabel("")
         self.lbl_status.setWordWrap(True)
         layout.addWidget(self.lbl_status)
+
+        # Search bar
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText(_t("Search userscripts…"))
+        self.search_box.setClearButtonEnabled(True)
+        self.search_box.textChanged.connect(self._apply_search_filter)
+        layout.addWidget(self.search_box)
 
         # Tree
         self.tree = QTreeWidget()
@@ -297,6 +304,15 @@ class UserscriptsDialog(QDialog):
             self._load()
         else:
             self.lbl_status.setText(_t("Error: {}", msg))
+
+    # ── Search / filter ─────────────────────────────────────────────────
+
+    def _apply_search_filter(self, text: str) -> None:
+        needle = text.strip().lower()
+        for i in range(self.tree.topLevelItemCount()):
+            item = self.tree.topLevelItem(i)
+            match = not needle or needle in item.text(0).lower() or needle in item.text(1).lower()
+            item.setHidden(not match)
 
     # ── Helpers ────────────────────────────────────────────────────────────
 

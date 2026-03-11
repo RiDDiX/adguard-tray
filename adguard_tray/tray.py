@@ -32,6 +32,7 @@ Left-click → immediate status refresh.
 """
 
 import logging
+import time
 from pathlib import Path
 
 from PyQt6.QtCore import QObject, QRunnable, QThread, QThreadPool, QTimer, pyqtSignal, pyqtSlot, Qt
@@ -51,14 +52,20 @@ logger = logging.getLogger(__name__)
 
 _AUTOSTART_FILE = Path.home() / ".config" / "autostart" / "adguard-tray.desktop"
 
+_STATUS_LABELS: dict[AdGuardStatus, str] | None = None
+
+
 def _status_label(status: AdGuardStatus) -> str:
-    return {
-        AdGuardStatus.ACTIVE:        _t("Active – Protection running"),
-        AdGuardStatus.INACTIVE:      _t("Inactive – Protection stopped"),
-        AdGuardStatus.ERROR:         _t("Error retrieving status"),
-        AdGuardStatus.NOT_INSTALLED: _t("adguard-cli not found"),
-        AdGuardStatus.UNKNOWN:       _t("Unknown status"),
-    }.get(status, _t("Unknown status"))
+    global _STATUS_LABELS
+    if _STATUS_LABELS is None:
+        _STATUS_LABELS = {
+            AdGuardStatus.ACTIVE:        _t("Active – Protection running"),
+            AdGuardStatus.INACTIVE:      _t("Inactive – Protection stopped"),
+            AdGuardStatus.ERROR:         _t("Error retrieving status"),
+            AdGuardStatus.NOT_INSTALLED: _t("adguard-cli not found"),
+            AdGuardStatus.UNKNOWN:       _t("Unknown status"),
+        }
+    return _STATUS_LABELS.get(status, _t("Unknown status"))
 
 _STATUS_ICON = {
     AdGuardStatus.ACTIVE:        icon_active,
@@ -139,6 +146,9 @@ class AdGuardTray(QSystemTrayIcon):
         self._last_status: AdGuardStatus | None = None
         self._busy = False
         self._bg_threads: list[QThread] = []  # keep refs alive
+        self._loading_filters = False
+        self._loading_userscripts = False
+        self._last_notify_ts: float = 0.0
 
         self._setup_icons()
         self._build_menu()
@@ -236,20 +246,30 @@ class AdGuardTray(QSystemTrayIcon):
         self._act_disable.setEnabled(not_busy)
         self._act_restart.setEnabled(not_busy and is_active)
 
+    def _discard_thread(self, thread: QThread) -> None:
+        try:
+            self._bg_threads.remove(thread)
+        except ValueError:
+            pass
+
     # ── Filter submenu (lazy) ──────────────────────────────────────────────
 
     def _load_filter_submenu(self) -> None:
+        if self._loading_filters:
+            return
+        self._loading_filters = True
         self._filter_menu.clear()
         placeholder = self._filter_menu.addAction(_t("Loading…"))
         placeholder.setEnabled(False)
 
         w = _FilterLoader(self.cli)
         w.done.connect(self._populate_filter_submenu)
-        w.finished.connect(lambda: self._bg_threads.remove(w))
+        w.finished.connect(lambda: self._discard_thread(w))
         self._bg_threads.append(w)
         w.start()
 
     def _populate_filter_submenu(self, result: FilterListResult) -> None:
+        self._loading_filters = False
         self._filter_menu.clear()
 
         if result.error:
@@ -281,7 +301,7 @@ class AdGuardTray(QSystemTrayIcon):
     def _toggle_filter(self, fid: int, enable: bool) -> None:
         w = _FilterToggle(self.cli, fid, enable)
         w.done.connect(self._on_filter_toggle_done)
-        w.finished.connect(lambda: self._bg_threads.remove(w))
+        w.finished.connect(lambda: self._discard_thread(w))
         self._bg_threads.append(w)
         w.start()
 
@@ -292,17 +312,21 @@ class AdGuardTray(QSystemTrayIcon):
     # ── Userscript submenu (lazy) ──────────────────────────────────────────
 
     def _load_userscript_submenu(self) -> None:
+        if self._loading_userscripts:
+            return
+        self._loading_userscripts = True
         self._us_menu.clear()
         placeholder = self._us_menu.addAction(_t("Loading…"))
         placeholder.setEnabled(False)
 
         w = _UserscriptLoader(self.cli)
         w.done.connect(self._populate_userscript_submenu)
-        w.finished.connect(lambda: self._bg_threads.remove(w))
+        w.finished.connect(lambda: self._discard_thread(w))
         self._bg_threads.append(w)
         w.start()
 
     def _populate_userscript_submenu(self, result: UserscriptListResult) -> None:
+        self._loading_userscripts = False
         self._us_menu.clear()
 
         if result.error:
@@ -328,7 +352,7 @@ class AdGuardTray(QSystemTrayIcon):
     def _toggle_userscript(self, name: str, enable: bool) -> None:
         w = _UserscriptToggle(self.cli, name, enable)
         w.done.connect(self._on_userscript_toggle_done)
-        w.finished.connect(lambda: self._bg_threads.remove(w))
+        w.finished.connect(lambda: self._discard_thread(w))
         self._bg_threads.append(w)
         w.start()
 
@@ -358,7 +382,10 @@ class AdGuardTray(QSystemTrayIcon):
         self._update_menu_state(result.status)
 
         if old is not None and old != result.status and self.config.notifications_enabled:
-            self._notify_change(old, result.status)
+            now = time.monotonic()
+            if now - self._last_notify_ts >= 10.0:
+                self._last_notify_ts = now
+                self._notify_change(old, result.status)
 
     def _notify_change(self, old: AdGuardStatus, new: AdGuardStatus) -> None:
         if new == AdGuardStatus.ACTIVE:

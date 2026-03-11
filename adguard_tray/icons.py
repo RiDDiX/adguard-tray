@@ -125,16 +125,16 @@ def _make_icon(
 
 
 def icon_active() -> QIcon:
-    return _make_icon("#22c55e", "#16a34a", "check")
+    return _make_icon("#16a34a", "#15803d", "check")
 
 
 def icon_inactive() -> QIcon:
-    return _make_icon("#6b7280", "#4b5563", "x")
+    return _make_icon("#4b5563", "#374151", "x")
 
 
 def icon_error() -> QIcon:
-    return _make_icon("#ef4444", "#dc2626", "exclaim")
+    return _make_icon("#dc2626", "#b91c1c", "exclaim")
 
 
 def icon_unknown() -> QIcon:
-    return _make_icon("#f59e0b", "#d97706", "question")
+    return _make_icon("#d97706", "#b45309", "question")

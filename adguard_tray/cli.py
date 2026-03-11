@@ -67,6 +67,10 @@ def _run(args: list[str], timeout: int = 15) -> tuple[int, str, str]:
 class AdGuardCLI:
     BINARY = "adguard-cli"
 
+    def __init__(self, binary: str = "") -> None:
+        if binary:
+            self.BINARY = binary
+
     # ── Status ─────────────────────────────────────────────────────────────
 
     def get_status(self) -> StatusResult:
@@ -77,7 +81,9 @@ class AdGuardCLI:
                 AdGuardStatus.NOT_INSTALLED,
                 _t(
                     "adguard-cli was not found.\n"
-                    "Install it with: paru -S adguard-cli-bin"
+                    "Install via official script or AUR:\n"
+                    "  curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/release/install.sh | sh -s -- -v\n"
+                    "  paru -S adguard-cli-bin"
                 ),
             )
         if code < 0:

@@ -10,11 +10,13 @@ Wayland / platform notes:
 """
 
 import logging
+import logging.handlers
 import os
+import shutil
 import sys
 from pathlib import Path
 
-from PyQt6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
+from PyQt6.QtWidgets import QApplication, QMessageBox, QPushButton, QSystemTrayIcon
 
 from .cli import AdGuardCLI
 from .config import load_config
@@ -33,7 +35,9 @@ def _setup_logging(level: str) -> None:
 
     handlers: list[logging.Handler] = [
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler(LOG_FILE, encoding="utf-8"),
+        logging.handlers.RotatingFileHandler(
+            LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
+        ),
     ]
     logging.basicConfig(level=numeric, format=fmt, datefmt=datefmt, handlers=handlers)
 
@@ -70,7 +74,8 @@ def main() -> None:
     exec_path = _resolve_exec()
     logger.debug("Resolved exec path: %s", exec_path)
 
-    cli = AdGuardCLI()
+    cli = AdGuardCLI(binary=config.adguard_cli_path)
+    _dependency_doctor(cli)
     tray = AdGuardTray(app, cli, config, exec_path)  # noqa: F841 (kept alive by app)
 
     logger.info("Entering event loop")
@@ -89,6 +94,40 @@ def _resolve_exec() -> str:
         return str(ep.resolve())
     # Fallback
     return f"{sys.executable} {Path(__file__).parent.parent / 'adguard-tray.py'}"
+
+
+_INSTALL_CMD = "curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/release/install.sh | sh -s -- -v"
+
+
+def _dependency_doctor(cli: AdGuardCLI) -> None:
+    """Show a helpful dialog when adguard-cli is not found. Non-blocking: app continues regardless."""
+    binary = cli.BINARY
+    if shutil.which(binary):
+        return
+    logger = logging.getLogger(__name__)
+    logger.warning("adguard-cli binary not found: %r", binary)
+
+    msg = QMessageBox()
+    msg.setWindowTitle(_t("adguard-cli not found"))
+    msg.setIcon(QMessageBox.Icon.Warning)
+    msg.setText(_t(
+        "adguard-cli could not be found on this system.\n\n"
+        "Recommended install method (official):\n"
+        "  curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/release/install.sh | sh -s -- -v\n\n"
+        "Alternative (Arch Linux AUR):\n"
+        "  paru -S adguard-cli-bin\n\n"
+        "The application will start but protection controls will not work until adguard-cli is installed."
+    ))
+    btn_copy = QPushButton(_t("Copy install command"))
+    btn_continue = QPushButton(_t("Continue"))
+    msg.addButton(btn_copy, QMessageBox.ButtonRole.ActionRole)
+    msg.addButton(btn_continue, QMessageBox.ButtonRole.AcceptRole)
+    msg.setDefaultButton(btn_continue)
+    msg.exec()
+    if msg.clickedButton() == btn_copy:
+        clipboard = QApplication.clipboard()
+        if clipboard:
+            clipboard.setText(_INSTALL_CMD)
 
 
 def _fatal_dialog(title: str, message: str) -> None:

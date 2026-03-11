@@ -19,6 +19,7 @@ class Config:
     refresh_interval: int = 30          # seconds between auto-refresh
     notifications_enabled: bool = True  # desktop notifications on status change
     log_level: str = "INFO"             # DEBUG | INFO | WARNING | ERROR
+    adguard_cli_path: str = ""          # empty = auto-detect via PATH
 
 
 def load_config() -> Config:

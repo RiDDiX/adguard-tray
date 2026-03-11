@@ -170,6 +170,13 @@ class FiltersDialog(QDialog):
         self.lbl_status.setWordWrap(True)
         layout.addWidget(self.lbl_status)
 
+        # ── Search bar ─────────────────────────────────────────────────────
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText(_t("Search filters…"))
+        self.search_box.setClearButtonEnabled(True)
+        self.search_box.textChanged.connect(self._apply_search_filter)
+        layout.addWidget(self.search_box)
+
         # ── Filter tree ────────────────────────────────────────────────────
         self.tree = QTreeWidget()
         self.tree.setColumnCount(3)
@@ -421,6 +428,21 @@ class FiltersDialog(QDialog):
             self._load_filters()
         else:
             self.lbl_status.setText(_t("Error: {}", msg))
+
+    # ── Search / filter ─────────────────────────────────────────────────
+
+    def _apply_search_filter(self, text: str) -> None:
+        needle = text.strip().lower()
+        for i in range(self.tree.topLevelItemCount()):
+            group = self.tree.topLevelItem(i)
+            visible_children = 0
+            for j in range(group.childCount()):
+                child = group.child(j)
+                match = not needle or needle in child.text(0).lower()
+                child.setHidden(not match)
+                if match:
+                    visible_children += 1
+            group.setHidden(visible_children == 0)
 
     # ── Helpers ────────────────────────────────────────────────────────────
 
