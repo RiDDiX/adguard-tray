@@ -4,6 +4,8 @@ System tray app for [adguard-cli](https://adguard.com/en/adguard-linux/overview.
 
 Works on Wayland and X11. Written in Python + PyQt6.
 
+The UI language is detected automatically from the system locale. English is the default; German is included as an additional translation.
+
 ---
 
 ## What it does
@@ -51,7 +53,7 @@ adguard-tray
 
 ## Autostart
 
-Either tick **"Autostart beim Login"** in the tray menu, or add it via KDE Systemeinstellungen → Autostart.
+Either tick **"Autostart on login"** in the tray menu, or add it via KDE System Settings → Autostart.
 
 The entry goes to `~/.config/autostart/adguard-tray.desktop` (standard XDG autostart).
 
@@ -60,23 +62,23 @@ The entry goes to `~/.config/autostart/adguard-tray.desktop` (standard XDG autos
 ## Tray menu
 
 ```
-● Status: Aktiv – Schutz läuft
+● Status: Active – Protection running
 ──────────────────────────────
-  Umschalten
-  Deaktivieren
-  Neu starten
+  Toggle
+  Disable
+  Restart
 ──────────────────────────────
-  Filter          ▶  (live list with checkboxes)
-    └ Filter verwalten…
+  Filters         ▶  (live list with checkboxes)
+    └ Manage filters…
   Userscripts     ▶  (live list with checkboxes)
-    └ Userscripts verwalten…
+    └ Manage userscripts…
 ──────────────────────────────
-  Status aktualisieren
+  Refresh status
 ──────────────────────────────
-  Einstellungen…
-  Autostart beim Login  [✓]
+  Settings…
+  Autostart on login  [✓]
 ──────────────────────────────
-  Beenden
+  Quit
 ```
 
 ---

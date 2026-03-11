@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
 from .cli import AdGuardCLI
 from .config import load_config
+from .i18n import _t
 from .tray import AdGuardTray
 
 LOG_DIR = Path.home() / ".local" / "share" / "adguard-tray"
@@ -56,10 +57,12 @@ def main() -> None:
     if not QSystemTrayIcon.isSystemTrayAvailable():
         logger.error("System tray not available")
         _fatal_dialog(
-            "Kein System-Tray verfügbar",
-            "Das System-Tray ist in dieser Desktop-Umgebung nicht verfügbar.\n\n"
-            "Unter Hyprland: waybar mit aktiviertem [tray]-Modul oder sfwbar benötigt.\n"
-            "Unter KDE Plasma sollte es sofort funktionieren.",
+            _t("System tray not available"),
+            _t(
+                "The system tray is not available in this desktop environment.\n\n"
+                "On Hyprland: waybar with the [tray] module enabled or sfwbar is required.\n"
+                "On KDE Plasma it should work out of the box."
+            ),
         )
         sys.exit(1)
 

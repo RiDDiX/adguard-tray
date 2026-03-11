@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 )
 
 from .config import Config, save_config
+from .i18n import _t
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.config = config
         self.exec_path = exec_path
-        self.setWindowTitle("AdGuard Tray – Einstellungen")
+        self.setWindowTitle(_t("AdGuard Tray – Settings"))
         self.setMinimumWidth(400)
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
         self._build_ui()
@@ -59,31 +60,33 @@ class SettingsDialog(QDialog):
         layout.setSpacing(12)
 
         # ── Polling ────────────────────────────────────────────────────────
-        grp_poll = QGroupBox("Status-Aktualisierung")
+        grp_poll = QGroupBox(_t("Status Refresh"))
         form = QFormLayout(grp_poll)
 
         self.spin_interval = QSpinBox()
         self.spin_interval.setRange(5, 300)
         self.spin_interval.setSingleStep(5)
-        self.spin_interval.setSuffix(" Sekunden")
+        self.spin_interval.setSuffix(_t(" seconds"))
         self.spin_interval.setValue(self.config.refresh_interval)
         self.spin_interval.setToolTip(
-            "Wie häufig der Status von adguard-cli automatisch abgefragt wird."
+            _t("How often adguard-cli status is checked automatically.")
         )
-        form.addRow("Intervall:", self.spin_interval)
+        form.addRow(_t("Interval:"), self.spin_interval)
         layout.addWidget(grp_poll)
 
         # ── Notifications ──────────────────────────────────────────────────
-        grp_notify = QGroupBox("Benachrichtigungen")
+        grp_notify = QGroupBox(_t("Notifications"))
         notify_layout = QVBoxLayout(grp_notify)
 
-        self.cb_notify = QCheckBox("Desktop-Benachrichtigung bei Statusänderung")
+        self.cb_notify = QCheckBox(_t("Desktop notification on status change"))
         self.cb_notify.setChecked(self.config.notifications_enabled)
         notify_layout.addWidget(self.cb_notify)
 
         hint = QLabel(
-            "<small>Benötigt <i>libnotify</i> / <i>notify-send</i> oder einen "
-            "aktiven Benachrichtigungsdienst (dunst, mako, KDE).</small>"
+            _t(
+                "<small>Requires <i>libnotify</i> / <i>notify-send</i> or an "
+                "active notification service (dunst, mako, KDE).</small>"
+            )
         )
         hint.setWordWrap(True)
         hint.setTextFormat(Qt.TextFormat.RichText)
@@ -91,19 +94,21 @@ class SettingsDialog(QDialog):
         layout.addWidget(grp_notify)
 
         # ── Autostart ──────────────────────────────────────────────────────
-        grp_auto = QGroupBox("Autostart")
+        grp_auto = QGroupBox(_t("Autostart"))
         auto_layout = QVBoxLayout(grp_auto)
 
         self.cb_autostart = QCheckBox(
-            "Beim Desktop-Login automatisch starten (XDG Autostart)"
+            _t("Start automatically on desktop login (XDG Autostart)")
         )
         self.cb_autostart.setChecked(_AUTOSTART_FILE.exists())
         auto_layout.addWidget(self.cb_autostart)
 
         autostart_hint = QLabel(
-            "<small>Erstellt <i>~/.config/autostart/adguard-tray.desktop</i>.<br>"
-            "Funktioniert auf KDE Plasma, GNOME, Hyprland (mit xdg-autostart-impl) "
-            "und anderen XDG-konformen Umgebungen.</small>"
+            _t(
+                "<small>Creates <i>~/.config/autostart/adguard-tray.desktop</i>.<br>"
+                "Works on KDE Plasma, GNOME, Hyprland (with xdg-autostart-impl) "
+                "and other XDG-compliant environments.</small>"
+            )
         )
         autostart_hint.setWordWrap(True)
         autostart_hint.setTextFormat(Qt.TextFormat.RichText)

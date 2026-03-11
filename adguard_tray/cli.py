@@ -23,6 +23,8 @@ import subprocess
 from dataclasses import dataclass, field
 from enum import Enum
 
+from .i18n import _t
+
 logger = logging.getLogger(__name__)
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
@@ -73,11 +75,13 @@ class AdGuardCLI:
         if code == -1:
             return StatusResult(
                 AdGuardStatus.NOT_INSTALLED,
-                "adguard-cli wurde nicht gefunden.\n"
-                "Installiere es mit: paru -S adguard-cli-bin",
+                _t(
+                    "adguard-cli was not found.\n"
+                    "Install it with: paru -S adguard-cli-bin"
+                ),
             )
         if code < 0:
-            return StatusResult(AdGuardStatus.ERROR, err or "Unbekannter Fehler beim Statusabruf")
+            return StatusResult(AdGuardStatus.ERROR, err or _t("Unknown error retrieving status"))
 
         combined = (out + " " + err).lower()
 
@@ -135,7 +139,7 @@ class AdGuardCLI:
         code, out, err = _run([self.BINARY, cmd])
         if code == 0:
             logger.info("adguard-cli %s succeeded (direct)", cmd)
-            return True, out or f"AdGuard {cmd} erfolgreich"
+            return True, out or _t("AdGuard {} successful", cmd)
 
         logger.debug("Direct %s failed (exit %d): %s – trying pkexec", cmd, code, err)
 
@@ -143,7 +147,7 @@ class AdGuardCLI:
         code2, out2, err2 = _run(["pkexec", self.BINARY, cmd], timeout=60)
         if code2 == 0:
             logger.info("adguard-cli %s succeeded (pkexec)", cmd)
-            return True, out2 or f"AdGuard {cmd} erfolgreich"
+            return True, out2 or _t("AdGuard {} successful", cmd)
 
         logger.debug("pkexec adguard-cli %s failed (exit %d) – trying systemctl", cmd, code2)
 
@@ -155,12 +159,12 @@ class AdGuardCLI:
             )
             if code3 == 0:
                 logger.info("systemctl %s adguard-cli succeeded (pkexec)", systemctl_cmd)
-                return True, f"AdGuard via systemctl {systemctl_cmd} erfolgreich"
+                return True, _t("AdGuard via systemctl {} successful", systemctl_cmd)
             final_err = err3 or out3
         else:
             final_err = err2 or out2 or err or out
 
-        msg = final_err or f"'{cmd}' fehlgeschlagen – Rechte unzureichend?"
+        msg = final_err or _t("'{}' failed – insufficient privileges?", cmd)
         logger.error("All privilege attempts for '%s' failed. Last error: %s", cmd, msg)
         return False, msg
 
@@ -173,15 +177,15 @@ class AdGuardCLI:
             args.append("--all")
         code, out, err = _run(args, timeout=20)
         if code != 0:
-            return FilterListResult(error=err or out or "Filter-Liste konnte nicht abgerufen werden")
+            return FilterListResult(error=err or out or _t("Could not retrieve filter list"))
         return _parse_filter_list(out)
 
     def enable_filter(self, filter_id: int) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "filters", "enable", str(filter_id)], timeout=15)
         if code == 0:
             logger.info("Filter %d enabled", filter_id)
-            return True, out or f"Filter {filter_id} aktiviert"
-        msg = err or out or f"Filter {filter_id} konnte nicht aktiviert werden"
+            return True, out or _t("Filter {} enabled", filter_id)
+        msg = err or out or _t("Could not enable filter {}", filter_id)
         logger.error("enable_filter(%d) failed: %s", filter_id, msg)
         return False, msg
 
@@ -189,8 +193,8 @@ class AdGuardCLI:
         code, out, err = _run([self.BINARY, "filters", "disable", str(filter_id)], timeout=15)
         if code == 0:
             logger.info("Filter %d disabled", filter_id)
-            return True, out or f"Filter {filter_id} deaktiviert"
-        msg = err or out or f"Filter {filter_id} konnte nicht deaktiviert werden"
+            return True, out or _t("Filter {} disabled", filter_id)
+        msg = err or out or _t("Could not disable filter {}", filter_id)
         logger.error("disable_filter(%d) failed: %s", filter_id, msg)
         return False, msg
 
@@ -199,8 +203,8 @@ class AdGuardCLI:
         code, out, err = _run([self.BINARY, "filters", "install", url], timeout=30)
         if code == 0:
             logger.info("Custom filter installed: %s", url)
-            return True, out or "Filter installiert"
-        msg = err or out or "Installation fehlgeschlagen"
+            return True, out or _t("Filter installed")
+        msg = err or out or _t("Installation failed")
         logger.error("install_filter(%s) failed: %s", url, msg)
         return False, msg
 
@@ -208,8 +212,8 @@ class AdGuardCLI:
         code, out, err = _run([self.BINARY, "filters", "remove", str(filter_id)], timeout=15)
         if code == 0:
             logger.info("Filter %d removed", filter_id)
-            return True, out or f"Filter {filter_id} entfernt"
-        msg = err or out or f"Filter {filter_id} konnte nicht entfernt werden"
+            return True, out or _t("Filter {} removed", filter_id)
+        msg = err or out or _t("Could not remove filter {}", filter_id)
         logger.error("remove_filter(%d) failed: %s", filter_id, msg)
         return False, msg
 
@@ -222,8 +226,8 @@ class AdGuardCLI:
         code, out, err = _run([self.BINARY, "check-update"], timeout=120)
         if code == 0:
             logger.info("Filter update completed")
-            return True, out or "Filter aktualisiert"
-        msg = err or out or "Update fehlgeschlagen"
+            return True, out or _t("Filters updated")
+        msg = err or out or _t("Update failed")
         logger.error("update_filters failed: %s", msg)
         return False, msg
 
@@ -233,38 +237,38 @@ class AdGuardCLI:
         """Parse `adguard-cli userscripts list` output."""
         code, out, err = _run([self.BINARY, "userscripts", "list"], timeout=15)
         if code != 0:
-            return UserscriptListResult(error=err or out or "Userscript-Liste konnte nicht abgerufen werden")
+            return UserscriptListResult(error=err or out or _t("Could not retrieve userscript list"))
         return _parse_userscript_list(out)
 
     def enable_userscript(self, name: str) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "userscripts", "enable", name], timeout=15)
         if code == 0:
-            return True, out or f"Userscript '{name}' aktiviert"
-        msg = err or out or f"Userscript '{name}' konnte nicht aktiviert werden"
+            return True, out or _t("Userscript '{}' enabled", name)
+        msg = err or out or _t("Could not enable userscript '{}'", name)
         logger.error("enable_userscript(%s) failed: %s", name, msg)
         return False, msg
 
     def disable_userscript(self, name: str) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "userscripts", "disable", name], timeout=15)
         if code == 0:
-            return True, out or f"Userscript '{name}' deaktiviert"
-        msg = err or out or f"Userscript '{name}' konnte nicht deaktiviert werden"
+            return True, out or _t("Userscript '{}' disabled", name)
+        msg = err or out or _t("Could not disable userscript '{}'", name)
         logger.error("disable_userscript(%s) failed: %s", name, msg)
         return False, msg
 
     def remove_userscript(self, name: str) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "userscripts", "remove", name], timeout=15)
         if code == 0:
-            return True, out or f"Userscript '{name}' entfernt"
-        msg = err or out or f"Userscript '{name}' konnte nicht entfernt werden"
+            return True, out or _t("Userscript '{}' removed", name)
+        msg = err or out or _t("Could not remove userscript '{}'", name)
         logger.error("remove_userscript(%s) failed: %s", name, msg)
         return False, msg
 
     def install_userscript(self, url: str) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "userscripts", "install", url], timeout=30)
         if code == 0:
-            return True, out or "Userscript installiert"
-        msg = err or out or "Installation fehlgeschlagen"
+            return True, out or _t("Userscript installed")
+        msg = err or out or _t("Installation failed")
         logger.error("install_userscript(%s) failed: %s", url, msg)
         return False, msg
 
@@ -366,7 +370,7 @@ def _parse_userscript_list(raw: str) -> UserscriptListResult:
 
 def _parse_filter_list(raw: str) -> FilterListResult:
     result = FilterListResult()
-    current_group = "Sonstige"
+    current_group = _t("Other")
 
     for line in raw.splitlines():
         line = line.strip()

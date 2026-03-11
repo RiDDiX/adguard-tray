@@ -1,32 +1,32 @@
 """
 Main tray application.
 
-Menu structure:
+Menu structure (English default – translated at runtime via i18n):
   ● Status: <text>
   ─────────────────────────────────────
-  ↺  Umschalten
-  ▶  Aktivieren          (only when inactive)
-  ■  Deaktivieren        (only when active)
-  ↺  Neu starten         (only when active)
+  ↺  Toggle
+  ▶  Enable              (only when inactive)
+  ■  Disable             (only when active)
+  ↺  Restart             (only when active)
   ─────────────────────────────────────
-  ▸  Filter              ► (submenu, lazy-loaded)
+  ▸  Filters             ► (submenu, lazy-loaded)
        [✓] AdGuard Base filter
        [✓] Tracking Protection
        …
        ─────────
-       Filter verwalten…
+       Manage filters…
   ▸  Userscripts         ► (submenu, lazy-loaded)
        [✓] AdGuard Extra
        [✓] AdGuard Popup Blocker
        ─────────
-       Userscripts verwalten…
+       Manage userscripts…
   ─────────────────────────────────────
-  ⟳  Status aktualisieren
+  ⟳  Refresh status
   ─────────────────────────────────────
-  ⚙  Einstellungen…
-  [✓] Autostart beim Login
+  ⚙  Settings…
+  [✓] Autostart on login
   ─────────────────────────────────────
-  ✕  Beenden
+  ✕  Quit
 
 Left-click → immediate status refresh.
 """
@@ -44,19 +44,21 @@ from .cli import (
 from .config import Config
 from .icons import icon_active, icon_error, icon_inactive, icon_unknown
 from .notifications import notify
+from .i18n import _t
 from .worker import StatusWorker
 
 logger = logging.getLogger(__name__)
 
 _AUTOSTART_FILE = Path.home() / ".config" / "autostart" / "adguard-tray.desktop"
 
-_STATUS_LABEL: dict[AdGuardStatus, str] = {
-    AdGuardStatus.ACTIVE:        "Aktiv  –  Schutz läuft",
-    AdGuardStatus.INACTIVE:      "Inaktiv  –  Schutz gestoppt",
-    AdGuardStatus.ERROR:         "Fehler beim Statusabruf",
-    AdGuardStatus.NOT_INSTALLED: "adguard-cli nicht gefunden",
-    AdGuardStatus.UNKNOWN:       "Status unbekannt",
-}
+def _status_label(status: AdGuardStatus) -> str:
+    return {
+        AdGuardStatus.ACTIVE:        _t("Active – Protection running"),
+        AdGuardStatus.INACTIVE:      _t("Inactive – Protection stopped"),
+        AdGuardStatus.ERROR:         _t("Error retrieving status"),
+        AdGuardStatus.NOT_INSTALLED: _t("adguard-cli not found"),
+        AdGuardStatus.UNKNOWN:       _t("Unknown status"),
+    }.get(status, _t("Unknown status"))
 
 _STATUS_ICON = {
     AdGuardStatus.ACTIVE:        icon_active,
@@ -159,54 +161,54 @@ class AdGuardTray(QSystemTrayIcon):
         menu = QMenu()
 
         # Status label (non-clickable)
-        self._act_status = QAction("Status wird abgefragt…")
+        self._act_status = QAction(_t("Checking status…"))
         self._act_status.setEnabled(False)
         menu.addAction(self._act_status)
 
         menu.addSeparator()
 
         # Protection controls
-        self._act_toggle = QAction("Umschalten")
+        self._act_toggle = QAction(_t("Toggle"))
         self._act_toggle.triggered.connect(self._do_toggle)
         menu.addAction(self._act_toggle)
 
-        self._act_enable = QAction("Aktivieren")
+        self._act_enable = QAction(_t("Enable"))
         self._act_enable.triggered.connect(self._do_enable)
         menu.addAction(self._act_enable)
 
-        self._act_disable = QAction("Deaktivieren")
+        self._act_disable = QAction(_t("Disable"))
         self._act_disable.triggered.connect(self._do_disable)
         menu.addAction(self._act_disable)
 
-        self._act_restart = QAction("Neu starten")
+        self._act_restart = QAction(_t("Restart"))
         self._act_restart.triggered.connect(self._do_restart)
         menu.addAction(self._act_restart)
 
         menu.addSeparator()
 
         # Filter submenu
-        self._filter_menu = QMenu("Filter")
+        self._filter_menu = QMenu(_t("Filters"))
         self._filter_menu.aboutToShow.connect(self._load_filter_submenu)
         menu.addMenu(self._filter_menu)
 
         # Userscript submenu
-        self._us_menu = QMenu("Userscripts")
+        self._us_menu = QMenu(_t("Userscripts"))
         self._us_menu.aboutToShow.connect(self._load_userscript_submenu)
         menu.addMenu(self._us_menu)
 
         menu.addSeparator()
 
-        act_refresh = QAction("Status aktualisieren")
+        act_refresh = QAction(_t("Refresh status"))
         act_refresh.triggered.connect(lambda: self.worker.refresh())
         menu.addAction(act_refresh)
 
         menu.addSeparator()
 
-        act_settings = QAction("Einstellungen…")
+        act_settings = QAction(_t("Settings…"))
         act_settings.triggered.connect(self._show_settings)
         menu.addAction(act_settings)
 
-        self._act_autostart = QAction("Autostart beim Login")
+        self._act_autostart = QAction(_t("Autostart on login"))
         self._act_autostart.setCheckable(True)
         self._act_autostart.setChecked(_AUTOSTART_FILE.exists())
         self._act_autostart.triggered.connect(self._toggle_autostart)
@@ -214,7 +216,7 @@ class AdGuardTray(QSystemTrayIcon):
 
         menu.addSeparator()
 
-        act_quit = QAction("Beenden")
+        act_quit = QAction(_t("Quit"))
         act_quit.triggered.connect(self.app.quit)
         menu.addAction(act_quit)
 
@@ -238,7 +240,7 @@ class AdGuardTray(QSystemTrayIcon):
 
     def _load_filter_submenu(self) -> None:
         self._filter_menu.clear()
-        placeholder = self._filter_menu.addAction("Wird geladen…")
+        placeholder = self._filter_menu.addAction(_t("Loading…"))
         placeholder.setEnabled(False)
 
         w = _FilterLoader(self.cli)
@@ -251,7 +253,7 @@ class AdGuardTray(QSystemTrayIcon):
         self._filter_menu.clear()
 
         if result.error:
-            err = self._filter_menu.addAction(f"Fehler: {result.error}")
+            err = self._filter_menu.addAction(_t("Error: {}", result.error))
             err.setEnabled(False)
         else:
             for group_name, filters in result.groups.items():
@@ -273,7 +275,7 @@ class AdGuardTray(QSystemTrayIcon):
                     self._filter_menu.addAction(act)
 
         self._filter_menu.addSeparator()
-        act_manage = self._filter_menu.addAction("Filter verwalten…")
+        act_manage = self._filter_menu.addAction(_t("Manage filters…"))
         act_manage.triggered.connect(self._show_filters_dialog)
 
     def _toggle_filter(self, fid: int, enable: bool) -> None:
@@ -285,13 +287,13 @@ class AdGuardTray(QSystemTrayIcon):
 
     def _on_filter_toggle_done(self, ok: bool, msg: str, fid: int, new_enabled: bool) -> None:
         if not ok and self.config.notifications_enabled:
-            notify("AdGuard Tray – Fehler", msg, urgency="critical", tray=self)
+            notify(_t("AdGuard Tray – Error"), msg, urgency="critical", tray=self)
 
     # ── Userscript submenu (lazy) ──────────────────────────────────────────
 
     def _load_userscript_submenu(self) -> None:
         self._us_menu.clear()
-        placeholder = self._us_menu.addAction("Wird geladen…")
+        placeholder = self._us_menu.addAction(_t("Loading…"))
         placeholder.setEnabled(False)
 
         w = _UserscriptLoader(self.cli)
@@ -304,10 +306,10 @@ class AdGuardTray(QSystemTrayIcon):
         self._us_menu.clear()
 
         if result.error:
-            err = self._us_menu.addAction(f"Fehler: {result.error}")
+            err = self._us_menu.addAction(_t("Error: {}", result.error))
             err.setEnabled(False)
         elif not result.scripts:
-            none_act = self._us_menu.addAction("Keine Userscripts installiert")
+            none_act = self._us_menu.addAction(_t("No userscripts installed"))
             none_act.setEnabled(False)
         else:
             for s in result.scripts:
@@ -320,7 +322,7 @@ class AdGuardTray(QSystemTrayIcon):
                 self._us_menu.addAction(act)
 
         self._us_menu.addSeparator()
-        act_manage = self._us_menu.addAction("Userscripts verwalten…")
+        act_manage = self._us_menu.addAction(_t("Manage userscripts…"))
         act_manage.triggered.connect(self._show_userscripts_dialog)
 
     def _toggle_userscript(self, name: str, enable: bool) -> None:
@@ -332,7 +334,7 @@ class AdGuardTray(QSystemTrayIcon):
 
     def _on_userscript_toggle_done(self, ok: bool, msg: str, name: str, new_enabled: bool) -> None:
         if not ok and self.config.notifications_enabled:
-            notify("AdGuard Tray – Fehler", msg, urgency="critical", tray=self)
+            notify(_t("AdGuard Tray – Error"), msg, urgency="critical", tray=self)
 
     # ── Status updates ─────────────────────────────────────────────────────
 
@@ -342,17 +344,17 @@ class AdGuardTray(QSystemTrayIcon):
 
         self.setIcon(self._icon_map[result.status])
 
-        lines = [_STATUS_LABEL[result.status]]
+        lines = [_status_label(result.status)]
         if result.proxy_port:
-            lines.append(f"HTTP-Proxy: 127.0.0.1:{result.proxy_port}")
+            lines.append(f"HTTP Proxy: 127.0.0.1:{result.proxy_port}")
         if result.status == AdGuardStatus.ACTIVE:
-            state = "aktiv" if result.filtering_enabled else "inaktiv"
-            lines.append(f"Systemweites Filtern: {state}")
+            state = _t("active") if result.filtering_enabled else _t("inactive")
+            lines.append(_t("System-wide filtering: {}", state))
         if result.status == AdGuardStatus.ERROR and result.message:
-            lines.append(f"Fehler: {result.message}")
+            lines.append(_t("Error: {}", result.message))
         self.setToolTip("\n".join(lines))
 
-        self._act_status.setText(_STATUS_LABEL[result.status])
+        self._act_status.setText(_status_label(result.status))
         self._update_menu_state(result.status)
 
         if old is not None and old != result.status and self.config.notifications_enabled:
@@ -360,11 +362,11 @@ class AdGuardTray(QSystemTrayIcon):
 
     def _notify_change(self, old: AdGuardStatus, new: AdGuardStatus) -> None:
         if new == AdGuardStatus.ACTIVE:
-            notify("AdGuard Tray", "AdGuard ist jetzt aktiv – Schutz läuft.", tray=self)
+            notify("AdGuard Tray", _t("AdGuard is now active – protection running."), tray=self)
         elif new == AdGuardStatus.INACTIVE:
-            notify("AdGuard Tray", "AdGuard wurde gestoppt.", urgency="low", tray=self)
+            notify("AdGuard Tray", _t("AdGuard has been stopped."), urgency="low", tray=self)
         elif new == AdGuardStatus.ERROR:
-            notify("AdGuard Tray – Fehler", "Status konnte nicht abgerufen werden.",
+            notify(_t("AdGuard Tray – Error"), _t("Could not retrieve status."),
                    urgency="critical", tray=self)
 
     # ── Protection actions ─────────────────────────────────────────────────
@@ -401,7 +403,7 @@ class AdGuardTray(QSystemTrayIcon):
     def _on_action_done(self, ok: bool, msg: str) -> None:
         self._set_busy(False)
         if not ok and self.config.notifications_enabled:
-            notify("AdGuard Tray – Fehler", msg or "Befehl fehlgeschlagen",
+            notify(_t("AdGuard Tray – Error"), msg or _t("Command failed"),
                    urgency="critical", tray=self)
         QTimer.singleShot(1500, self.worker.refresh)
 

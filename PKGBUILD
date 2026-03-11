@@ -1,10 +1,10 @@
-# Maintainer: RiDDiX <your@email.com>
+# Maintainer: RiDDiX <github@egu-rel.de>
 pkgname=adguard-tray
 pkgver=1.0.0
 pkgrel=1
 pkgdesc="System tray monitor and controller for adguard-cli (KDE Plasma & Hyprland)"
 arch=('any')
-url="https://github.com/YOUR_USERNAME/adguard-tray"
+url="https://github.com/RiDDiX/adguard-tray"
 license=('MIT')
 depends=(
     'python'

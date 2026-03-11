@@ -34,6 +34,7 @@ from PyQt6.QtWidgets import (
 )
 
 from .cli import AdGuardCLI, FilterEntry, FilterListResult
+from .i18n import _t
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +120,7 @@ class FiltersDialog(QDialog):
         self._workers: list[QThread] = []  # keep refs alive
         self._filter_map: dict[int, FilterEntry] = {}
 
-        self.setWindowTitle("AdGuard Tray – Filter verwalten")
+        self.setWindowTitle(_t("AdGuard Tray – Manage Filters"))
         self.setMinimumSize(700, 520)
         self.resize(760, 580)
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
@@ -135,22 +136,24 @@ class FiltersDialog(QDialog):
         # ── Toolbar ────────────────────────────────────────────────────────
         toolbar = QHBoxLayout()
 
-        self.btn_update = QPushButton("Filter aktualisieren")
+        self.btn_update = QPushButton(_t("Update filters"))
         self.btn_update.setToolTip(
-            "Aktualisiert alle Filter, DNS-Filter, Userscripts,\n"
-            "SafebrowsingV2, CRLite und prüft auf App-Updates."
+            _t(
+                "Updates all filters, DNS filters, userscripts,\n"
+                "SafebrowsingV2, CRLite and checks for app updates."
+            )
         )
         self.btn_update.clicked.connect(self._run_update)
         toolbar.addWidget(self.btn_update)
 
-        self.btn_add = QPushButton("Eigenen Filter hinzufügen…")
-        self.btn_add.setToolTip("Custom-Filter per URL installieren")
+        self.btn_add = QPushButton(_t("Add custom filter…"))
+        self.btn_add.setToolTip(_t("Install custom filter by URL"))
         self.btn_add.clicked.connect(self._add_custom_filter)
         toolbar.addWidget(self.btn_add)
 
         toolbar.addStretch()
 
-        self.btn_reload = QPushButton("↺ Neu laden")
+        self.btn_reload = QPushButton(_t("↺ Reload"))
         self.btn_reload.clicked.connect(self._load_filters)
         toolbar.addWidget(self.btn_reload)
 
@@ -170,7 +173,7 @@ class FiltersDialog(QDialog):
         # ── Filter tree ────────────────────────────────────────────────────
         self.tree = QTreeWidget()
         self.tree.setColumnCount(3)
-        self.tree.setHeaderLabels(["Filter", "ID", "Zuletzt aktualisiert"])
+        self.tree.setHeaderLabels([_t("Filter"), _t("ID"), _t("Last updated")])
         self.tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.tree.header().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
@@ -199,7 +202,7 @@ class FiltersDialog(QDialog):
 
     def _load_filters(self) -> None:
         self._set_busy(True)
-        self.lbl_status.setText("Filter werden geladen…")
+        self.lbl_status.setText(_t("Loading filters…"))
         w = _LoadWorker(self.cli)
         w.done.connect(self._on_filters_loaded)
         w.finished.connect(lambda: self._workers.remove(w))
@@ -212,16 +215,16 @@ class FiltersDialog(QDialog):
         self._filter_map.clear()
 
         if result.error:
-            self.lbl_status.setText(f"Fehler: {result.error}")
+            self.lbl_status.setText(_t("Error: {}", result.error))
             return
 
         if not result.groups:
-            self.lbl_status.setText("Keine Filter gefunden.")
+            self.lbl_status.setText(_t("No filters found."))
             return
 
         total = sum(len(v) for v in result.groups.values())
         active = sum(1 for f in result.all_filters if f.enabled)
-        self.lbl_status.setText(f"{active} von {total} Filtern aktiv")
+        self.lbl_status.setText(_t("{} of {} filters active", active, total))
 
         for group_name, filters in result.groups.items():
             group_item = QTreeWidgetItem(self.tree)
@@ -274,7 +277,7 @@ class FiltersDialog(QDialog):
         enable = item.checkState(0) == Qt.CheckState.Checked
         self._set_busy(True)
         self.lbl_status.setText(
-            f"Filter {fid} wird {'aktiviert' if enable else 'deaktiviert'}…"
+            _t("Enabling filter {}…", fid) if enable else _t("Disabling filter {}…", fid)
         )
 
         # Disconnect during operation to avoid recursive signals
@@ -291,12 +294,13 @@ class FiltersDialog(QDialog):
         if ok:
             if fid in self._filter_map:
                 self._filter_map[fid].enabled = new_enabled
-            state = "aktiviert" if new_enabled else "deaktiviert"
-            self.lbl_status.setText(f"Filter {fid} {state}.")
+            self.lbl_status.setText(
+                _t("Filter {} enabled.", fid) if new_enabled else _t("Filter {} disabled.", fid)
+            )
         else:
             # Revert checkbox
             self._revert_checkbox(fid, not new_enabled)
-            self.lbl_status.setText(f"Fehler: {msg}")
+            self.lbl_status.setText(_t("Error: {}", msg))
 
         self.tree.itemChanged.connect(self._on_item_changed)
 
@@ -318,7 +322,7 @@ class FiltersDialog(QDialog):
 
     def _run_update(self) -> None:
         self._set_busy(True)
-        self.lbl_status.setText("Filter werden aktualisiert…")
+        self.lbl_status.setText(_t("Updating filters…"))
         self.update_output.hide()
         w = _UpdateWorker(self.cli)
         w.done.connect(self._on_update_done)
@@ -329,9 +333,9 @@ class FiltersDialog(QDialog):
     def _on_update_done(self, ok: bool, msg: str) -> None:
         self._set_busy(False)
         if ok:
-            self.lbl_status.setText("Aktualisierung abgeschlossen.")
+            self.lbl_status.setText(_t("Update completed."))
         else:
-            self.lbl_status.setText("Aktualisierung fehlgeschlagen.")
+            self.lbl_status.setText(_t("Update failed."))
 
         # Show full output in the collapsible label
         self.update_output.setText(msg)
@@ -345,8 +349,8 @@ class FiltersDialog(QDialog):
     def _add_custom_filter(self) -> None:
         url, ok = QInputDialog.getText(
             self,
-            "Eigenen Filter hinzufügen",
-            "Filter-URL (direkte .txt-URL der Filterliste):",
+            _t("Add Custom Filter"),
+            _t("Filter URL (direct .txt URL of the filter list):"),
             QLineEdit.EchoMode.Normal,
         )
         if not ok or not url.strip():
@@ -354,7 +358,7 @@ class FiltersDialog(QDialog):
 
         url = url.strip()
         self._set_busy(True)
-        self.lbl_status.setText(f"Installiere: {url}")
+        self.lbl_status.setText(_t("Installing: {}", url))
         w = _InstallWorker(self.cli, url)
         w.done.connect(self._on_install_done)
         w.finished.connect(lambda: self._workers.remove(w))
@@ -364,10 +368,10 @@ class FiltersDialog(QDialog):
     def _on_install_done(self, ok: bool, msg: str) -> None:
         self._set_busy(False)
         if ok:
-            self.lbl_status.setText("Filter installiert.")
+            self.lbl_status.setText(_t("Filter installed."))
             self._load_filters()
         else:
-            self.lbl_status.setText(f"Fehler: {msg}")
+            self.lbl_status.setText(_t("Error: {}", msg))
 
     # ── Context menu (right-click) ─────────────────────────────────────────
 
@@ -386,7 +390,7 @@ class FiltersDialog(QDialog):
 
         menu = QMenu(self)
         if f.is_custom:
-            act_remove = menu.addAction("Entfernen")
+            act_remove = menu.addAction(_t("Remove"))
             act_remove.triggered.connect(lambda: self._remove_filter(fid))
         menu.exec(self.tree.viewport().mapToGlobal(pos))
 
@@ -395,15 +399,15 @@ class FiltersDialog(QDialog):
         name = f.title if f else str(fid)
         reply = QMessageBox.question(
             self,
-            "Filter entfernen",
-            f"Filter «{name}» wirklich entfernen?",
+            _t("Remove filter"),
+            _t('Really remove filter "{}"?', name),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
 
         self._set_busy(True)
-        self.lbl_status.setText(f"Filter {fid} wird entfernt…")
+        self.lbl_status.setText(_t("Removing filter {}…", fid))
         w = _RemoveWorker(self.cli, fid)
         w.done.connect(self._on_remove_done)
         w.finished.connect(lambda: self._workers.remove(w))
@@ -413,10 +417,10 @@ class FiltersDialog(QDialog):
     def _on_remove_done(self, ok: bool, msg: str, fid: int) -> None:
         self._set_busy(False)
         if ok:
-            self.lbl_status.setText(f"Filter {fid} entfernt.")
+            self.lbl_status.setText(_t("Filter {} removed.", fid))
             self._load_filters()
         else:
-            self.lbl_status.setText(f"Fehler: {msg}")
+            self.lbl_status.setText(_t("Error: {}", msg))
 
     # ── Helpers ────────────────────────────────────────────────────────────
 

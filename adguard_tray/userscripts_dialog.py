@@ -33,6 +33,7 @@ from PyQt6.QtWidgets import (
 )
 
 from .cli import AdGuardCLI, UserscriptEntry, UserscriptListResult
+from .i18n import _t
 
 logger = logging.getLogger(__name__)
 
@@ -93,14 +94,14 @@ class UserscriptsDialog(QDialog):
         # Toolbar
         bar = QHBoxLayout()
 
-        self.btn_add = QPushButton("Installieren (URL)…")
-        self.btn_add.setToolTip("Userscript von einer direkten .js-URL installieren")
+        self.btn_add = QPushButton(_t("Install (URL)…"))
+        self.btn_add.setToolTip(_t("Install userscript from a direct .js URL"))
         self.btn_add.clicked.connect(self._install)
         bar.addWidget(self.btn_add)
 
         bar.addStretch()
 
-        self.btn_reload = QPushButton("↺ Neu laden")
+        self.btn_reload = QPushButton(_t("↺ Reload"))
         self.btn_reload.clicked.connect(self._load)
         bar.addWidget(self.btn_reload)
 
@@ -120,7 +121,7 @@ class UserscriptsDialog(QDialog):
         # Tree
         self.tree = QTreeWidget()
         self.tree.setColumnCount(3)
-        self.tree.setHeaderLabels(["Userscript", "ID / Name", "Zuletzt aktualisiert"])
+        self.tree.setHeaderLabels([_t("Userscript"), _t("ID / Name"), _t("Last updated")])
         self.tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.tree.header().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
@@ -130,8 +131,11 @@ class UserscriptsDialog(QDialog):
 
         # Info label
         info = QLabel(
-            "<small>Rechtsklick auf ein Userscript zum Entfernen.<br>"
-            "Userscripts werden bei <i>Filter aktualisieren</i> automatisch mit aktualisiert.</small>"
+            _t(
+                "<small>Right-click a userscript to remove it.<br>"
+                "Userscripts are automatically updated when running "
+                "<i>Update filters</i>.</small>"
+            )
         )
         info.setTextFormat(Qt.TextFormat.RichText)
         info.setWordWrap(True)
@@ -146,7 +150,7 @@ class UserscriptsDialog(QDialog):
 
     def _load(self) -> None:
         self._set_busy(True)
-        self.lbl_status.setText("Userscripts werden geladen…")
+        self.lbl_status.setText(_t("Loading userscripts…"))
         w = _LoadWorker(self.cli)
         w.done.connect(self._on_loaded)
         w.finished.connect(lambda: self._workers.remove(w))
@@ -159,14 +163,14 @@ class UserscriptsDialog(QDialog):
         self._script_map.clear()
 
         if result.error:
-            self.lbl_status.setText(f"Fehler: {result.error}")
+            self.lbl_status.setText(_t("Error: {}", result.error))
             return
         if not result.scripts:
-            self.lbl_status.setText("Keine Userscripts installiert.")
+            self.lbl_status.setText(_t("No userscripts installed."))
             return
 
         active = sum(1 for s in result.scripts if s.enabled)
-        self.lbl_status.setText(f"{active} von {len(result.scripts)} Userscripts aktiv")
+        self.lbl_status.setText(_t("{} of {} userscripts active", active, len(result.scripts)))
 
         for s in result.scripts:
             self._script_map[s.name] = s
@@ -194,7 +198,7 @@ class UserscriptsDialog(QDialog):
         enable = item.checkState(0) == Qt.CheckState.Checked
         self._set_busy(True)
         self.lbl_status.setText(
-            f"Userscript '{name}' wird {'aktiviert' if enable else 'deaktiviert'}…"
+            _t("Enabling userscript '{}'…", name) if enable else _t("Disabling userscript '{}'…", name)
         )
         self.tree.itemChanged.disconnect(self._on_item_changed)
         w = _ToggleWorker(self.cli, name, enable)
@@ -208,8 +212,10 @@ class UserscriptsDialog(QDialog):
         if ok:
             if name in self._script_map:
                 self._script_map[name].enabled = new_enabled
-            state = "aktiviert" if new_enabled else "deaktiviert"
-            self.lbl_status.setText(f"Userscript '{name}' {state}.")
+            self.lbl_status.setText(
+                _t("Userscript '{}' enabled.", name) if new_enabled
+                else _t("Userscript '{}' disabled.", name)
+            )
         else:
             # Revert checkbox
             for i in range(self.tree.topLevelItemCount()):
@@ -220,7 +226,7 @@ class UserscriptsDialog(QDialog):
                         Qt.CheckState.Checked if not new_enabled else Qt.CheckState.Unchecked,
                     )
                     break
-            self.lbl_status.setText(f"Fehler: {msg}")
+            self.lbl_status.setText(_t("Error: {}", msg))
         self.tree.itemChanged.connect(self._on_item_changed)
 
     # ── Install ────────────────────────────────────────────────────────────
@@ -228,14 +234,14 @@ class UserscriptsDialog(QDialog):
     def _install(self) -> None:
         url, ok = QInputDialog.getText(
             self,
-            "Userscript installieren",
-            "Userscript-URL (direkte .js-URL):",
+            _t("Install Userscript"),
+            _t("Userscript URL (direct .js URL):"),
             QLineEdit.EchoMode.Normal,
         )
         if not ok or not url.strip():
             return
         self._set_busy(True)
-        self.lbl_status.setText(f"Installiere: {url.strip()}")
+        self.lbl_status.setText(_t("Installing: {}", url.strip()))
         w = _InstallWorker(self.cli, url.strip())
         w.done.connect(self._on_install_done)
         w.finished.connect(lambda: self._workers.remove(w))
@@ -245,10 +251,10 @@ class UserscriptsDialog(QDialog):
     def _on_install_done(self, ok: bool, msg: str) -> None:
         self._set_busy(False)
         if ok:
-            self.lbl_status.setText("Userscript installiert.")
+            self.lbl_status.setText(_t("Userscript installed."))
             self._load()
         else:
-            self.lbl_status.setText(f"Fehler: {msg}")
+            self.lbl_status.setText(_t("Error: {}", msg))
 
     # ── Context menu / remove ──────────────────────────────────────────────
 
@@ -261,7 +267,7 @@ class UserscriptsDialog(QDialog):
         if not name:
             return
         menu = QMenu(self)
-        act = menu.addAction(f"«{name}» entfernen")
+        act = menu.addAction(_t('Remove "{}"', name))
         act.triggered.connect(lambda: self._remove(name))
         menu.exec(self.tree.viewport().mapToGlobal(pos))
 
@@ -270,14 +276,14 @@ class UserscriptsDialog(QDialog):
         display = s.title if s else name
         reply = QMessageBox.question(
             self,
-            "Userscript entfernen",
-            f"Userscript «{display}» wirklich entfernen?",
+            _t("Remove userscript"),
+            _t('Really remove userscript "{}"?', display),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
         self._set_busy(True)
-        self.lbl_status.setText(f"Entferne '{name}'…")
+        self.lbl_status.setText(_t("Removing '{}'…", name))
         w = _RemoveWorker(self.cli, name)
         w.done.connect(self._on_remove_done)
         w.finished.connect(lambda: self._workers.remove(w))
@@ -287,10 +293,10 @@ class UserscriptsDialog(QDialog):
     def _on_remove_done(self, ok: bool, msg: str, name: str) -> None:
         self._set_busy(False)
         if ok:
-            self.lbl_status.setText(f"'{name}' entfernt.")
+            self.lbl_status.setText(_t("'{}' removed.", name))
             self._load()
         else:
-            self.lbl_status.setText(f"Fehler: {msg}")
+            self.lbl_status.setText(_t("Error: {}", msg))
 
     # ── Helpers ────────────────────────────────────────────────────────────
 
