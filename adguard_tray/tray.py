@@ -208,9 +208,9 @@ class AdGuardTray(QSystemTrayIcon):
 
         menu.addSeparator()
 
-        act_refresh = QAction(_t("Refresh status"))
-        act_refresh.triggered.connect(lambda: self.worker.refresh())
-        menu.addAction(act_refresh)
+        self._act_refresh = QAction(_t("Refresh status"))
+        self._act_refresh.triggered.connect(lambda: self.worker.refresh())
+        menu.addAction(self._act_refresh)
 
         menu.addSeparator()
 
@@ -218,9 +218,9 @@ class AdGuardTray(QSystemTrayIcon):
         self._act_proxy_config.triggered.connect(self._show_proxy_config)
         menu.addAction(self._act_proxy_config)
 
-        act_settings = QAction(_t("Settings…"))
-        act_settings.triggered.connect(self._show_settings)
-        menu.addAction(act_settings)
+        self._act_settings = QAction(_t("Settings…"))
+        self._act_settings.triggered.connect(self._show_settings)
+        menu.addAction(self._act_settings)
 
         self._act_autostart = QAction(_t("Autostart on login"))
         self._act_autostart.setCheckable(True)
@@ -230,9 +230,9 @@ class AdGuardTray(QSystemTrayIcon):
 
         menu.addSeparator()
 
-        act_quit = QAction(_t("Quit"))
-        act_quit.triggered.connect(self.app.quit)
-        menu.addAction(act_quit)
+        self._act_quit = QAction(_t("Quit"))
+        self._act_quit.triggered.connect(self.app.quit)
+        menu.addAction(self._act_quit)
 
         self.setContextMenu(menu)
         self._update_menu_state(None)
