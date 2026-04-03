@@ -35,17 +35,21 @@ import logging
 import time
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QRunnable, QThread, QThreadPool, QTimer, pyqtSignal, pyqtSlot, Qt
+from PyQt6.QtCore import QObject, QRunnable, QThread, QThreadPool, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from .cli import (
-    AdGuardCLI, AdGuardStatus, FilterListResult, StatusResult, UserscriptListResult,
+    AdGuardCLI,
+    AdGuardStatus,
+    FilterListResult,
+    StatusResult,
+    UserscriptListResult,
 )
 from .config import Config
+from .i18n import _t
 from .icons import icon_active, icon_error, icon_inactive, icon_unknown
 from .notifications import notify
-from .i18n import _t
 from .worker import StatusWorker
 
 logger = logging.getLogger(__name__)
@@ -310,7 +314,9 @@ class AdGuardTray(QSystemTrayIcon):
         w.start()
 
     def _on_filter_toggle_done(self, ok: bool, msg: str, fid: int, new_enabled: bool) -> None:
-        if not ok and self.config.notifications_enabled:
+        if ok:
+            self._restart_cli_async()
+        elif self.config.notifications_enabled:
             notify(_t("AdGuard Tray – Error"), msg, urgency="critical", tray=self)
 
     # ── Userscript submenu (lazy) ──────────────────────────────────────────
@@ -361,7 +367,9 @@ class AdGuardTray(QSystemTrayIcon):
         w.start()
 
     def _on_userscript_toggle_done(self, ok: bool, msg: str, name: str, new_enabled: bool) -> None:
-        if not ok and self.config.notifications_enabled:
+        if ok:
+            self._restart_cli_async()
+        elif self.config.notifications_enabled:
             notify(_t("AdGuard Tray – Error"), msg, urgency="critical", tray=self)
 
     # ── Status updates ─────────────────────────────────────────────────────
@@ -441,6 +449,25 @@ class AdGuardTray(QSystemTrayIcon):
         # Second check to catch delayed state changes
         QTimer.singleShot(2000, self.worker.refresh)
 
+    def _restart_cli_async(self) -> None:
+        """Restart adguard-cli after a config change and notify the user."""
+        if self.config.notifications_enabled:
+            notify("AdGuard Tray", _t("Restarting AdGuard…"), tray=self)
+        sig = _ActionSignals()
+        sig.done.connect(self._on_restart_done)
+        QThreadPool.globalInstance().start(_ActionRunnable(self.cli.restart, sig))
+
+    def _on_restart_done(self, ok: bool, msg: str) -> None:
+        if self.config.notifications_enabled:
+            if ok:
+                notify("AdGuard Tray", _t("AdGuard restarted successfully."), tray=self)
+            else:
+                notify(_t("AdGuard Tray – Error"),
+                       _t("Restart failed: {}", msg or _t("Unknown error")),
+                       urgency="critical", tray=self)
+        self.worker.refresh()
+        QTimer.singleShot(2000, self.worker.refresh)
+
     # ── Autostart ──────────────────────────────────────────────────────────
 
     def _toggle_autostart(self, enable: bool) -> None:
@@ -469,10 +496,7 @@ class AdGuardTray(QSystemTrayIcon):
         from .proxy_config_dialog import ProxyConfigDialog
         dlg = ProxyConfigDialog()
         if dlg.exec():
-            if self.config.notifications_enabled:
-                notify("AdGuard Tray",
-                       _t("Configuration saved. Restart AdGuard to apply changes."),
-                       tray=self)
+            self._restart_cli_async()
 
     def _show_settings(self) -> None:
         from .settings_dialog import SettingsDialog
@@ -484,11 +508,13 @@ class AdGuardTray(QSystemTrayIcon):
 
     def _show_filters_dialog(self) -> None:
         from .filters_dialog import FiltersDialog
-        FiltersDialog(self.cli, parent=None).exec()
+        dlg = FiltersDialog(self.cli, on_change=self._restart_cli_async, parent=None)
+        dlg.exec()
 
     def _show_userscripts_dialog(self) -> None:
         from .userscripts_dialog import UserscriptsDialog
-        UserscriptsDialog(self.cli, parent=None).exec()
+        dlg = UserscriptsDialog(self.cli, on_change=self._restart_cli_async, parent=None)
+        dlg.exec()
 
     # ── Tray click ─────────────────────────────────────────────────────────
 

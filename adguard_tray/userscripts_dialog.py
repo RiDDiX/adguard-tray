@@ -15,7 +15,6 @@ Commands used:
 import logging
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -74,11 +73,13 @@ class _InstallWorker(QThread):
 # ── Dialog ─────────────────────────────────────────────────────────────────
 
 class UserscriptsDialog(QDialog):
-    def __init__(self, cli: AdGuardCLI, parent=None) -> None:
+    def __init__(self, cli: AdGuardCLI, on_change=None, parent=None) -> None:
         super().__init__(parent)
         self.cli = cli
+        self._on_change = on_change
         self._workers: list[QThread] = []
         self._script_map: dict[str, UserscriptEntry] = {}
+        self._changed = False
 
         self.setWindowTitle(_t("AdGuard Tray – Userscripts"))
         self.setMinimumSize(600, 400)
@@ -222,6 +223,7 @@ class UserscriptsDialog(QDialog):
     def _on_toggle_done(self, ok: bool, msg: str, name: str, new_enabled: bool) -> None:
         self._set_busy(False)
         if ok:
+            self._changed = True
             if name in self._script_map:
                 self._script_map[name].enabled = new_enabled
             self.lbl_status.setText(
@@ -263,6 +265,7 @@ class UserscriptsDialog(QDialog):
     def _on_install_done(self, ok: bool, msg: str) -> None:
         self._set_busy(False)
         if ok:
+            self._changed = True
             self.lbl_status.setText(_t("Userscript installed."))
             self._load()
         else:
@@ -305,6 +308,7 @@ class UserscriptsDialog(QDialog):
     def _on_remove_done(self, ok: bool, msg: str, name: str) -> None:
         self._set_busy(False)
         if ok:
+            self._changed = True
             self.lbl_status.setText(_t("'{}' removed.", name))
             self._load()
         else:
@@ -333,3 +337,8 @@ class UserscriptsDialog(QDialog):
             self._shown_once = True
             self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             self.tree.customContextMenuRequested.connect(self._on_context_menu)
+
+    def closeEvent(self, event) -> None:
+        if self._changed and self._on_change:
+            self._on_change()
+        super().closeEvent(event)

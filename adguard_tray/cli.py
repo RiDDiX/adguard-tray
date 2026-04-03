@@ -18,9 +18,7 @@ Filter list output format (after ANSI strip):
 """
 
 import logging
-import os
 import re
-import signal
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -36,6 +34,15 @@ _PORT_RE = re.compile(r"127\.0\.0\.1:(\d+)")
 
 def _strip_ansi(text: str) -> str:
     return _ANSI_RE.sub("", text)
+
+
+_FAILURE_KEYWORDS = ("failed to install", "failed to download", "failed to remove", "failed to enable", "failed to disable")
+
+
+def _is_cli_failure(stdout: str) -> bool:
+    """Detect failure reported in stdout (adguard-cli returns exit 0 on some failures)."""
+    lower = stdout.lower()
+    return any(kw in lower for kw in _FAILURE_KEYWORDS)
 
 
 class AdGuardStatus(Enum):
@@ -226,7 +233,7 @@ class AdGuardCLI:
 
     def enable_filter(self, filter_id: int) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "filters", "enable", str(filter_id)], timeout=15)
-        if code == 0:
+        if code == 0 and not _is_cli_failure(out):
             logger.info("Filter %d enabled", filter_id)
             return True, out or _t("Filter {} enabled", filter_id)
         msg = err or out or _t("Could not enable filter {}", filter_id)
@@ -235,7 +242,7 @@ class AdGuardCLI:
 
     def disable_filter(self, filter_id: int) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "filters", "disable", str(filter_id)], timeout=15)
-        if code == 0:
+        if code == 0 and not _is_cli_failure(out):
             logger.info("Filter %d disabled", filter_id)
             return True, out or _t("Filter {} disabled", filter_id)
         msg = err or out or _t("Could not disable filter {}", filter_id)
@@ -245,7 +252,7 @@ class AdGuardCLI:
     def install_filter(self, url: str) -> tuple[bool, str]:
         """Install a custom filter from a URL."""
         code, out, err = _run([self.BINARY, "filters", "install", url], timeout=30)
-        if code == 0:
+        if code == 0 and not _is_cli_failure(out):
             logger.info("Custom filter installed: %s", url)
             return True, out or _t("Filter installed")
         msg = err or out or _t("Installation failed")
@@ -310,7 +317,7 @@ class AdGuardCLI:
 
     def install_userscript(self, url: str) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "userscripts", "install", url], timeout=30)
-        if code == 0:
+        if code == 0 and not _is_cli_failure(out):
             return True, out or _t("Userscript installed")
         msg = err or out or _t("Installation failed")
         logger.error("install_userscript(%s) failed: %s", url, msg)
@@ -379,7 +386,7 @@ _US_ID_RE = re.compile(r"^\s*\|\s*ID:\s*(?P<id>\S+)\s*$")
 
 def _parse_userscript_list(raw: str) -> UserscriptListResult:
     result = UserscriptListResult()
-    lines = [l.strip() for l in raw.splitlines() if l.strip()]
+    lines = [line.strip() for line in raw.splitlines() if line.strip()]
     i = 0
     while i < len(lines):
         m_title = _US_TITLE_RE.match(lines[i])

@@ -12,10 +12,9 @@ Features:
 
 import logging
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize
-from PyQt6.QtGui import QColor, QFont, QIcon
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
-    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QHBoxLayout,
@@ -26,11 +25,9 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QProgressBar,
     QPushButton,
-    QSizePolicy,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
-    QWidget,
 )
 
 from .cli import AdGuardCLI, FilterEntry, FilterListResult
@@ -114,11 +111,13 @@ class _InstallWorker(QThread):
 # ── Main dialog ────────────────────────────────────────────────────────────
 
 class FiltersDialog(QDialog):
-    def __init__(self, cli: AdGuardCLI, parent=None) -> None:
+    def __init__(self, cli: AdGuardCLI, on_change=None, parent=None) -> None:
         super().__init__(parent)
         self.cli = cli
+        self._on_change = on_change
         self._workers: list[QThread] = []  # keep refs alive
         self._filter_map: dict[int, FilterEntry] = {}
+        self._changed = False
 
         self.setWindowTitle(_t("AdGuard Tray – Manage Filters"))
         self.setMinimumSize(700, 520)
@@ -308,6 +307,7 @@ class FiltersDialog(QDialog):
     def _on_toggle_done(self, ok: bool, msg: str, fid: int, new_enabled: bool) -> None:
         self._set_busy(False)
         if ok:
+            self._changed = True
             if fid in self._filter_map:
                 self._filter_map[fid].enabled = new_enabled
             self.lbl_status.setText(
@@ -349,6 +349,7 @@ class FiltersDialog(QDialog):
     def _on_update_done(self, ok: bool, msg: str) -> None:
         self._set_busy(False)
         if ok:
+            self._changed = True
             self.lbl_status.setText(_t("Update completed."))
         else:
             self.lbl_status.setText(_t("Update failed."))
@@ -384,6 +385,7 @@ class FiltersDialog(QDialog):
     def _on_install_done(self, ok: bool, msg: str) -> None:
         self._set_busy(False)
         if ok:
+            self._changed = True
             self.lbl_status.setText(_t("Filter installed."))
             self._load_filters()
         else:
@@ -433,6 +435,7 @@ class FiltersDialog(QDialog):
     def _on_remove_done(self, ok: bool, msg: str, fid: int) -> None:
         self._set_busy(False)
         if ok:
+            self._changed = True
             self.lbl_status.setText(_t("Filter {} removed.", fid))
             self._load_filters()
         else:
@@ -473,3 +476,8 @@ class FiltersDialog(QDialog):
             self.tree.itemChanged.connect(self._on_item_changed)
             self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             self.tree.customContextMenuRequested.connect(self._on_context_menu)
+
+    def closeEvent(self, event) -> None:
+        if self._changed and self._on_change:
+            self._on_change()
+        super().closeEvent(event)

@@ -205,9 +205,6 @@ _DE: dict[str, str] = {
     "Search filters…":                  "Filter durchsuchen…",
     "Search userscripts…":              "Userscripts durchsuchen…",
 
-    # ── userscripts_dialog.py ────────────────────────────────────────────
-    "AdGuard Tray – Userscripts":       "AdGuard Tray – Userscripts",
-
     # ── proxy_config_dialog.py ───────────────────────────────────────────
     "AdGuard CLI – Configuration":      "AdGuard CLI – Konfiguration",
     "Could not load proxy.yaml.\nPath: {}":
@@ -430,6 +427,10 @@ _DE: dict[str, str] = {
     "Could not save proxy.yaml:\n{}":   "proxy.yaml konnte nicht gespeichert werden:\n{}",
     "Configuration saved. Restart AdGuard to apply changes.":
         "Konfiguration gespeichert. AdGuard neu starten um Änderungen anzuwenden.",
+    "Restarting AdGuard…":              "AdGuard wird neu gestartet…",
+    "AdGuard restarted successfully.":  "AdGuard erfolgreich neu gestartet.",
+    "Restart failed: {}":               "Neustart fehlgeschlagen: {}",
+    "Unknown error":                    "Unbekannter Fehler",
     "AdGuard Configuration…":           "AdGuard-Konfiguration…",
     "<b>App filter rules</b> (auto mode only)<br>"
     "<small>"
@@ -459,7 +460,6 @@ _DE: dict[str, str] = {
         "Das System-Tray ist in dieser Desktop-Umgebung nicht verfügbar.\n\n"
         "Unter Hyprland: waybar mit aktiviertem [tray]-Modul oder sfwbar benötigt.\n"
         "Unter KDE Plasma sollte es sofort funktionieren.",
-    "adguard-cli not found":            "adguard-cli nicht gefunden",
     "adguard-cli could not be found on this system.\n\n"
     "Recommended install method (official):\n"
     "  curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/release/install.sh | sh -s -- -v\n\n"

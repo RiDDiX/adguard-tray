@@ -1,6 +1,6 @@
 [project]
 name = "adguard-tray"
-version = "1.1.1"
+version = "1.2.0"
 description = "System tray monitor and controller for adguard-cli"
 requires-python = ">=3.11"
 license = {text = "MIT"}
@@ -12,4 +12,4 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM"]
-ignore = ["E501"]
+ignore = ["E501", "E701", "E702", "SIM105"]
