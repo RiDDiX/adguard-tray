@@ -471,6 +471,158 @@ _DE: dict[str, str] = {
     "Could not save exceptions:\n{}":
         "Ausnahmen konnten nicht gespeichert werden:\n{}",
 
+    # ── manager_window.py ──────────────────────────────────────────────────
+    "AdGuard Tray – Manager":           "AdGuard Tray – Manager",
+    "Overview":                         "Übersicht",
+    "DNS Filters":                      "DNS-Filter",
+    "Userscripts":                      "Userscripts",
+    "Exceptions":                       "Ausnahmen",
+    "Configuration":                    "Konfiguration",
+    "Diagnostics":                      "Diagnose",
+
+    # ── overview_tab.py ──────────────────────────────────────────────────
+    "Status":                           "Status",
+    "↺ Refresh":                        "↺ Aktualisieren",
+    "Version & License":                "Version & Lizenz",
+    "Check for CLI update":             "Auf CLI-Update prüfen",
+    "Reset license":                    "Lizenz zurücksetzen",
+    "HTTPS Certificate":                "HTTPS-Zertifikat",
+    "Generate a root CA certificate for HTTPS filtering. "
+    "The certificate must be installed and trusted on your system.":
+        "Root-CA-Zertifikat für HTTPS-Filterung generieren. "
+        "Das Zertifikat muss auf dem System installiert und als vertrauenswürdig eingestuft werden.",
+    "Generate certificate":             "Zertifikat generieren",
+    "Checking for updates…":            "Suche nach Updates…",
+    "Are you sure you want to reset the AdGuard license?":
+        "Möchtest du die AdGuard-Lizenz wirklich zurücksetzen?",
+    "Generating certificate…":          "Zertifikat wird generiert…",
+    "License: {}":                      "Lizenz: {}",
+    "Could not retrieve":               "Konnte nicht abgerufen werden",
+
+    # ── filters_tab.py ───────────────────────────────────────────────────
+    "Add by ID…":                       "Nach ID hinzufügen…",
+    "Add internal filter by ID or name":
+        "Internen Filter nach ID oder Name hinzufügen",
+    "Show all available":               "Alle verfügbaren anzeigen",
+    "Show all available filters, not just installed ones":
+        "Alle verfügbaren Filter anzeigen, nicht nur installierte",
+    "Add Filter by ID":                 "Filter nach ID hinzufügen",
+    "Enter filter ID or name:":         "Filter-ID oder Name eingeben:",
+    "Adding filter: {}":                "Filter wird hinzugefügt: {}",
+    "Filter added.":                    "Filter hinzugefügt.",
+    "Rename…":                          "Umbenennen…",
+    "Set trusted":                      "Als vertrauenswürdig markieren",
+    "Set untrusted":                    "Als nicht vertrauenswürdig markieren",
+    "Rename filter":                    "Filter umbenennen",
+    "New title:":                       "Neuer Titel:",
+    "Renaming filter {}…":              "Filter {} wird umbenannt…",
+    "Filter renamed.":                  "Filter umbenannt.",
+    "trusted":                          "vertrauenswürdig",
+    "untrusted":                        "nicht vertrauenswürdig",
+    "Setting filter {} as {}…":         "Filter {} wird als {} gesetzt…",
+    "Filter trust updated.":            "Filtervertrauen aktualisiert.",
+    "Filter URL:":                      "Filter-URL:",
+    "Title:":                           "Titel:",
+    "(optional)":                       "(optional)",
+    "Trusted filter":                   "Vertrauenswürdiger Filter",
+    "Trusted filters can use advanced rules (JS scriptlets, etc.)":
+        "Vertrauenswürdige Filter können erweiterte Regeln verwenden (JS-Scriptlets, etc.)",
+
+    # ── dns_filters_tab.py ───────────────────────────────────────────────
+    "Add custom DNS filter…":           "Eigenen DNS-Filter hinzufügen…",
+    "Search DNS filters…":              "DNS-Filter durchsuchen…",
+    "DNS filters block domains at the DNS level. "
+    "Requires DNS filtering to be enabled in Configuration → DNS.":
+        "DNS-Filter blockieren Domains auf DNS-Ebene. "
+        "Erfordert aktivierte DNS-Filterung in Konfiguration → DNS.",
+    "Loading DNS filters…":             "DNS-Filter werden geladen…",
+    "No DNS filters found.":            "Keine DNS-Filter gefunden.",
+    "{} of {} DNS filters active":      "{} von {} DNS-Filtern aktiv",
+    "DNS filter {} enabled.":           "DNS-Filter {} aktiviert.",
+    "DNS filter {} disabled.":          "DNS-Filter {} deaktiviert.",
+    "DNS filter installed.":            "DNS-Filter installiert.",
+    "Add DNS Filter by ID":             "DNS-Filter nach ID hinzufügen",
+    "Adding DNS filter: {}":            "DNS-Filter wird hinzugefügt: {}",
+    "DNS filter added.":                "DNS-Filter hinzugefügt.",
+    "Remove DNS filter":                "DNS-Filter entfernen",
+    'Really remove DNS filter "{}"?':   'DNS-Filter «{}» wirklich entfernen?',
+    "DNS filter {} removed.":           "DNS-Filter {} entfernt.",
+    "Rename DNS filter":                "DNS-Filter umbenennen",
+    "DNS filter renamed.":              "DNS-Filter umbenannt.",
+    "Add Custom DNS Filter":            "Eigenen DNS-Filter hinzufügen",
+
+    # ── config_tab.py ────────────────────────────────────────────────────
+    "Could not load proxy.yaml.":       "proxy.yaml konnte nicht geladen werden.",
+    "Edit the full AdGuard CLI configuration (proxy.yaml).":
+        "Die vollständige AdGuard-CLI-Konfiguration (proxy.yaml) bearbeiten.",
+    "Open Configuration Editor…":       "Konfigurations-Editor öffnen…",
+
+    # ── diagnostics_tab.py ───────────────────────────────────────────────
+    "Export & Import":                  "Export & Import",
+    "Export logs…":                     "Logs exportieren…",
+    "Export AdGuard CLI logs to a zip file":
+        "AdGuard-CLI-Logs in eine ZIP-Datei exportieren",
+    "Export settings…":                 "Einstellungen exportieren…",
+    "Export all AdGuard CLI settings to a zip file":
+        "Alle AdGuard-CLI-Einstellungen in eine ZIP-Datei exportieren",
+    "Import settings…":                 "Einstellungen importieren…",
+    "Import settings from a previously exported zip file":
+        "Einstellungen aus einer zuvor exportierten ZIP-Datei importieren",
+    "Performance Benchmark":            "Leistungs-Benchmark",
+    "Run a cryptographic and HTTPS filtering benchmark.":
+        "Einen kryptografischen und HTTPS-Filterungs-Benchmark ausführen.",
+    "Run benchmark":                    "Benchmark starten",
+    "Running benchmark…":               "Benchmark wird ausgeführt…",
+    "Done.":                            "Fertig.",
+    "Failed.":                          "Fehlgeschlagen.",
+    "Export logs to…":                  "Logs exportieren nach…",
+    "Exporting logs…":                  "Logs werden exportiert…",
+    "Export settings to…":              "Einstellungen exportieren nach…",
+    "Exporting settings…":              "Einstellungen werden exportiert…",
+    "Import settings from…":            "Einstellungen importieren aus…",
+    "Zip files (*.zip);;All files (*)":
+        "ZIP-Dateien (*.zip);;Alle Dateien (*)",
+    "Importing settings…":              "Einstellungen werden importiert…",
+    "Application Log":                  "Anwendungs-Log",
+    "View recent log entries":          "Letzte Log-Einträge anzeigen",
+    "Log file not found.":              "Log-Datei nicht gefunden.",
+
+    # ── cli.py (new methods) ─────────────────────────────────────────────
+    "Could not retrieve DNS filter list":
+        "DNS-Filter-Liste konnte nicht abgerufen werden",
+    "DNS filter {} enabled":            "DNS-Filter {} aktiviert",
+    "Could not enable DNS filter {}":   "DNS-Filter {} konnte nicht aktiviert werden",
+    "DNS filter {} disabled":           "DNS-Filter {} deaktiviert",
+    "Could not disable DNS filter {}":  "DNS-Filter {} konnte nicht deaktiviert werden",
+    "DNS filter installed":             "DNS-Filter installiert",
+    "DNS filter {} removed":            "DNS-Filter {} entfernt",
+    "Could not remove DNS filter {}":   "DNS-Filter {} konnte nicht entfernt werden",
+    "DNS filter added":                 "DNS-Filter hinzugefügt",
+    "Could not add DNS filter":         "DNS-Filter konnte nicht hinzugefügt werden",
+    "DNS filter title updated":         "DNS-Filter-Titel aktualisiert",
+    "Could not set DNS filter title":   "DNS-Filter-Titel konnte nicht gesetzt werden",
+    "Filter added":                     "Filter hinzugefügt",
+    "Could not add filter":             "Filter konnte nicht hinzugefügt werden",
+    "Filter trust updated":             "Filtervertrauen aktualisiert",
+    "Could not update filter trust":    "Filtervertrauen konnte nicht aktualisiert werden",
+    "Filter title updated":             "Filtertitel aktualisiert",
+    "Could not set filter title":       "Filtertitel konnte nicht gesetzt werden",
+    "License reset successful":         "Lizenz erfolgreich zurückgesetzt",
+    "Could not reset license":          "Lizenz konnte nicht zurückgesetzt werden",
+    "Could not retrieve license info":  "Lizenzinformationen konnten nicht abgerufen werden",
+    "Certificate generated":            "Zertifikat generiert",
+    "Certificate generation failed":    "Zertifikatgenerierung fehlgeschlagen",
+    "Logs exported":                    "Logs exportiert",
+    "Log export failed":                "Log-Export fehlgeschlagen",
+    "Settings exported":                "Einstellungen exportiert",
+    "Settings export failed":           "Einstellungs-Export fehlgeschlagen",
+    "Settings imported":                "Einstellungen importiert",
+    "Settings import failed":           "Einstellungs-Import fehlgeschlagen",
+    "Update check completed":           "Update-Prüfung abgeschlossen",
+    "Update check failed":              "Update-Prüfung fehlgeschlagen",
+    "Benchmark failed":                 "Benchmark fehlgeschlagen",
+    "Open Manager…":                    "Manager öffnen…",
+
     # ── main.py ───────────────────────────────────────────────────────────
     "System tray not available":
         "Kein System-Tray verfügbar",

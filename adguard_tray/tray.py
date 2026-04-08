@@ -218,6 +218,10 @@ class AdGuardTray(QSystemTrayIcon):
 
         menu.addSeparator()
 
+        self._act_manager = QAction(_t("Open Manager…"))
+        self._act_manager.triggered.connect(self._show_manager)
+        menu.addAction(self._act_manager)
+
         self._act_proxy_config = QAction(_t("AdGuard Configuration…"))
         self._act_proxy_config.triggered.connect(self._show_proxy_config)
         menu.addAction(self._act_proxy_config)
@@ -498,6 +502,21 @@ class AdGuardTray(QSystemTrayIcon):
             except OSError as exc:
                 logger.error("Autostart disable failed: %s", exc)
                 self._act_autostart.setChecked(True)
+
+    # ── Manager window ────────────────────────────────────────────────────
+
+    _manager_win = None
+
+    def _show_manager(self) -> None:
+        from .manager_window import ManagerWindow
+        if self._manager_win is not None and self._manager_win.isVisible():
+            self._manager_win.raise_()
+            self._manager_win.activateWindow()
+            return
+        self._manager_win = ManagerWindow(
+            self.cli, self.config, on_restart=self._restart_cli_async,
+        )
+        self._manager_win.show()
 
     # ── Dialogs ────────────────────────────────────────────────────────────
 

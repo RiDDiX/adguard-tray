@@ -334,6 +334,192 @@ class AdGuardCLI:
         logger.error("install_userscript(%s) failed: %s", url, msg)
         return False, msg
 
+    # ── DNS filter management ─────────────────────────────────────────────
+
+    def get_dns_filters(self, all_available: bool = False) -> "FilterListResult":
+        args = [self.BINARY, "dns", "filters", "list"]
+        if all_available:
+            args.append("--all")
+        code, out, err = _run(args, timeout=20)
+        if code != 0:
+            return FilterListResult(error=err or out or _t("Could not retrieve DNS filter list"))
+        return _parse_filter_list(out)
+
+    def enable_dns_filter(self, filter_id: int) -> tuple[bool, str]:
+        code, out, err = _run([self.BINARY, "dns", "filters", "enable", str(filter_id)], timeout=15)
+        if code == 0 and not _is_cli_failure(out):
+            return True, out or _t("DNS filter {} enabled", filter_id)
+        msg = err or out or _t("Could not enable DNS filter {}", filter_id)
+        logger.error("enable_dns_filter(%d) failed: %s", filter_id, msg)
+        return False, msg
+
+    def disable_dns_filter(self, filter_id: int) -> tuple[bool, str]:
+        code, out, err = _run([self.BINARY, "dns", "filters", "disable", str(filter_id)], timeout=15)
+        if code == 0 and not _is_cli_failure(out):
+            return True, out or _t("DNS filter {} disabled", filter_id)
+        msg = err or out or _t("Could not disable DNS filter {}", filter_id)
+        logger.error("disable_dns_filter(%d) failed: %s", filter_id, msg)
+        return False, msg
+
+    def install_dns_filter(self, url: str, title: str = "") -> tuple[bool, str]:
+        args = [self.BINARY, "dns", "filters", "install", url]
+        if title:
+            args += ["--title", title]
+        code, out, err = _run(args, timeout=30)
+        if code == 0 and not _is_cli_failure(out):
+            return True, out or _t("DNS filter installed")
+        msg = err or out or _t("Installation failed")
+        logger.error("install_dns_filter(%s) failed: %s", url, msg)
+        return False, msg
+
+    def remove_dns_filter(self, filter_id: int) -> tuple[bool, str]:
+        code, out, err = _run([self.BINARY, "dns", "filters", "remove", str(filter_id)], timeout=15)
+        if code == 0:
+            return True, out or _t("DNS filter {} removed", filter_id)
+        msg = err or out or _t("Could not remove DNS filter {}", filter_id)
+        logger.error("remove_dns_filter(%d) failed: %s", filter_id, msg)
+        return False, msg
+
+    def add_dns_filter(self, filter_id: str) -> tuple[bool, str]:
+        code, out, err = _run([self.BINARY, "dns", "filters", "add", filter_id], timeout=15)
+        if code == 0 and not _is_cli_failure(out):
+            return True, out or _t("DNS filter added")
+        msg = err or out or _t("Could not add DNS filter")
+        logger.error("add_dns_filter(%s) failed: %s", filter_id, msg)
+        return False, msg
+
+    def set_dns_filter_title(self, filter_id: int, title: str) -> tuple[bool, str]:
+        code, out, err = _run(
+            [self.BINARY, "dns", "filters", "set-title", str(filter_id), title], timeout=15
+        )
+        if code == 0:
+            return True, out or _t("DNS filter title updated")
+        msg = err or out or _t("Could not set DNS filter title")
+        logger.error("set_dns_filter_title(%d) failed: %s", filter_id, msg)
+        return False, msg
+
+    # ── Extended filter management ────────────────────────────────────────
+
+    def add_filter(self, filter_id: str) -> tuple[bool, str]:
+        """Add an internal filter by ID or name."""
+        code, out, err = _run([self.BINARY, "filters", "add", filter_id], timeout=15)
+        if code == 0 and not _is_cli_failure(out):
+            return True, out or _t("Filter added")
+        msg = err or out or _t("Could not add filter")
+        logger.error("add_filter(%s) failed: %s", filter_id, msg)
+        return False, msg
+
+    def set_filter_trusted(self, filter_id: int, trusted: bool) -> tuple[bool, str]:
+        code, out, err = _run(
+            [self.BINARY, "filters", "set-trusted", str(filter_id), str(trusted).lower()],
+            timeout=15,
+        )
+        if code == 0:
+            return True, out or _t("Filter trust updated")
+        msg = err or out or _t("Could not update filter trust")
+        logger.error("set_filter_trusted(%d) failed: %s", filter_id, msg)
+        return False, msg
+
+    def set_filter_title(self, filter_id: int, title: str) -> tuple[bool, str]:
+        code, out, err = _run(
+            [self.BINARY, "filters", "set-title", str(filter_id), title], timeout=15
+        )
+        if code == 0:
+            return True, out or _t("Filter title updated")
+        msg = err or out or _t("Could not set filter title")
+        logger.error("set_filter_title(%d) failed: %s", filter_id, msg)
+        return False, msg
+
+    def install_filter_ext(self, url: str, trusted: bool = False, title: str = "") -> tuple[bool, str]:
+        """Install custom filter with optional --trusted and --title flags."""
+        args = [self.BINARY, "filters", "install", url]
+        if trusted:
+            args.append("--trusted")
+        if title:
+            args += ["--title", title]
+        code, out, err = _run(args, timeout=30)
+        if code == 0 and not _is_cli_failure(out):
+            return True, out or _t("Filter installed")
+        msg = err or out or _t("Installation failed")
+        logger.error("install_filter_ext(%s) failed: %s", url, msg)
+        return False, msg
+
+    # ── License ───────────────────────────────────────────────────────────
+
+    def get_license(self) -> tuple[bool, str]:
+        code, out, err = _run([self.BINARY, "license"], timeout=10)
+        if code == 0:
+            return True, out
+        return False, err or out or _t("Could not retrieve license info")
+
+    def reset_license(self) -> tuple[bool, str]:
+        code, out, err = _run([self.BINARY, "reset-license"], timeout=15)
+        if code == 0:
+            return True, out or _t("License reset successful")
+        msg = err or out or _t("Could not reset license")
+        logger.error("reset_license failed: %s", msg)
+        return False, msg
+
+    # ── Certificate ───────────────────────────────────────────────────────
+
+    def generate_cert(self) -> tuple[bool, str]:
+        code, out, err = _run(["pkexec", self.BINARY, "cert"], timeout=60)
+        if code == 0:
+            return True, out or _t("Certificate generated")
+        msg = err or out or _t("Certificate generation failed")
+        logger.error("generate_cert failed: %s", msg)
+        return False, msg
+
+    # ── Export / Import ───────────────────────────────────────────────────
+
+    def export_logs(self, output_dir: str = "") -> tuple[bool, str]:
+        args = [self.BINARY, "export-logs"]
+        if output_dir:
+            args += ["-o", output_dir]
+        code, out, err = _run(args, timeout=60)
+        if code == 0:
+            return True, out or _t("Logs exported")
+        msg = err or out or _t("Log export failed")
+        logger.error("export_logs failed: %s", msg)
+        return False, msg
+
+    def export_settings(self, output_dir: str = "") -> tuple[bool, str]:
+        args = [self.BINARY, "export-settings"]
+        if output_dir:
+            args += ["-o", output_dir]
+        code, out, err = _run(args, timeout=60)
+        if code == 0:
+            return True, out or _t("Settings exported")
+        msg = err or out or _t("Settings export failed")
+        logger.error("export_settings failed: %s", msg)
+        return False, msg
+
+    def import_settings(self, input_path: str) -> tuple[bool, str]:
+        code, out, err = _run([self.BINARY, "import-settings", "-i", input_path], timeout=60)
+        if code == 0:
+            return True, out or _t("Settings imported")
+        msg = err or out or _t("Settings import failed")
+        logger.error("import_settings failed: %s", msg)
+        return False, msg
+
+    # ── Update / Speed ────────────────────────────────────────────────────
+
+    def check_cli_update(self) -> tuple[bool, str]:
+        code, out, err = _run([self.BINARY, "update"], timeout=120)
+        if code == 0:
+            return True, out or _t("Update check completed")
+        msg = err or out or _t("Update check failed")
+        logger.error("check_cli_update failed: %s", msg)
+        return False, msg
+
+    def run_speed_benchmark(self) -> tuple[bool, str]:
+        code, out, err = _run([self.BINARY, "speed", "--json"], timeout=120)
+        if code == 0:
+            return True, out
+        msg = err or out or _t("Benchmark failed")
+        logger.error("run_speed_benchmark failed: %s", msg)
+        return False, msg
+
 
 # ── Filter data structures ─────────────────────────────────────────────────
 
