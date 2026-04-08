@@ -1,0 +1,126 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Lint
+        run: ruff check adguard_tray/
+
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3-pyqt6 libgl1 libegl1
+          pip install PyQt6 PyYAML
+
+      - name: Import check
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -c "
+          from adguard_tray.cli import AdGuardCLI
+          from adguard_tray.config import Config, load_config
+          from adguard_tray.i18n import _t
+          from adguard_tray.icons import icon_active, icon_inactive, icon_error, icon_unknown
+          from adguard_tray.notifications import notify
+          from adguard_tray.worker import StatusWorker
+          from adguard_tray.manager_window import ManagerWindow
+          from adguard_tray.overview_tab import OverviewTab
+          from adguard_tray.filters_tab import FiltersTab
+          from adguard_tray.dns_filters_tab import DnsFiltersTab
+          from adguard_tray.userscripts_tab import UserscriptsTab
+          from adguard_tray.exceptions_tab import ExceptionsTab
+          from adguard_tray.config_tab import ConfigTab
+          from adguard_tray.diagnostics_tab import DiagnosticsTab
+          print('All imports OK')
+          "
+
+  release:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get the previous tag
+          PREV_TAG=$(git tag --sort=-version:refname | head -2 | tail -1)
+          if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "$GITHUB_REF_NAME" ]; then
+            CHANGES="Initial release"
+          else
+            CHANGES=$(git log "$PREV_TAG".."$GITHUB_REF_NAME" --pretty=format:"- %s" --no-merges | grep -v "^- chore:")
+          fi
+          {
+            echo "changes<<EOF"
+            echo "$CHANGES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create source archive
+        run: |
+          tar czf adguard-tray-${{ steps.version.outputs.version }}.tar.gz \
+            --transform "s,^,adguard-tray-${{ steps.version.outputs.version }}/," \
+            adguard_tray/ adguard-tray.py adguard-tray.desktop \
+            pyproject.toml requirements.txt LICENSE README.md \
+            PKGBUILD .SRCINFO install.sh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: adguard-tray v${{ steps.version.outputs.version }}
+          body: |
+            ## Changes
+
+            ${{ steps.changelog.outputs.changes }}
+
+            ## Installation
+
+            **Arch Linux (AUR):**
+            ```
+            paru -S adguard-tray
+            ```
+
+            **Manual:**
+            ```
+            git clone https://github.com/RiDDiX/adguard-tray.git
+            cd adguard-tray
+            ./install.sh
+            ```
+          files: |
+            adguard-tray-${{ steps.version.outputs.version }}.tar.gz
+          generate_release_notes: false
