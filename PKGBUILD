@@ -17,7 +17,7 @@ optdepends=(
     'qt6-svg: SVG icon theme support'
 )
 source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
-sha256sums=('8d0cfabf52d15761b1ffe61b7463d593dab690cb45a58494f1da8d7ac4f1f312')
+sha256sums=('a5f37f36da07d3031ffb4bc6e5c851438054788ee7a85dd6e8b504d699b0193a')
 
 package() {
     cd "$srcdir/$pkgname-$pkgver"
