@@ -31,7 +31,7 @@ from PyQt6.QtWidgets import (
 )
 
 from .config import Config, save_config
-from .i18n import _t, _TRANSLATIONS, _CURRENT
+from .i18n import _CURRENT, _TRANSLATIONS, _t
 
 logger = logging.getLogger(__name__)
 
