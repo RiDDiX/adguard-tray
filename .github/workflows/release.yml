@@ -60,6 +60,9 @@ jobs:
           from adguard_tray.exceptions_tab import ExceptionsTab
           from adguard_tray.config_tab import ConfigTab
           from adguard_tray.diagnostics_tab import DiagnosticsTab
+          from adguard_tray.settings_dialog import SettingsDialog
+          from adguard_tray.proxy_config_dialog import ProxyConfigDialog
+          from adguard_tray.exceptions_dialog import ExceptionsDialog
           print('All imports OK')
           "
 
@@ -83,7 +86,8 @@ jobs:
           if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "$GITHUB_REF_NAME" ]; then
             CHANGES="Initial release"
           else
-            CHANGES=$(git log "$PREV_TAG".."$GITHUB_REF_NAME" --pretty=format:"- %s" --no-merges | grep -v "^- chore:")
+            # grep exits 1 when every commit is chore: – don't fail the release for that
+            CHANGES=$(git log "$PREV_TAG".."$GITHUB_REF_NAME" --pretty=format:"- %s" --no-merges | grep -v "^- chore:" || true)
           fi
           {
             echo "changes<<EOF"
@@ -92,12 +96,13 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Create source archive
+        # PKGBUILD/.SRCINFO are left out: their sha256 is only known after the
+        # tag exists, so the copy at tag time always refers to the previous release.
         run: |
           tar czf adguard-tray-${{ steps.version.outputs.version }}.tar.gz \
             --transform "s,^,adguard-tray-${{ steps.version.outputs.version }}/," \
             adguard_tray/ adguard-tray.py adguard-tray.desktop \
-            pyproject.toml requirements.txt LICENSE README.md \
-            PKGBUILD .SRCINFO install.sh
+            pyproject.toml requirements.txt LICENSE README.md install.sh
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
