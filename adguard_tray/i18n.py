@@ -26,7 +26,7 @@ def _detect_language() -> str:
         if config_file.exists():
             data = json.loads(config_file.read_text(encoding="utf-8"))
             lang = data.get("language", "")
-            if lang:  # Not empty string = use configured language
+            if isinstance(lang, str) and lang:  # "" = auto-detect
                 return lang
     except Exception:
         pass
@@ -54,13 +54,12 @@ _LANG = _detect_language()
 _DE: dict[str, str] = {
     # ── General ─────────────────────────────────────────────────────
     "Language":                          "Sprache",
+    "Auto (system locale)":              "Automatisch (Systemsprache)",
     "English":                           "Englisch",
     "Simplified Chinese":                "Chinesisch (Vereinfacht)",
     "German":                            "Deutsch",
     "Requires application restart to take effect.":
         "Erfordert einen Neustart der Anwendung.",
-    "<small>Requires application restart to take effect.</small>":
-        "<small>Erfordert einen Neustart der Anwendung.</small>",
 
     # ── tray.py – status labels ───────────────────────────────────────────
     "Active – Protection running":          "Aktiv – Schutz läuft",
@@ -129,7 +128,6 @@ _DE: dict[str, str] = {
         "und anderen XDG-konformen Umgebungen.</small>",
 
     # ── filters_dialog.py ─────────────────────────────────────────────────
-    "AdGuard Tray – Manage Filters":        "AdGuard Tray – Filter verwalten",
     "Update filters":                       "Filter aktualisieren",
     "Updates all filters, DNS filters, userscripts,\n"
     "SafebrowsingV2, CRLite and checks for app updates.":
@@ -146,16 +144,12 @@ _DE: dict[str, str] = {
     "Last updated":                         "Zuletzt aktualisiert",
     "Enabling filter {}…":                  "Filter {} wird aktiviert…",
     "Disabling filter {}…":                 "Filter {} wird deaktiviert…",
-    "Filter {} enabled.":                   "Filter {} aktiviert.",
-    "Filter {} disabled.":                  "Filter {} deaktiviert.",
     "Updating filters…":                    "Filter werden aktualisiert…",
     "Updating filters… (can take up to 2 minutes)":
         "Filter werden aktualisiert… (kann bis zu 2 Minuten dauern)",
     "Update completed.":                    "Aktualisierung abgeschlossen.",
     "Update failed.":                       "Aktualisierung fehlgeschlagen.",
     "Add Custom Filter":                    "Eigenen Filter hinzufügen",
-    "Filter URL (direct .txt URL of the filter list):":
-        "Filter-URL (direkte .txt-URL der Filterliste):",
     "Installing: {}":                       "Installiere: {}",
     "Filter installed.":                    "Filter installiert.",
     "Remove":                               "Entfernen",
@@ -165,7 +159,6 @@ _DE: dict[str, str] = {
     "Filter {} removed.":                   "Filter {} entfernt.",
 
     # ── userscripts_dialog.py ─────────────────────────────────────────────
-    "AdGuard Tray – Userscripts":           "AdGuard Tray – Userscripts",
     "Install (URL)…":                       "Installieren (URL)…",
     "Install userscript from a direct .js URL":
         "Userscript von einer direkten .js-URL installieren",
@@ -180,8 +173,6 @@ _DE: dict[str, str] = {
     "Loading userscripts…":                 "Userscripts werden geladen…",
     "No userscripts installed.":            "Keine Userscripts installiert.",
     "{} of {} userscripts active":          "{} von {} Userscripts aktiv",
-    "Enabling userscript '{}'…":            "Userscript '{}' wird aktiviert…",
-    "Disabling userscript '{}'…":           "Userscript '{}' wird deaktiviert…",
     "Userscript '{}' enabled.":             "Userscript '{}' aktiviert.",
     "Userscript '{}' disabled.":            "Userscript '{}' deaktiviert.",
     "Install Userscript":                   "Userscript installieren",
@@ -190,7 +181,6 @@ _DE: dict[str, str] = {
     'Remove "{}"':                          '«{}» entfernen',
     "Remove userscript":                    "Userscript entfernen",
     'Really remove userscript "{}"?':       'Userscript «{}» wirklich entfernen?',
-    "Removing '{}'…":                       "Entferne '{}'…",
     "'{}' removed.":                        "'{}' entfernt.",
 
     # ── cli.py ────────────────────────────────────────────────────────────
@@ -578,8 +568,6 @@ _DE: dict[str, str] = {
     "Loading DNS filters…":             "DNS-Filter werden geladen…",
     "No DNS filters found.":            "Keine DNS-Filter gefunden.",
     "{} of {} DNS filters active":      "{} von {} DNS-Filtern aktiv",
-    "DNS filter {} enabled.":           "DNS-Filter {} aktiviert.",
-    "DNS filter {} disabled.":          "DNS-Filter {} deaktiviert.",
     "DNS filter installed.":            "DNS-Filter installiert.",
     "Add DNS Filter by ID":             "DNS-Filter nach ID hinzufügen",
     "Adding DNS filter: {}":            "DNS-Filter wird hinzugefügt: {}",
@@ -595,8 +583,6 @@ _DE: dict[str, str] = {
     "Could not load proxy.yaml.":       "proxy.yaml konnte nicht geladen werden.",
     "Edit the full AdGuard CLI configuration (proxy.yaml).":
         "Die vollständige AdGuard-CLI-Konfiguration (proxy.yaml) bearbeiten.",
-    "<small>Edit the full AdGuard CLI configuration (proxy.yaml).</small>":
-        "<small>Die vollständige AdGuard-CLI-Konfiguration (proxy.yaml) bearbeiten.</small>",
     "Open Configuration Editor…":       "Konfigurations-Editor öffnen…",
 
     # ── diagnostics_tab.py ───────────────────────────────────────────────
@@ -669,14 +655,6 @@ _DE: dict[str, str] = {
         "AdGuard konnte nicht gestoppt werden – Prozess läuft möglicherweise noch.",
 
     # ── main.py ───────────────────────────────────────────────────────────
-    "System tray not available":
-        "Kein System-Tray verfügbar",
-    "The system tray is not available in this desktop environment.\n\n"
-    "On Hyprland: waybar with the [tray] module enabled or sfwbar is required.\n"
-    "On KDE Plasma it should just work.":
-        "Das System-Tray ist in dieser Desktop-Umgebung nicht verfügbar.\n\n"
-        "Unter Hyprland: waybar mit aktiviertem [tray]-Modul oder sfwbar benötigt.\n"
-        "Unter KDE Plasma sollte es einfach laufen.",
     "adguard-cli could not be found on this system.\n\n"
     "Recommended install method (official):\n"
     "  curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/release/install.sh | sh -s -- -v\n\n"
@@ -695,13 +673,11 @@ _DE: dict[str, str] = {
     "Only one instance can run at a time. Check your system tray.":
         "Es kann nur eine Instanz gleichzeitig laufen. Schau in den System-Tray.",
     "Authentication cancelled":         "Authentifizierung abgebrochen",
-    "polkit helper missing":            "polkit-Helper fehlt",
+    "Authorization failed":             "Autorisierung fehlgeschlagen",
     "URL must start with http:// or https://":
         "URL muss mit http:// oder https:// beginnen",
     "Log level and CLI path changes apply after a restart.":
         "Log-Level und CLI-Pfad werden nach einem Neustart wirksam.",
-    "<small>Log level and CLI path changes apply after a restart.</small>":
-        "<small>Log-Level und CLI-Pfad werden nach einem Neustart wirksam.</small>",
     "adguard-cli path does not exist or is not executable.":
         "adguard-cli-Pfad existiert nicht oder ist nicht ausführbar.",
     "That binary does not identify as adguard-cli. Save anyway?":
@@ -723,13 +699,12 @@ _DE: dict[str, str] = {
 _ZH_CN: dict[str, str] = {
     # ── General ─────────────────────────────────────────────────────
     "Language":                          "语言",
+    "Auto (system locale)":              "自动（系统语言）",
     "English":                           "英语",
     "Simplified Chinese":                "简体中文",
     "German":                            "德语",
     "Requires application restart to take effect.":
         "需要重启应用程序才能生效。",
-    "<small>Requires application restart to take effect.</small>":
-        "<small>需要重启应用程序才能生效。</small>",
 
     # ── tray.py – status labels ───────────────────────────────────────────
     "Active – Protection running":          "已激活 – 保护运行中",
@@ -798,7 +773,6 @@ _ZH_CN: dict[str, str] = {
         "和其他兼容 XDG 的环境。</small>",
 
     # ── filters_dialog.py ─────────────────────────────────────────────────
-    "AdGuard Tray – Manage Filters":        "AdGuard Tray – 管理过滤器",
     "Update filters":                       "更新过滤器",
     "Updates all filters, DNS filters, userscripts,\n"
     "SafebrowsingV2, CRLite and checks for app updates.":
@@ -815,16 +789,12 @@ _ZH_CN: dict[str, str] = {
     "Last updated":                         "上次更新",
     "Enabling filter {}…":                  "正在启用过滤器 {}…",
     "Disabling filter {}…":                 "正在禁用过滤器 {}…",
-    "Filter {} enabled.":                   "过滤器 {} 已启用。",
-    "Filter {} disabled.":                  "过滤器 {} 已禁用。",
     "Updating filters…":                    "正在更新过滤器…",
     "Updating filters… (can take up to 2 minutes)":
         "正在更新过滤器…（可能需要最多 2 分钟）",
     "Update completed.":                    "更新完成。",
     "Update failed.":                       "更新失败。",
     "Add Custom Filter":                    "添加自定义过滤器",
-    "Filter URL (direct .txt URL of the filter list):":
-        "过滤器 URL（过滤器列表的直接 .txt URL）：",
     "Installing: {}":                       "正在安装：{}",
     "Filter installed.":                    "过滤器已安装。",
     "Remove":                               "移除",
@@ -834,7 +804,6 @@ _ZH_CN: dict[str, str] = {
     "Filter {} removed.":                   "过滤器 {} 已移除。",
 
     # ── userscripts_dialog.py ─────────────────────────────────────────────
-    "AdGuard Tray – Userscripts":           "AdGuard Tray – 用户脚本",
     "Install (URL)…":                       "安装（URL）…",
     "Install userscript from a direct .js URL":
         "从直接的 .js URL 安装用户脚本",
@@ -848,8 +817,6 @@ _ZH_CN: dict[str, str] = {
     "Loading userscripts…":                 "正在加载用户脚本…",
     "No userscripts installed.":            "未安装用户脚本。",
     "{} of {} userscripts active":          "{} / {} 个用户脚本已激活",
-    "Enabling userscript '{}'…":            "正在启用用户脚本 '{}'…",
-    "Disabling userscript '{}'…":           "正在禁用用户脚本 '{}'…",
     "Userscript '{}' enabled.":             "用户脚本 '{}' 已启用。",
     "Userscript '{}' disabled.":            "用户脚本 '{}' 已禁用。",
     "Install Userscript":                   "安装用户脚本",
@@ -858,7 +825,6 @@ _ZH_CN: dict[str, str] = {
     'Remove "{}"':                          "移除 “{}”",
     "Remove userscript":                    "移除用户脚本",
     'Really remove userscript "{}"?':       "确定要移除用户脚本 “{}” 吗？",
-    "Removing '{}'…":                       "正在移除 '{}'…",
     "'{}' removed.":                        "'{}' 已移除。",
 
     # ── cli.py ────────────────────────────────────────────────────────────
@@ -1244,8 +1210,6 @@ _ZH_CN: dict[str, str] = {
     "Loading DNS filters…":             "正在加载 DNS 过滤器…",
     "No DNS filters found.":            "未找到 DNS 过滤器。",
     "{} of {} DNS filters active":      "{} / {} 个 DNS 过滤器已激活",
-    "DNS filter {} enabled.":           "DNS 过滤器 {} 已启用。",
-    "DNS filter {} disabled.":          "DNS 过滤器 {} 已禁用。",
     "DNS filter installed.":            "DNS 过滤器已安装。",
     "Add DNS Filter by ID":             "按 ID 添加 DNS 过滤器",
     "Adding DNS filter: {}":            "正在添加 DNS 过滤器：{}",
@@ -1261,8 +1225,6 @@ _ZH_CN: dict[str, str] = {
     "Could not load proxy.yaml.":       "无法加载 proxy.yaml。",
     "Edit the full AdGuard CLI configuration (proxy.yaml).":
         "编辑完整的 AdGuard CLI 配置 (proxy.yaml)。",
-    "<small>Edit the full AdGuard CLI configuration (proxy.yaml).</small>":
-        "<small>编辑完整的 AdGuard CLI 配置 (proxy.yaml)。</small>",
     "Open Configuration Editor…":       "打开配置编辑器…",
 
     # ── diagnostics_tab.py ───────────────────────────────────────────────
@@ -1335,14 +1297,6 @@ _ZH_CN: dict[str, str] = {
         "无法停止 AdGuard – 进程可能仍在运行",
 
     # ── main.py ───────────────────────────────────────────────────────────
-    "System tray not available":
-        "系统托盘不可用",
-    "The system tray is not available in this desktop environment.\n\n"
-    "On Hyprland: waybar with the [tray] module enabled or sfwbar is required.\n"
-    "On KDE Plasma it should just work.":
-        "此桌面环境中不可用系统托盘。\n\n"
-        "在 Hyprland 上：需要启用 [tray] 模块的 waybar 或 sfwbar。\n"
-        "在 KDE Plasma 上应该可以正常工作。",
     "adguard-cli could not be found on this system.\n\n"
     "Recommended install method (official):\n"
     "  curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/release/install.sh | sh -s -- -v\n\n"
@@ -1361,13 +1315,11 @@ _ZH_CN: dict[str, str] = {
     "Only one instance can run at a time. Check your system tray.":
         "一次只能运行一个实例。请检查你的系统托盘。",
     "Authentication cancelled":         "身份验证已取消",
-    "polkit helper missing":            "缺少 polkit 助手",
+    "Authorization failed":             "授权失败",
     "URL must start with http:// or https://":
         "URL 必须以 http:// 或 https:// 开头",
     "Log level and CLI path changes apply after a restart.":
         "日志级别和 CLI 路径更改在重启后生效。",
-    "<small>Log level and CLI path changes apply after a restart.</small>":
-        "<small>日志级别和 CLI 路径更改在重启后生效。</small>",
     "adguard-cli path does not exist or is not executable.":
         "adguard-cli 路径不存在或不可执行。",
     "That binary does not identify as adguard-cli. Save anyway?":

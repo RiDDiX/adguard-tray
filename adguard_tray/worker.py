@@ -25,6 +25,28 @@ from .cli import AdGuardCLI, StatusResult
 logger = logging.getLogger(__name__)
 
 
+def safe_call(fn, *args):
+    """Run an (ok, msg)-returning CLI call inside a thread.
+
+    An unhandled exception in QThread.run() aborts the whole process
+    (PyQt calls qFatal), so turn it into a failed result instead.
+    """
+    try:
+        return fn(*args)
+    except Exception as exc:
+        logger.exception("CLI call failed")
+        return False, str(exc)
+
+
+def safe_result(fn, result_cls, **kwargs):
+    """Like safe_call for list loaders that return a result object with .error."""
+    try:
+        return fn(**kwargs)
+    except Exception as exc:
+        logger.exception("CLI list call failed")
+        return result_cls(error=str(exc))
+
+
 class _Signals(QObject):
     result = pyqtSignal(object)  # StatusResult
 

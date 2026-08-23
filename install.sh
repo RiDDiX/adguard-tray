@@ -25,6 +25,13 @@ else
     info "python-pyqt6 ✓"
 fi
 
+if ! pacman -Qi python-yaml &>/dev/null; then
+    yellow "  python-yaml not found – installing..."
+    sudo pacman -S --needed --noconfirm python-yaml
+else
+    info "python-yaml ✓"
+fi
+
 if ! command -v notify-send &>/dev/null; then
     yellow "  libnotify (notify-send) not found – installing..."
     sudo pacman -S --needed --noconfirm libnotify

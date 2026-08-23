@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "adguard-tray"
-version = "1.6.7"
+version = "1.6.8"
 description = "System tray monitor and controller for adguard-cli"
 readme = "README.md"
 authors = [

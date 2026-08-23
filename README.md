@@ -4,7 +4,7 @@ System tray app for [adguard-cli](https://adguard.com/en/adguard-linux/overview.
 
 Works on Wayland and X11. Written in Python + PyQt6.
 
-The UI language is detected automatically from the system locale. English is the default; German is included as an additional translation.
+The UI language is detected automatically from the system locale (override in Settings). English is the default; German and Simplified Chinese are included.
 
 ---
 
@@ -27,6 +27,7 @@ The UI language is detected automatically from the system locale. English is the
 
 - `python` >= 3.11
 - `python-pyqt6`
+- `python-yaml`
 - `libnotify` (for notifications)
 - `adguard-cli` — install via **official script** (recommended) or [AUR: adguard-cli-bin](https://aur.archlinux.org/packages/adguard-cli-bin)
 
@@ -49,7 +50,7 @@ If adguard-cli is not found at startup, the app shows a helpful dialog with inst
 ## Install
 
 ```bash
-sudo pacman -S python-pyqt6 libnotify
+sudo pacman -S python-pyqt6 python-yaml libnotify
 git clone https://github.com/RiDDiX/adguard-tray.git
 cd adguard-tray
 bash install.sh
@@ -81,7 +82,7 @@ The entry goes to `~/.config/autostart/adguard-tray.desktop` (standard XDG autos
 ● Status: Active – Protection running
 ──────────────────────────────
   Toggle
-  Disable
+  Enable / Disable     (whichever applies)
   Restart
 ──────────────────────────────
   Filters         ▶  (live list with checkboxes)
@@ -115,18 +116,20 @@ Start/stop requires root. The app tries in order:
 
 ## Config
 
-`~/.config/adguard-tray/config.json` — created automatically on first run.
+`~/.config/adguard-tray/config.json` — written when you save the Settings dialog; defaults apply until then.
 
 ```json
 {
   "refresh_interval": 30,
   "notifications_enabled": true,
   "log_level": "INFO",
-  "adguard_cli_path": ""
+  "adguard_cli_path": "",
+  "language": ""
 }
 ```
 
 - **adguard_cli_path**: Leave empty to auto-detect via PATH. Set to a full path (e.g. `/opt/adguard-cli/adguard-cli`) if installed in a non-standard location.
+- **language**: Leave empty to follow the system locale, or set `en`, `de` or `zh`.
 
 Logs go to `~/.local/share/adguard-tray/adguard-tray.log` (auto-rotated, 5 MB max, 3 backups).
 

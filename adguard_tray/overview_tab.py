@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from .cli import AdGuardCLI, AdGuardStatus
+from .cli import AdGuardCLI, AdGuardStatus, StatusResult
 from .i18n import _t
 
 logger = logging.getLogger(__name__)
@@ -66,12 +66,17 @@ class _RefreshWorker(QThread):
         self.cli = cli
 
     def run(self):
-        data = {
-            "status": self.cli.get_status(),
-            "version": self.cli.get_version(),
-            "channel": self.cli.get_update_channel(),
-        }
-        ok, lic = self.cli.get_license()
+        try:
+            data = {
+                "status": self.cli.get_status(),
+                "version": self.cli.get_version(),
+                "channel": self.cli.get_update_channel(),
+            }
+            ok, lic = self.cli.get_license()
+        except Exception as exc:  # would otherwise abort the process (qFatal)
+            logger.exception("Overview refresh failed")
+            data = {"status": StatusResult(AdGuardStatus.ERROR, str(exc)), "version": "", "channel": ""}
+            ok, lic = False, str(exc)
         data["license_ok"] = ok
         data["license"] = lic
         self.done.emit(data)
@@ -170,10 +175,10 @@ class OverviewTab(QWidget):
         # HTTPS Certificate
         grp_cert = QGroupBox(_t("HTTPS Certificate"))
         cl = QVBoxLayout(grp_cert)
-        cert_info = QLabel(_t(
-            "<small>Generate a root CA certificate for HTTPS filtering. "
-            "The certificate must be installed and trusted on your system.</small>"
-        ))
+        cert_info = QLabel("<small>" + _t(
+            "Generate a root CA certificate for HTTPS filtering. "
+            "The certificate must be installed and trusted on your system."
+        ) + "</small>")
         cert_info.setTextFormat(Qt.TextFormat.RichText)
         cert_info.setWordWrap(True)
         cl.addWidget(cert_info)
@@ -243,24 +248,20 @@ class OverviewTab(QWidget):
         # Update channel – load without firing currentTextChanged
         channel = data.get("channel") or ""
         self.combo_channel.blockSignals(True)
-        if channel and self.combo_channel.findText(channel) >= 0:
+        self._channel_loaded = bool(channel) and self.combo_channel.findText(channel) >= 0
+        if self._channel_loaded:
             self.combo_channel.setCurrentText(channel)
-            self.combo_channel.setEnabled(True)
-        else:
-            # Unknown or unreadable – keep disabled, show first item
-            self.combo_channel.setEnabled(False)
+        # Unknown or unreadable channel keeps the combo disabled.
+        self.combo_channel.setEnabled(self._channel_loaded)
         self.combo_channel.blockSignals(False)
-        self._channel_loaded = True
 
-    def _run_action(self, fn, on_done=None) -> None:
+    def _run_action(self, fn) -> None:
         self._set_busy(True)
         w = _Worker(fn)
 
         def _done(ok, msg):
             self._set_busy(False)
             self.lbl_result.setText(msg)
-            if on_done:
-                on_done(ok, msg)
             self._refresh()
 
         w.done.connect(_done)

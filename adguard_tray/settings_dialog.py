@@ -31,7 +31,7 @@ from PyQt6.QtWidgets import (
 )
 
 from .config import Config, save_config
-from .i18n import _CURRENT, _TRANSLATIONS, _t
+from .i18n import _TRANSLATIONS, _t
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ class SettingsDialog(QDialog):
         form.addRow(_t("adguard-cli path:"), cli_row)
 
         restart_hint = QLabel(
-            _t("<small>Log level and CLI path changes apply after a restart.</small>")
+            "<small>" + _t("Log level and CLI path changes apply after a restart.") + "</small>"
         )
         restart_hint.setTextFormat(Qt.TextFormat.RichText)
         restart_hint.setWordWrap(True)
@@ -174,32 +174,17 @@ class SettingsDialog(QDialog):
             "zh": "Simplified Chinese",
             "de": "German",
         }
-        # Add available languages
-        available_languages = ["en"] + list(_TRANSLATIONS.keys())
-        # Remove duplicates
-        available_languages = list(dict.fromkeys(available_languages))
-        for lang_code in available_languages:
-            key = self._lang_code_to_key.get(lang_code, lang_code)
-            display_name = _t(key)
-            self.combo_language.addItem(display_name, lang_code)
-
-        # Set current language
-        current_lang = self.config.language or ""
-        if not current_lang:
-            # Auto-detect: find the language that matches current _CURRENT
-            for code, trans_dict in _TRANSLATIONS.items():
-                if trans_dict is _CURRENT:
-                    current_lang = code
-                    break
-            if not current_lang:
-                current_lang = "en"
-        idx = self.combo_language.findData(current_lang)
-        if idx >= 0:
-            self.combo_language.setCurrentIndex(idx)
+        # "" = follow the system locale (the default, must stay selectable –
+        # otherwise the first Save would pin whatever was auto-detected).
+        self.combo_language.addItem(_t("Auto (system locale)"), "")
+        for lang_code in ["en", *_TRANSLATIONS]:
+            self.combo_language.addItem(_t(self._lang_code_to_key.get(lang_code, lang_code)), lang_code)
+        idx = self.combo_language.findData(self.config.language or "")
+        self.combo_language.setCurrentIndex(max(idx, 0))
 
         lang_layout.addWidget(self.combo_language)
 
-        hint = QLabel(_t("<small>Requires application restart to take effect.</small>"))
+        hint = QLabel("<small>" + _t("Requires application restart to take effect.") + "</small>")
         hint.setWordWrap(True)
         hint.setTextFormat(Qt.TextFormat.RichText)
         lang_layout.addWidget(hint)
@@ -233,7 +218,7 @@ class SettingsDialog(QDialog):
             )
             if reply != QMessageBox.StandardButton.Save:
                 return
-        elif cli_path and not _looks_like_adguard_cli(cli_path):
+        elif cli_path and cli_path != self.config.adguard_cli_path and not _looks_like_adguard_cli(cli_path):
             reply = QMessageBox.warning(
                 self,
                 _t("AdGuard Tray – Settings"),

@@ -28,10 +28,11 @@ def load_config() -> Config:
         return Config()
     try:
         data = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-        valid = {f.name for f in fields(Config)}
-        filtered = {k: v for k, v in data.items() if k in valid}
+        types = {f.name: f.type for f in fields(Config)}
+        # Unknown keys and wrong-typed values fall back to the defaults.
+        filtered = {k: v for k, v in data.items() if k in types and type(v) is types[k]}
         return Config(**filtered)
-    except (json.JSONDecodeError, TypeError, ValueError, OSError) as exc:
+    except (json.JSONDecodeError, TypeError, ValueError, OSError, AttributeError) as exc:
         logger.warning("Config load failed, using defaults: %s", exc)
         return Config()
 

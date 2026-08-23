@@ -35,10 +35,10 @@ from PyQt6.QtWidgets import (
 
 from .cli import AdGuardCLI, FilterEntry, FilterListResult
 from .i18n import _t
+from .worker import safe_call, safe_result
 
 logger = logging.getLogger(__name__)
 
-_COL_NAME = 0
 _COL_ID = 1
 _COL_UPDATED = 2
 
@@ -54,7 +54,7 @@ class _LoadWorker(QThread):
         self.all_available = all_available
 
     def run(self):
-        self.done.emit(self.cli.get_filters(all_available=self.all_available))
+        self.done.emit(safe_result(self.cli.get_filters, FilterListResult, all_available=self.all_available))
 
 
 class _UpdateWorker(QThread):
@@ -65,7 +65,7 @@ class _UpdateWorker(QThread):
         self.cli = cli
 
     def run(self):
-        self.done.emit(*self.cli.update_filters())
+        self.done.emit(*safe_call(self.cli.update_filters))
 
 
 class _ToggleWorker(QThread):
@@ -81,11 +81,11 @@ class _ToggleWorker(QThread):
     def run(self):
         if self.enable and not self.was_added:
             # CLI rejects `enable` on a not-added filter, so add it first.
-            ok, msg = self.cli.add_filter(str(self.fid))
+            ok, msg = safe_call(self.cli.add_filter, str(self.fid))
         elif self.enable:
-            ok, msg = self.cli.enable_filter(self.fid)
+            ok, msg = safe_call(self.cli.enable_filter, self.fid)
         else:
-            ok, msg = self.cli.disable_filter(self.fid)
+            ok, msg = safe_call(self.cli.disable_filter, self.fid)
         self.done.emit(ok, msg, self.fid, self.enable)
 
 
@@ -98,7 +98,7 @@ class _RemoveWorker(QThread):
         self.fid = fid
 
     def run(self):
-        self.done.emit(*self.cli.remove_filter(self.fid), self.fid)
+        self.done.emit(*safe_call(self.cli.remove_filter, self.fid), self.fid)
 
 
 class _InstallWorker(QThread):
@@ -112,7 +112,7 @@ class _InstallWorker(QThread):
         self.title = title
 
     def run(self):
-        self.done.emit(*self.cli.install_filter_ext(self.url, self.trusted, self.title))
+        self.done.emit(*safe_call(self.cli.install_filter_ext, self.url, self.trusted, self.title))
 
 
 class _ActionWorker(QThread):
@@ -123,11 +123,7 @@ class _ActionWorker(QThread):
         self._fn = fn
 
     def run(self):
-        try:
-            self.done.emit(*self._fn())
-        except Exception as exc:
-            logger.exception("Unexpected error in action worker")
-            self.done.emit(False, str(exc))
+        self.done.emit(*safe_call(self._fn))
 
 
 # ── Tab widget ────────────────────────────────────────────────────────────
@@ -139,7 +135,6 @@ class FiltersTab(QWidget):
         self._on_change = on_change
         self._workers: list[QThread] = []
         self._filter_map: dict[int, FilterEntry] = {}
-        self._changed = False
 
         self._build_ui()
         self._load_filters()
@@ -283,6 +278,7 @@ class FiltersTab(QWidget):
                     item.setForeground(0, QColor("#b45309") if lum > 140 else QColor("#fbbf24"))
 
         self.tree.expandAll()
+        self._apply_search_filter(self.search_box.text())
         self.tree.itemChanged.connect(self._on_item_changed)
 
     # ── Toggle ────────────────────────────────────────────────────────────
@@ -294,7 +290,7 @@ class FiltersTab(QWidget):
         if fid is None:
             return
         enable = item.checkState(0) == Qt.CheckState.Checked
-        was_added = self._filter_map[fid].is_added if fid in self._filter_map else True
+        was_added = self._filter_map[fid].is_added
         self._set_busy(True)
         self.lbl_status.setText(
             _t("Enabling filter {}…", fid) if enable else _t("Disabling filter {}…", fid)
@@ -310,16 +306,11 @@ class FiltersTab(QWidget):
         self._set_busy(False)
         if ok:
             self._mark_changed()
-            if fid in self._filter_map:
-                self._filter_map[fid].enabled = new_enabled
-                if new_enabled:
-                    self._filter_map[fid].is_added = True
-            self.lbl_status.setText(
-                _t("Filter {} enabled.", fid) if new_enabled else _t("Filter {} disabled.", fid)
-            )
-        else:
-            self._revert_checkbox(fid, not new_enabled)
-            self.lbl_status.setText(_t("Error: {}", msg))
+            # Reload so is_added / last-updated reflect the CLI's view.
+            self._load_filters()
+            return
+        self._revert_checkbox(fid, not new_enabled)
+        self.lbl_status.setText(_t("Error: {}", msg))
         self.tree.itemChanged.connect(self._on_item_changed)
 
     def _revert_checkbox(self, fid: int, revert_to: bool) -> None:
@@ -527,7 +518,6 @@ class FiltersTab(QWidget):
     # ── Helpers ───────────────────────────────────────────────────────────
 
     def _mark_changed(self) -> None:
-        self._changed = True
         if self._on_change:
             self._on_change()
 
@@ -536,6 +526,7 @@ class FiltersTab(QWidget):
         self.btn_add.setEnabled(not busy)
         self.btn_add_id.setEnabled(not busy)
         self.btn_reload.setEnabled(not busy)
+        self.cb_show_all.setEnabled(not busy)
         self.tree.setEnabled(not busy)
         self.progress.setVisible(busy)
 

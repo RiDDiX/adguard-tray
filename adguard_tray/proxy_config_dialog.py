@@ -10,12 +10,11 @@ Tabs:
   6. Security    – SafeBrowsing, CRLite
 """
 
-import copy
 import logging
 from pathlib import Path
 
 import yaml
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -129,9 +128,10 @@ class ProxyConfigDialog(QDialog):
                 _t("Could not load proxy.yaml.\nPath: {}",
                     str(_PROXY_YAML)),
             )
+            # Nothing to edit – close as soon as the caller's exec() starts.
+            QTimer.singleShot(0, self.reject)
             return
 
-        self._original = copy.deepcopy(self._data)
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -857,11 +857,8 @@ class ProxyConfigDialog(QDialog):
             # Check if it's an include-list row
             item0 = self.app_table.item(row, 0)
             if item0 and item0.text().startswith("[include:"):
-                # Find the corresponding original entry
-                for orig in self._app_rules:
-                    if isinstance(orig, dict) and "include-list" in orig:
-                        apps.append(orig)
-                        break
+                # Table rows mirror self._app_rules 1:1 (see _populate_app_table)
+                apps.append(self._app_rules[row])
                 continue
 
             name = item0.text().strip() if item0 else ""

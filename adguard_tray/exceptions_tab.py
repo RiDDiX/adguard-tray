@@ -28,8 +28,7 @@ class ExceptionsTab(QWidget):
     def __init__(self, on_change=None, parent=None) -> None:
         super().__init__(parent)
         self._on_change = on_change
-        self._changed = False
-        self._other_lines: list[str] = []
+        self._other_lines: list[str] | None = []
 
         self._build_ui()
         self._load()
@@ -80,7 +79,16 @@ class ExceptionsTab(QWidget):
         layout.addLayout(btn_row)
 
     def _load(self) -> None:
-        domains, self._other_lines = load_user_rules()
+        try:
+            domains, self._other_lines = load_user_rules()
+        except (OSError, ValueError) as exc:  # ValueError: not UTF-8
+            self._other_lines = None  # never save over a file we couldn't read
+            logger.error("Failed to read user rules: %s", exc)
+            self.lbl_status.setText(_t("Error: {}", exc))
+            self.btn_add.setEnabled(False)
+            self.btn_remove.setEnabled(False)
+            self.input_domain.setEnabled(False)
+            return
         self.domain_list.clear()
         for d in sorted(domains):
             self.domain_list.addItem(d)
@@ -123,10 +131,11 @@ class ExceptionsTab(QWidget):
         self._save_and_mark()
 
     def _save_and_mark(self) -> None:
+        if self._other_lines is None:
+            return
         domains = [self.domain_list.item(i).text() for i in range(self.domain_list.count())]
         ok, err = save_user_rules(domains, self._other_lines)
         if ok:
-            self._changed = True
             if self._on_change:
                 self._on_change()
             self._update_status()

@@ -29,7 +29,7 @@ class ConfigTab(QWidget):
         layout = QVBoxLayout(self)
 
         info = QLabel(
-            _t("<small>Edit the full AdGuard CLI configuration (proxy.yaml).</small>")
+            "<small>" + _t("Edit the full AdGuard CLI configuration (proxy.yaml).") + "</small>"
         )
         info.setTextFormat(Qt.TextFormat.RichText)
         info.setWordWrap(True)

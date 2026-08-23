@@ -84,9 +84,9 @@ class DiagnosticsTab(QWidget):
         # Benchmark
         grp_bench = QGroupBox(_t("Performance Benchmark"))
         bl = QVBoxLayout(grp_bench)
-        bench_info = QLabel(_t(
-            "<small>Run a cryptographic and HTTPS filtering benchmark.</small>"
-        ))
+        bench_info = QLabel("<small>" + _t(
+            "Run a cryptographic and HTTPS filtering benchmark."
+        ) + "</small>")
         bench_info.setTextFormat(Qt.TextFormat.RichText)
         bench_info.setWordWrap(True)
         bl.addWidget(bench_info)

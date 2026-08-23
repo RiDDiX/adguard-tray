@@ -29,10 +29,10 @@ from PyQt6.QtWidgets import (
 
 from .cli import AdGuardCLI, FilterEntry, FilterListResult
 from .i18n import _t
+from .worker import safe_call, safe_result
 
 logger = logging.getLogger(__name__)
 
-_COL_NAME = 0
 _COL_ID = 1
 _COL_UPDATED = 2
 
@@ -46,7 +46,7 @@ class _LoadWorker(QThread):
         self.all_available = all_available
 
     def run(self):
-        self.done.emit(self.cli.get_dns_filters(all_available=self.all_available))
+        self.done.emit(safe_result(self.cli.get_dns_filters, FilterListResult, all_available=self.all_available))
 
 
 class _ToggleWorker(QThread):
@@ -66,7 +66,7 @@ class _ToggleWorker(QThread):
             fn = self.cli.enable_dns_filter if self.was_added else self.cli.add_dns_filter
         else:
             fn = self.cli.disable_dns_filter
-        ok, msg = fn(self.fid)
+        ok, msg = safe_call(fn, self.fid)
         self.done.emit(ok, msg, self.fid, self.enable)
 
 
@@ -79,7 +79,7 @@ class _RemoveWorker(QThread):
         self.fid = fid
 
     def run(self):
-        self.done.emit(*self.cli.remove_dns_filter(self.fid), self.fid)
+        self.done.emit(*safe_call(self.cli.remove_dns_filter, self.fid), self.fid)
 
 
 class _InstallWorker(QThread):
@@ -92,7 +92,7 @@ class _InstallWorker(QThread):
         self.title = title
 
     def run(self):
-        self.done.emit(*self.cli.install_dns_filter(self.url, self.title))
+        self.done.emit(*safe_call(self.cli.install_dns_filter, self.url, self.title))
 
 
 class _ActionWorker(QThread):
@@ -103,11 +103,7 @@ class _ActionWorker(QThread):
         self._fn = fn
 
     def run(self):
-        try:
-            self.done.emit(*self._fn())
-        except Exception as exc:
-            logger.exception("Unexpected error in action worker")
-            self.done.emit(False, str(exc))
+        self.done.emit(*safe_call(self._fn))
 
 
 class DnsFiltersTab(QWidget):
@@ -117,7 +113,6 @@ class DnsFiltersTab(QWidget):
         self._on_change = on_change
         self._workers: list[QThread] = []
         self._filter_map: dict[int, FilterEntry] = {}
-        self._changed = False
 
         self._build_ui()
         self._load_filters()
@@ -177,10 +172,10 @@ class DnsFiltersTab(QWidget):
         self.tree.customContextMenuRequested.connect(self._on_context_menu)
         layout.addWidget(self.tree)
 
-        info = QLabel(_t(
-            "<small>DNS filters block domains at the DNS level. "
-            "Requires DNS filtering to be enabled in Configuration → DNS.</small>"
-        ))
+        info = QLabel("<small>" + _t(
+            "DNS filters block domains at the DNS level. "
+            "Requires DNS filtering to be enabled in Configuration → DNS."
+        ) + "</small>")
         info.setTextFormat(Qt.TextFormat.RichText)
         info.setWordWrap(True)
         layout.addWidget(info)
@@ -244,6 +239,7 @@ class DnsFiltersTab(QWidget):
                     item.setForeground(0, QColor("#b45309") if lum > 140 else QColor("#fbbf24"))
 
         self.tree.expandAll()
+        self._apply_search(self.search_box.text())
         self.tree.itemChanged.connect(self._on_item_changed)
 
     # ── Toggle ────────────────────────────────────────────────────────────
@@ -255,7 +251,7 @@ class DnsFiltersTab(QWidget):
         if fid is None:
             return
         enable = item.checkState(0) == Qt.CheckState.Checked
-        was_added = self._filter_map[fid].is_added if fid in self._filter_map else False
+        was_added = self._filter_map[fid].is_added
         self._set_busy(True)
         self.tree.itemChanged.disconnect(self._on_item_changed)
         w = _ToggleWorker(self.cli, fid, enable, was_added)
@@ -268,25 +264,20 @@ class DnsFiltersTab(QWidget):
         self._set_busy(False)
         if ok:
             self._mark_changed()
-            if fid in self._filter_map:
-                self._filter_map[fid].enabled = new_enabled
-                if new_enabled:
-                    self._filter_map[fid].is_added = True
-            self.lbl_status.setText(
-                _t("DNS filter {} enabled.", fid) if new_enabled else _t("DNS filter {} disabled.", fid)
-            )
-        else:
-            # Revert
-            for i in range(self.tree.topLevelItemCount()):
-                group = self.tree.topLevelItem(i)
-                for j in range(group.childCount()):
-                    child = group.child(j)
-                    if child.data(0, Qt.ItemDataRole.UserRole) == fid:
-                        child.setCheckState(
-                            0, Qt.CheckState.Checked if not new_enabled else Qt.CheckState.Unchecked
-                        )
-                        break
-            self.lbl_status.setText(_t("Error: {}", msg))
+            # Reload so is_added / last-updated reflect the CLI's view.
+            self._load_filters()
+            return
+        # Revert
+        for i in range(self.tree.topLevelItemCount()):
+            group = self.tree.topLevelItem(i)
+            for j in range(group.childCount()):
+                child = group.child(j)
+                if child.data(0, Qt.ItemDataRole.UserRole) == fid:
+                    child.setCheckState(
+                        0, Qt.CheckState.Checked if not new_enabled else Qt.CheckState.Unchecked
+                    )
+                    break
+        self.lbl_status.setText(_t("Error: {}", msg))
         self.tree.itemChanged.connect(self._on_item_changed)
 
     # ── Install / Add ─────────────────────────────────────────────────────
@@ -434,7 +425,6 @@ class DnsFiltersTab(QWidget):
             group.setHidden(visible == 0)
 
     def _mark_changed(self) -> None:
-        self._changed = True
         if self._on_change:
             self._on_change()
 
@@ -442,6 +432,7 @@ class DnsFiltersTab(QWidget):
         self.btn_add.setEnabled(not busy)
         self.btn_add_id.setEnabled(not busy)
         self.btn_reload.setEnabled(not busy)
+        self.cb_show_all.setEnabled(not busy)
         self.tree.setEnabled(not busy)
         self.progress.setVisible(busy)
 

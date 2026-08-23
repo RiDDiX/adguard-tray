@@ -180,6 +180,10 @@ class AdGuardCLI:
 
     def stop(self) -> tuple[bool, str]:
         ok, msg = self._privileged_command("stop")
+        if not ok:
+            # e.g. polkit prompt cancelled – don't follow up with a force-kill
+            # that would prompt again.
+            return ok, msg
         # Verify the service actually stopped – adguard-cli stop can report
         # success while leaving the process alive (stale socket).
         time.sleep(1)
@@ -247,6 +251,9 @@ class AdGuardCLI:
         if code == 0:
             logger.info("adguard-cli %s succeeded (direct)", cmd)
             return True, out or _t("AdGuard {} ok", cmd)
+        if code == -1:
+            # Binary missing – pkexec would only raise pointless prompts.
+            return False, err
 
         logger.debug("Direct %s failed (exit %d): %s – trying pkexec", cmd, code, err)
 
@@ -256,15 +263,16 @@ class AdGuardCLI:
             logger.info("adguard-cli %s succeeded (pkexec)", cmd)
             return True, out2 or _t("AdGuard {} ok", cmd)
 
-        # pkexec exits 126 when the user cancels or fails authentication,
-        # 127 when the helper binary is missing. Surface that directly
-        # instead of falling through to systemctl, which would prompt again.
+        # pkexec exits 126 when the user dismisses the dialog, 127 when
+        # authorization failed or the command could not be run. Surface that
+        # directly instead of falling through to systemctl, which would
+        # prompt again.
         if code2 == 126:
             logger.info("pkexec authentication cancelled (exit 126)")
             return False, _t("Authentication cancelled")
         if code2 == 127:
-            logger.error("pkexec helper missing (exit 127)")
-            return False, _t("polkit helper missing")
+            logger.error("pkexec authorization failed (exit 127): %s", err2)
+            return False, _t("Authorization failed")
 
         logger.debug("pkexec adguard-cli %s failed (exit %d) – trying systemctl", cmd, code2)
 
@@ -280,7 +288,7 @@ class AdGuardCLI:
             if code3 == 126:
                 return False, _t("Authentication cancelled")
             if code3 == 127:
-                return False, _t("polkit helper missing")
+                return False, _t("Authorization failed")
             final_err = err3 or out3
         else:
             final_err = err2 or out2 or err or out
@@ -319,21 +327,9 @@ class AdGuardCLI:
         logger.error("disable_filter(%d) failed: %s", filter_id, msg)
         return False, msg
 
-    def install_filter(self, url: str) -> tuple[bool, str]:
-        """Install a custom filter from a URL."""
-        if not _valid_url(url):
-            return False, _t("URL must start with http:// or https://")
-        code, out, err = _run([self.BINARY, "filters", "install", url], timeout=30)
-        if code == 0 and not _is_cli_failure(out):
-            logger.info("Custom filter installed: %s", url)
-            return True, out or _t("Filter installed")
-        msg = err or out or _t("Installation failed")
-        logger.error("install_filter(%s) failed: %s", url, msg)
-        return False, msg
-
     def remove_filter(self, filter_id: int) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "filters", "remove", str(filter_id)], timeout=15)
-        if code == 0:
+        if code == 0 and not _is_cli_failure(out):
             logger.info("Filter %d removed", filter_id)
             return True, out or _t("Filter {} removed", filter_id)
         msg = err or out or _t("Could not remove filter {}", filter_id)
@@ -505,7 +501,7 @@ class AdGuardCLI:
 
     def remove_dns_filter(self, filter_id: int) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "dns", "filters", "remove", str(filter_id)], timeout=15)
-        if code == 0:
+        if code == 0 and not _is_cli_failure(out):
             return True, out or _t("DNS filter {} removed", filter_id)
         msg = err or out or _t("Could not remove DNS filter {}", filter_id)
         logger.error("remove_dns_filter(%s) failed: %s", filter_id, msg)
@@ -523,7 +519,7 @@ class AdGuardCLI:
         code, out, err = _run(
             [self.BINARY, "dns", "filters", "set-title", str(filter_id), title], timeout=15
         )
-        if code == 0:
+        if code == 0 and not _is_cli_failure(out):
             return True, out or _t("DNS filter title updated")
         msg = err or out or _t("Could not set DNS filter title")
         logger.error("set_dns_filter_title(%d) failed: %s", filter_id, msg)
@@ -545,7 +541,7 @@ class AdGuardCLI:
             [self.BINARY, "filters", "set-trusted", str(filter_id), str(trusted).lower()],
             timeout=15,
         )
-        if code == 0:
+        if code == 0 and not _is_cli_failure(out):
             return True, out or _t("Filter trust updated")
         msg = err or out or _t("Could not update filter trust")
         logger.error("set_filter_trusted(%d) failed: %s", filter_id, msg)
@@ -555,7 +551,7 @@ class AdGuardCLI:
         code, out, err = _run(
             [self.BINARY, "filters", "set-title", str(filter_id), title], timeout=15
         )
-        if code == 0:
+        if code == 0 and not _is_cli_failure(out):
             return True, out or _t("Filter title updated")
         msg = err or out or _t("Could not set filter title")
         logger.error("set_filter_title(%d) failed: %s", filter_id, msg)
@@ -597,7 +593,7 @@ class AdGuardCLI:
         code, out, err = _run(
             [self.BINARY, "config", "set", "update_channel", channel], timeout=10
         )
-        if code == 0:
+        if code == 0 and not _is_cli_failure(out):
             logger.info("Update channel set to %s", channel)
             return True, out or _t("Update channel set to {}", channel)
         msg = err or out or _t("Could not set update channel")

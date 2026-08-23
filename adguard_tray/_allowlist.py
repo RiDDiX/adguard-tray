@@ -15,14 +15,16 @@ USER_RULES_FILE = Path.home() / ".local" / "share" / "adguard-cli" / "user.txt"
 
 ALLOWLIST_RE = re.compile(r"^@@\|\|(.+?)\^\$important,document\s*$")
 _DOMAIN_RE = re.compile(
-    r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]*[a-zA-Z0-9])?\.)*"
-    r"[a-zA-Z0-9](?:[a-zA-Z0-9\-]*[a-zA-Z0-9])?$"
+    r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*"
+    r"[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$"
 )
 _IP_RE = re.compile(r"^\d{1,3}(?:\.\d{1,3}){3}$")
 
 
 def is_valid_domain(text: str) -> bool:
-    return bool(_DOMAIN_RE.match(text) or _IP_RE.match(text))
+    if _IP_RE.match(text):
+        return all(int(o) <= 255 for o in text.split("."))
+    return len(text) <= 253 and bool(_DOMAIN_RE.match(text))
 
 
 def domain_to_rule(domain: str) -> str:
@@ -34,20 +36,19 @@ def load_user_rules() -> tuple[list[str], list[str]]:
 
     Returns the domain part of each allowlist rule and preserves
     all non-allowlist lines (comments, other rules) unchanged.
+    Raises OSError (or UnicodeDecodeError) if the file exists but can't be
+    read – callers must not save (and thereby overwrite) in that case.
     """
     domains: list[str] = []
     other_lines: list[str] = []
     if not USER_RULES_FILE.exists():
         return domains, other_lines
-    try:
-        for line in USER_RULES_FILE.read_text(encoding="utf-8").splitlines():
-            m = ALLOWLIST_RE.match(line)
-            if m:
-                domains.append(m.group(1))
-            else:
-                other_lines.append(line)
-    except OSError as exc:
-        logger.error("Failed to read user rules: %s", exc)
+    for line in USER_RULES_FILE.read_text(encoding="utf-8").splitlines():
+        m = ALLOWLIST_RE.match(line)
+        if m:
+            domains.append(m.group(1))
+        else:
+            other_lines.append(line)
     return domains, other_lines
 
 

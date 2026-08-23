@@ -23,9 +23,13 @@ Menu structure (English default – translated at runtime via i18n):
   ─────────────────────────────────────
   ⟳  Refresh status
   ─────────────────────────────────────
+  Open Manager…          (tabbed GUI)
+  AdGuard Configuration… (proxy.yaml editor)
+  Website Exceptions…
   ⚙  Settings…
   [✓] Autostart on login
   ─────────────────────────────────────
+  adguard-tray vX.Y.Z · CLI vA.B.C
   ✕  Quit
 
 Left-click → immediate status refresh.
@@ -50,7 +54,7 @@ from .config import Config
 from .i18n import _t
 from .icons import icon_active, icon_error, icon_inactive, icon_unknown
 from .notifications import notify
-from .worker import StatusWorker
+from .worker import StatusWorker, safe_call, safe_result
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +112,7 @@ class _ActionRunnable(QRunnable):
 class _FilterLoader(QThread):
     done = pyqtSignal(object)  # FilterListResult
     def __init__(self, cli): super().__init__(); self.cli = cli
-    def run(self): self.done.emit(self.cli.get_filters())
+    def run(self): self.done.emit(safe_result(self.cli.get_filters, FilterListResult))
 
 class _FilterToggle(QThread):
     done = pyqtSignal(bool, str, int, bool)
@@ -116,13 +120,13 @@ class _FilterToggle(QThread):
         super().__init__(); self.cli = cli; self.fid = fid; self.enable = enable
     def run(self):
         fn = self.cli.enable_filter if self.enable else self.cli.disable_filter
-        ok, msg = fn(self.fid)
+        ok, msg = safe_call(fn, self.fid)
         self.done.emit(ok, msg, self.fid, self.enable)
 
 class _UserscriptLoader(QThread):
     done = pyqtSignal(object)  # UserscriptListResult
     def __init__(self, cli): super().__init__(); self.cli = cli
-    def run(self): self.done.emit(self.cli.get_userscripts())
+    def run(self): self.done.emit(safe_result(self.cli.get_userscripts, UserscriptListResult))
 
 class _UserscriptToggle(QThread):
     done = pyqtSignal(bool, str, str, bool)
@@ -130,7 +134,7 @@ class _UserscriptToggle(QThread):
         super().__init__(); self.cli = cli; self.name = name; self.enable = enable
     def run(self):
         fn = self.cli.enable_userscript if self.enable else self.cli.disable_userscript
-        ok, msg = fn(self.name)
+        ok, msg = safe_call(fn, self.name)
         self.done.emit(ok, msg, self.name, self.enable)
 
 
@@ -502,24 +506,23 @@ class AdGuardTray(QSystemTrayIcon):
         self._set_busy(True)
         self._run_async(self.cli.restart)
 
-    def _run_async(self, fn) -> None:
+    def _run_async(self, fn, slot=None) -> None:
         # Parent the signals object to self so its lifetime is tied to the
-        # tray, not just to the runnable that's about to autodelete.
+        # tray, not just to the runnable that's about to autodelete; drop it
+        # once the result has been delivered.
         sig = _ActionSignals(self)
-        sig.done.connect(self._on_action_done)
+        sig.done.connect(slot or self._on_action_done)
+        sig.done.connect(sig.deleteLater)
         QThreadPool.globalInstance().start(_ActionRunnable(fn, sig))
 
     def _refresh_version_label_async(self) -> None:
-        sig = _ActionSignals(self)
-        sig.done.connect(self._on_version_fetched)
-
         def _fetch() -> tuple[bool, str]:
             try:
                 return True, self.cli.get_version()
             except Exception as exc:  # noqa: BLE001
                 return False, str(exc)
 
-        QThreadPool.globalInstance().start(_ActionRunnable(_fetch, sig))
+        self._run_async(_fetch, self._on_version_fetched)
 
     def _on_version_fetched(self, ok: bool, version: str) -> None:
         if ok:
@@ -554,9 +557,7 @@ class AdGuardTray(QSystemTrayIcon):
         self._set_busy(True)
         if self.config.notifications_enabled:
             notify("AdGuard Tray", _t("Restarting AdGuard…"), tray=self)
-        sig = _ActionSignals(self)
-        sig.done.connect(self._on_restart_done)
-        QThreadPool.globalInstance().start(_ActionRunnable(self.cli.restart, sig))
+        self._run_async(self.cli.restart, self._on_restart_done)
 
     def _on_restart_done(self, ok: bool, msg: str) -> None:
         self._set_busy(False)
@@ -667,10 +668,9 @@ class AdGuardTray(QSystemTrayIcon):
             self.setVisible(False)
         except Exception:
             pass
-        # Quit all first, then wait once. Sequential waits would stack.
-        running = [t for t in list(self._bg_threads) if t.isRunning()]
-        for t in running:
-            t.quit()
-        for t in running:
-            t.wait(500)
+        # These threads block in subprocess.run, so quit() can't interrupt
+        # them – just bound the wait.
+        for t in list(self._bg_threads):
+            if t.isRunning():
+                t.wait(500)
         QThreadPool.globalInstance().waitForDone(500)

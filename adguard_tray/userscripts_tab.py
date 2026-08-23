@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
 
 from .cli import AdGuardCLI, UserscriptEntry, UserscriptListResult
 from .i18n import _t
+from .worker import safe_call, safe_result
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ _COL_UPDATED = 2
 class _LoadWorker(QThread):
     done = pyqtSignal(object)
     def __init__(self, cli): super().__init__(); self.cli = cli
-    def run(self): self.done.emit(self.cli.get_userscripts())
+    def run(self): self.done.emit(safe_result(self.cli.get_userscripts, UserscriptListResult))
 
 class _ToggleWorker(QThread):
     done = pyqtSignal(bool, str, str, bool)
@@ -44,18 +45,18 @@ class _ToggleWorker(QThread):
         super().__init__(); self.cli = cli; self.name = name; self.enable = enable
     def run(self):
         fn = self.cli.enable_userscript if self.enable else self.cli.disable_userscript
-        ok, msg = fn(self.name)
+        ok, msg = safe_call(fn, self.name)
         self.done.emit(ok, msg, self.name, self.enable)
 
 class _RemoveWorker(QThread):
     done = pyqtSignal(bool, str, str)
     def __init__(self, cli, name): super().__init__(); self.cli = cli; self.name = name
-    def run(self): self.done.emit(*self.cli.remove_userscript(self.name), self.name)
+    def run(self): self.done.emit(*safe_call(self.cli.remove_userscript, self.name), self.name)
 
 class _InstallWorker(QThread):
     done = pyqtSignal(bool, str)
     def __init__(self, cli, url): super().__init__(); self.cli = cli; self.url = url
-    def run(self): self.done.emit(*self.cli.install_userscript(self.url))
+    def run(self): self.done.emit(*safe_call(self.cli.install_userscript, self.url))
 
 
 class UserscriptsTab(QWidget):
@@ -65,7 +66,6 @@ class UserscriptsTab(QWidget):
         self._on_change = on_change
         self._workers: list[QThread] = []
         self._script_map: dict[str, UserscriptEntry] = {}
-        self._changed = False
 
         self._build_ui()
         self._load()
@@ -161,6 +161,7 @@ class UserscriptsTab(QWidget):
             item.setText(_COL_UPDATED, s.last_update)
             item.setToolTip(0, f"{s.title} ({s.name})")
 
+        self._apply_search(self.search_box.text())
         self.tree.itemChanged.connect(self._on_item_changed)
 
     def _on_item_changed(self, item: QTreeWidgetItem, column: int) -> None:
@@ -273,7 +274,6 @@ class UserscriptsTab(QWidget):
             item.setHidden(not match)
 
     def _mark_changed(self) -> None:
-        self._changed = True
         if self._on_change:
             self._on_change()
 

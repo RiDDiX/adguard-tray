@@ -34,7 +34,7 @@ class ExceptionsDialog(QDialog):
         super().__init__(parent)
         self._on_change = on_change
         self._changed = False
-        self._other_lines: list[str] = []
+        self._other_lines: list[str] | None = []
 
         self.setWindowTitle(_t("AdGuard Tray – Website Exceptions"))
         self.setMinimumSize(520, 420)
@@ -99,9 +99,20 @@ class ExceptionsDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+        # finished() fires for Close button, Escape and the window X alike.
+        self.finished.connect(self._on_finished)
 
     def _load(self) -> None:
-        domains, self._other_lines = load_user_rules()
+        try:
+            domains, self._other_lines = load_user_rules()
+        except (OSError, ValueError) as exc:  # ValueError: not UTF-8
+            self._other_lines = None  # never save over a file we couldn't read
+            logger.error("Failed to read user rules: %s", exc)
+            self.lbl_status.setText(_t("Error: {}", exc))
+            self.btn_add.setEnabled(False)
+            self.btn_remove.setEnabled(False)
+            self.input_domain.setEnabled(False)
+            return
         self.domain_list.clear()
         for d in sorted(domains):
             self.domain_list.addItem(d)
@@ -152,6 +163,8 @@ class ExceptionsDialog(QDialog):
         self._save_and_mark_changed()
 
     def _save_and_mark_changed(self) -> None:
+        if self._other_lines is None:
+            return
         domains = [self.domain_list.item(i).text() for i in range(self.domain_list.count())]
         ok, err = save_user_rules(domains, self._other_lines)
         if ok:
@@ -170,7 +183,6 @@ class ExceptionsDialog(QDialog):
             item = self.domain_list.item(i)
             item.setHidden(bool(needle) and needle not in item.text().lower())
 
-    def closeEvent(self, event) -> None:
+    def _on_finished(self, _result: int) -> None:
         if self._changed and self._on_change:
             self._on_change()
-        super().closeEvent(event)

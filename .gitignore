@@ -13,10 +13,6 @@ build/
 venv/
 env/
 
-# PyInstaller
-*.spec
-dist/
-
 # IDE
 .vscode/
 .idea/

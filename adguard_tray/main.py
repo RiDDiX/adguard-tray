@@ -48,12 +48,16 @@ def _setup_logging(level: str) -> None:
             )
         )
     except OSError as exc:
-        print(f"adguard-tray: could not open log file ({exc}); stderr only", file=sys.stderr)
+        print(f"adguard-tray: could not open log file ({exc}); stdout only", file=sys.stderr)
 
     logging.basicConfig(level=numeric, format=fmt, datefmt=datefmt, handlers=handlers)
 
 
 def main() -> None:
+    if "--version" in sys.argv or "-V" in sys.argv:
+        print(f"adguard-tray {_get_version()}")
+        sys.exit(0)
+
     config = load_config()
     _setup_logging(config.log_level)
     logger = logging.getLogger(__name__)
@@ -109,7 +113,6 @@ def main() -> None:
     logger.debug("Resolved exec path: %s", exec_path)
 
     cli = AdGuardCLI(binary=config.adguard_cli_path)
-    _dependency_doctor(cli)
     tray = AdGuardTray(app, cli, config, exec_path)
 
     # Clean shutdown: stop polling timer before Qt tears things down
@@ -123,6 +126,8 @@ def main() -> None:
     _sigtick.start(500)
     _sigtick.timeout.connect(lambda: None)
 
+    _dependency_doctor(cli)
+
     logger.info("Entering event loop")
     sys.exit(app.exec())
 
@@ -134,18 +139,27 @@ def _get_version() -> str:
 
 def _resolve_exec() -> str:
     """Best-effort: find how this script was launched."""
-    # Installed via pipx / venv entry point
-    if (ep := Path(sys.argv[0])).exists():
+    ep = Path(sys.argv[0])
+    if ep.exists() and ep.suffix != ".py":
+        # Installed console script / launcher – directly executable
         return str(ep.resolve())
-    # Fallback
-    return f"{sys.executable} {Path(__file__).parent.parent / 'adguard-tray.py'}"
+    script = ep.resolve() if ep.exists() else Path(__file__).parent.parent / "adguard-tray.py"
+    return f"{sys.executable} {script}"
 
 
 _INSTALL_CMD = "curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/release/install.sh | sh -s -- -v"
 
 
+_doctor_box: QMessageBox | None = None
+
+
 def _dependency_doctor(cli: AdGuardCLI) -> None:
-    """Show a dialog if adguard-cli is missing. Non-blocking."""
+    """Show a dialog if adguard-cli is missing.
+
+    Non-modal on purpose: a nested exec() loop would swallow app.quit(),
+    so Quit / Ctrl+C would be dead while the box is open.
+    """
+    global _doctor_box
     binary = cli.BINARY
     if shutil.which(binary):
         return
@@ -168,11 +182,21 @@ def _dependency_doctor(cli: AdGuardCLI) -> None:
     msg.addButton(btn_copy, QMessageBox.ButtonRole.ActionRole)
     msg.addButton(btn_continue, QMessageBox.ButtonRole.AcceptRole)
     msg.setDefaultButton(btn_continue)
-    msg.exec()
-    if msg.clickedButton() == btn_copy:
-        clipboard = QApplication.clipboard()
-        if clipboard:
-            clipboard.setText(_INSTALL_CMD)
+    # Without an escape button QMessageBox refuses closeEvent, and Qt 6's
+    # quit() gives up when a window refuses to close.
+    msg.setEscapeButton(btn_continue)
+
+    def _clicked(btn) -> None:
+        global _doctor_box
+        if btn is btn_copy:
+            clipboard = QApplication.clipboard()
+            if clipboard:
+                clipboard.setText(_INSTALL_CMD)
+        _doctor_box = None
+
+    msg.buttonClicked.connect(_clicked)
+    _doctor_box = msg  # keep alive – nothing else references the box
+    msg.show()
 
 
 def _info_dialog(title: str, message: str) -> None:
