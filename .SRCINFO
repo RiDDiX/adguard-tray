@@ -17,6 +17,6 @@ pkgbase = adguard-tray
 	optdepends = adguard-cli-bin: AdGuard CLI via AUR (alternatively install upstream: curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/release/install.sh | sh -s -- -v)
 	optdepends = qt6-svg: SVG icon theme support
 	source = adguard-tray-1.6.9.tar.gz::https://github.com/RiDDiX/adguard-tray/archive/v1.6.9.tar.gz
-	sha256sums = 151d965df8c806c5d81b1060e56ebe5d5da5487423978603ab6a5b607aa5d302
+	sha256sums = a220a65faac4d359ee65c1b65488437b335f18d47191613b7508727cad7f3709
 
 pkgname = adguard-tray
