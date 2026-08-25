@@ -15,6 +15,21 @@ yellow() { printf '\033[1;33m%s\033[0m\n' "$*"; }
 red()    { printf '\033[1;31m%s\033[0m\n' "$*"; }
 info()   { printf '  → %s\n' "$*"; }
 
+# ── Uninstall ──────────────────────────────────────────────────────────────
+if [[ "${1:-}" == "--uninstall" ]]; then
+    green "==> Removing adguard-tray"
+    pkill -f "^python3 ${LIB_DIR}/adguard-tray\.py" 2>/dev/null || true
+    rm -rf "${LIB_DIR}"
+    rm -f "${BIN_DIR}/adguard-tray"
+    rm -f "${DESKTOP_DIR}/adguard-tray.desktop"
+    rm -f "${HOME}/.config/autostart/adguard-tray.desktop"
+    update-desktop-database "${DESKTOP_DIR}" 2>/dev/null || true
+    info "removed application, launcher, desktop entry and autostart"
+    info "kept: ~/.config/adguard-tray (settings), ~/.local/share/adguard-tray (logs)"
+    green "✓ Uninstalled"
+    exit 0
+fi
+
 # ── 1. Dependency check ────────────────────────────────────────────────────
 green "==> Checking dependencies"
 
@@ -30,6 +45,13 @@ if ! pacman -Qi python-yaml &>/dev/null; then
     sudo pacman -S --needed --noconfirm python-yaml
 else
     info "python-yaml ✓"
+fi
+
+if ! command -v pkexec &>/dev/null; then
+    yellow "  polkit (pkexec) not found – installing..."
+    sudo pacman -S --needed --noconfirm polkit
+else
+    info "pkexec ✓"
 fi
 
 if ! command -v notify-send &>/dev/null; then
@@ -96,6 +118,7 @@ echo ""
 green "✓ Installation complete"
 echo ""
 echo "  Run:        adguard-tray"
+echo "  Uninstall:  bash install.sh --uninstall"
 echo "  Direct:     python3 ${LIB_DIR}/adguard-tray.py"
 echo "  Log:        ~/.local/share/adguard-tray/adguard-tray.log"
 echo "  Config:     ~/.config/adguard-tray/config.json"

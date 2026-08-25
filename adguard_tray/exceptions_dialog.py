@@ -35,6 +35,7 @@ class ExceptionsDialog(QDialog):
         self._on_change = on_change
         self._changed = False
         self._other_lines: list[str] | None = []
+        self._loaded_domains: list[str] = []
 
         self.setWindowTitle(_t("AdGuard Tray – Website Exceptions"))
         self.setMinimumSize(520, 420)
@@ -113,6 +114,7 @@ class ExceptionsDialog(QDialog):
             self.btn_remove.setEnabled(False)
             self.input_domain.setEnabled(False)
             return
+        self._loaded_domains = list(domains)
         self.domain_list.clear()
         for d in sorted(domains):
             self.domain_list.addItem(d)
@@ -166,7 +168,9 @@ class ExceptionsDialog(QDialog):
         if self._other_lines is None:
             return
         domains = [self.domain_list.item(i).text() for i in range(self.domain_list.count())]
-        ok, err = save_user_rules(domains, self._other_lines)
+        ok, err = save_user_rules(domains, self._other_lines, self._loaded_domains)
+        if ok:
+            self._loaded_domains = domains
         if ok:
             self._changed = True
             self._update_status()

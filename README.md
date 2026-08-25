@@ -156,6 +156,16 @@ Needs a tray-capable status bar. With waybar, make sure `"tray"` is in your bar 
 
 ---
 
+## Support
+
+If this saves you a trip to the terminal, you can buy me a coffee:
+
+- [PayPal](https://www.paypal.me/RiDDiX93)
+- [Ko-fi](https://ko-fi.com/riddix)
+- GitHub Sponsors — the **Sponsor** button at the top of the repo
+
+---
+
 ## License
 
 MIT

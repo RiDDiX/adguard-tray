@@ -38,6 +38,7 @@ class ManagerWindow(QMainWindow):
         cli: AdGuardCLI,
         config: Config,
         on_restart=None,
+        on_status_change=None,
         parent=None,
         initial_tab: int = 0,
     ) -> None:
@@ -45,6 +46,7 @@ class ManagerWindow(QMainWindow):
         self.cli = cli
         self.config = config
         self._on_restart = on_restart
+        self._on_status_change = on_status_change
 
         self.setWindowTitle(_t("AdGuard Tray – Manager"))
         self.setMinimumSize(820, 620)
@@ -64,7 +66,7 @@ class ManagerWindow(QMainWindow):
 
         # Tab 1: Overview
         from .overview_tab import OverviewTab
-        self._overview = OverviewTab(self.cli, on_restart=self._on_restart)
+        self._overview = OverviewTab(self.cli, on_status_change=self._on_status_change)
         self.tabs.addTab(self._overview, _t("Overview"))
 
         # Tab 2: Filters

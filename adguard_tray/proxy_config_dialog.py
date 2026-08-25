@@ -37,6 +37,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from ._allowlist import write_atomic
 from .i18n import _t
 
 logger = logging.getLogger(__name__)
@@ -71,7 +72,7 @@ def _save_yaml(data: dict) -> tuple[bool, str]:
 
         text = yaml.dump(data, Dumper=_Dumper, default_flow_style=False,
                          allow_unicode=True, sort_keys=False, width=120)
-        _PROXY_YAML.write_text(text, encoding="utf-8")
+        write_atomic(_PROXY_YAML, text)
         return True, ""
     except Exception as exc:
         logger.error("Failed to save proxy.yaml: %s", exc)
@@ -79,14 +80,59 @@ def _save_yaml(data: dict) -> tuple[bool, str]:
 
 
 def _get(data: dict, *keys, default=None):
-    """Safely traverse nested dict."""
+    """Safely traverse nested dict.
+
+    Values of an unexpected type fall back to *default*: proxy.yaml is written
+    by adguard-cli, and a reshaped key must not take the dialog (and with it
+    the tray) down.
+    """
     node = data
     for k in keys:
         if isinstance(node, dict):
             node = node.get(k, default)
         else:
             return default
-    return node if node is not None else default
+    if node is None:
+        return default
+    if isinstance(default, bool):
+        # YAML 1.1 has on/off/yes/no, and safe_load gives ints for 0/1.
+        return bool(node) if isinstance(node, (bool, int)) else default
+    if isinstance(default, int) and isinstance(node, bool):
+        return default  # a bool is not a port or a thread count
+    if default is not None and not isinstance(node, type(default)):
+        return default
+    return node
+
+
+def _raw_edit(raw, default: str) -> QLineEdit:
+    """QLineEdit that remembers the raw YAML value.
+
+    adguard-cli writes lists (and sometimes numbers) where the UI shows one
+    line of text. Those are displayed space-joined and written back untouched
+    unless the user actually edits the field.
+    """
+    if raw is None:
+        shown = default
+    elif isinstance(raw, list):
+        shown = " ".join(str(x) for x in raw)
+    else:
+        shown = str(raw)
+    edit = QLineEdit(shown)
+    edit.setProperty("_raw", default if raw is None else raw)
+    edit.setProperty("_shown", shown)
+    return edit
+
+
+def _raw_value(edit: QLineEdit):
+    """Edited text, or the untouched original when the field wasn't changed."""
+    text = edit.text().strip()
+    raw = edit.property("_raw")
+    if text == str(edit.property("_shown") or "").strip():
+        return raw
+    if isinstance(raw, list):
+        # Keep the shape adguard-cli wrote; the field shows it space-joined.
+        return text.split()
+    return text
 
 
 def _set(data: dict, *keys_and_value):
@@ -191,8 +237,8 @@ class ProxyConfigDialog(QDialog):
         ))
         form.addRow(_t("Mode:"), self.combo_proxy_mode)
 
-        self.edit_filtered_ports = QLineEdit(
-            _get(self._data, "filtered_ports", default="80:5221,5300:49151")
+        self.edit_filtered_ports = _raw_edit(
+            _get(self._data, "filtered_ports"), "80:5221,5300:49151"
         )
         self.edit_filtered_ports.setToolTip(_t(
             "Port ranges intercepted in auto mode.\n"
@@ -229,8 +275,8 @@ class ProxyConfigDialog(QDialog):
         ))
         form2.addRow(_t("HTTP port:"), self.spin_http)
 
-        self.edit_listen_addr = QLineEdit(
-            _get(self._data, "listen_address", default="127.0.0.1")
+        self.edit_listen_addr = _raw_edit(
+            _get(self._data, "listen_address"), "127.0.0.1"
         )
         self.edit_listen_addr.setToolTip(_t(
             "Address the proxy listens on.\n"
@@ -356,9 +402,7 @@ class ProxyConfigDialog(QDialog):
 
         form_fields = QFormLayout()
 
-        self.edit_dns_upstream = QLineEdit(
-            str(_get(dns, "upstream", default="default"))
-        )
+        self.edit_dns_upstream = _raw_edit(_get(dns, "upstream"), "default")
         self.edit_dns_upstream.setToolTip(_t(
             "DNS upstream server.\n"
             "'default' = system DNS\n"
@@ -367,9 +411,7 @@ class ProxyConfigDialog(QDialog):
         ))
         form_fields.addRow(_t("Upstream:"), self.edit_dns_upstream)
 
-        self.edit_dns_fallback = QLineEdit(
-            str(_get(dns, "fallbacks", default="default"))
-        )
+        self.edit_dns_fallback = _raw_edit(_get(dns, "fallbacks"), "default")
         self.edit_dns_fallback.setToolTip(_t(
             "Fallback DNS servers (used when primary upstream fails).\n"
             "'default' = system DNS. Space-separated list.\n"
@@ -377,9 +419,7 @@ class ProxyConfigDialog(QDialog):
         ))
         form_fields.addRow(_t("Fallbacks:"), self.edit_dns_fallback)
 
-        self.edit_dns_bootstrap = QLineEdit(
-            str(_get(dns, "bootstraps", default="default"))
-        )
+        self.edit_dns_bootstrap = _raw_edit(_get(dns, "bootstraps"), "default")
         self.edit_dns_bootstrap.setToolTip(_t(
             "Bootstrap DNS for resolving upstream hostnames.\n"
             "'default' = system DNS IPs. Only IP addresses allowed.\n"
@@ -807,10 +847,10 @@ class ProxyConfigDialog(QDialog):
 
         # Proxy
         d["proxy_mode"] = self.combo_proxy_mode.currentText()
-        d["filtered_ports"] = self.edit_filtered_ports.text().strip()
+        d["filtered_ports"] = _raw_value(self.edit_filtered_ports)
         _set(d, "listen_ports", "socks5_proxy", self.spin_socks5.value())
         _set(d, "listen_ports", "http_proxy", self.spin_http.value())
-        d["listen_address"] = self.edit_listen_addr.text().strip()
+        d["listen_address"] = _raw_value(self.edit_listen_addr)
         d["worker_threads"] = self.spin_workers.value()
 
         # HTTPS
@@ -825,9 +865,9 @@ class ProxyConfigDialog(QDialog):
 
         # DNS
         _set(d, "dns_filtering", "enabled", self.cb_dns.isChecked())
-        _set(d, "dns_filtering", "upstream", self.edit_dns_upstream.text().strip())
-        _set(d, "dns_filtering", "fallbacks", self.edit_dns_fallback.text().strip())
-        _set(d, "dns_filtering", "bootstraps", self.edit_dns_bootstrap.text().strip())
+        _set(d, "dns_filtering", "upstream", _raw_value(self.edit_dns_upstream))
+        _set(d, "dns_filtering", "fallbacks", _raw_value(self.edit_dns_fallback))
+        _set(d, "dns_filtering", "bootstraps", _raw_value(self.edit_dns_bootstrap))
         _set(d, "dns_filtering", "block_ech", self.cb_block_ech.isChecked())
 
         # Stealth

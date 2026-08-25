@@ -60,6 +60,24 @@ logger = logging.getLogger(__name__)
 
 _AUTOSTART_FILE = Path.home() / ".config" / "autostart" / "adguard-tray.desktop"
 
+# How long a failed command stays in the menu line / tooltip when the service
+# state itself doesn't change (a cancelled polkit prompt, a rejected toggle).
+_ERROR_STICKY_S = 120.0
+
+
+def autostart_enabled() -> bool:
+    """True when the XDG autostart entry exists and isn't disabled in place.
+
+    KDE's and GNOME's autostart tools keep the file and set Hidden=true /
+    X-GNOME-Autostart-enabled=false instead of deleting it.
+    """
+    try:
+        text = _AUTOSTART_FILE.read_text(encoding="utf-8")
+    except (OSError, ValueError):
+        return False
+    lowered = text.lower()
+    return "hidden=true" not in lowered and "x-gnome-autostart-enabled=false" not in lowered
+
 _STATUS_LABELS: dict[AdGuardStatus, str] | None = None
 
 
@@ -146,7 +164,7 @@ class AdGuardTray(QSystemTrayIcon):
         app: QApplication,
         cli: AdGuardCLI,
         config: Config,
-        exec_path: str,
+        exec_path: list[str] | str,
     ) -> None:
         super().__init__()
         self.app = app
@@ -160,6 +178,8 @@ class AdGuardTray(QSystemTrayIcon):
         self._loading_filters = False
         self._loading_userscripts = False
         self._last_notify: tuple[AdGuardStatus, AdGuardStatus, float] | None = None
+        self._last_error = ""
+        self._last_error_at = 0.0
         self._cli_version: str = ""
 
         # Coalesce rapid-fire restart triggers (e.g. user flips 4 filters in a
@@ -255,7 +275,7 @@ class AdGuardTray(QSystemTrayIcon):
 
         self._act_autostart = QAction(_t("Autostart on login"))
         self._act_autostart.setCheckable(True)
-        self._act_autostart.setChecked(_AUTOSTART_FILE.exists())
+        self._act_autostart.setChecked(autostart_enabled())
         self._act_autostart.triggered.connect(self._toggle_autostart)
         menu.addAction(self._act_autostart)
 
@@ -278,7 +298,7 @@ class AdGuardTray(QSystemTrayIcon):
         self._update_menu_state(None)
 
     def _refresh_dynamic_menu_state(self) -> None:
-        self._act_autostart.setChecked(_AUTOSTART_FILE.exists())
+        self._act_autostart.setChecked(autostart_enabled())
 
     def _update_menu_state(self, status: AdGuardStatus | None) -> None:
         is_active = status == AdGuardStatus.ACTIVE
@@ -364,8 +384,7 @@ class AdGuardTray(QSystemTrayIcon):
                 act.setChecked(not new_enabled)
                 act.blockSignals(False)
                 break
-        if self.config.notifications_enabled:
-            notify(_t("AdGuard Tray – Error"), msg, urgency="critical", tray=self)
+        self._report_error(msg)
 
     # ── Userscript submenu (lazy) ──────────────────────────────────────────
 
@@ -425,14 +444,18 @@ class AdGuardTray(QSystemTrayIcon):
                 act.setChecked(not new_enabled)
                 act.blockSignals(False)
                 break
-        if self.config.notifications_enabled:
-            notify(_t("AdGuard Tray – Error"), msg, urgency="critical", tray=self)
+        self._report_error(msg)
 
     # ── Status updates ─────────────────────────────────────────────────────
 
     def _on_status_result(self, result: StatusResult) -> None:
         old = self._last_status
         self._last_status = result.status
+        if (old is not None and old != result.status) or (
+            self._last_error and time.monotonic() - self._last_error_at > _ERROR_STICKY_S
+        ):
+            # State moved on, or the failure had its time on screen.
+            self._last_error = ""
 
         self.setIcon(self._icon_map[result.status])
 
@@ -444,9 +467,16 @@ class AdGuardTray(QSystemTrayIcon):
             lines.append(_t("System-wide filtering: {}", state))
         if result.status == AdGuardStatus.ERROR and result.message:
             lines.append(_t("Error: {}", result.message))
+        if self._last_error:
+            lines.append(_t("Error: {}", self._last_error))
         self.setToolTip("\n".join(lines))
 
-        self._act_status.setText(_status_label(result.status))
+        if self._last_error:
+            # Keep the failure visible; the refresh right after an error would
+            # otherwise wipe it before the user can read it.
+            self._act_status.setText(_t("Error: {}", self._last_error))
+        else:
+            self._act_status.setText(_status_label(result.status))
         self._update_menu_state(result.status)
 
         if old is not None and old != result.status and self.config.notifications_enabled:
@@ -470,15 +500,37 @@ class AdGuardTray(QSystemTrayIcon):
             self._refresh_version_label_async()
 
     def _notify_change(self, old: AdGuardStatus, new: AdGuardStatus) -> None:
+        tag = "adguard-tray-status"  # status popups replace each other
         if new == AdGuardStatus.ACTIVE:
-            notify("AdGuard Tray", _t("AdGuard is now active – protection running."), tray=self)
+            notify("AdGuard Tray", _t("AdGuard is now active – protection running."),
+                   tray=self, replace_tag=tag)
         elif new == AdGuardStatus.INACTIVE:
-            notify("AdGuard Tray", _t("AdGuard has been stopped."), urgency="low", tray=self)
+            notify("AdGuard Tray", _t("AdGuard has been stopped."), urgency="low",
+                   tray=self, replace_tag=tag)
         elif new == AdGuardStatus.ERROR:
             notify(_t("AdGuard Tray – Error"), _t("Could not retrieve status."),
-                   urgency="critical", tray=self)
+                   tray=self, replace_tag=tag)
 
     # ── Protection actions ─────────────────────────────────────────────────
+
+    def _report_error(self, msg: str) -> None:
+        """Surface a failed command.
+
+        Notifications can be switched off, so the last error also goes into the
+        menu's status line and the tooltip – otherwise a failed start is
+        completely invisible.
+        """
+        logger.error("Action failed: %s", msg)
+        first_line = msg.strip().splitlines()[0] if msg.strip() else ""
+        self._last_error = first_line[:120]
+        self._last_error_at = time.monotonic()
+        if first_line:
+            self._act_status.setText(_t("Error: {}", self._last_error))
+            self.setToolTip(f"{_status_label(self._last_status)}\n{first_line[:300]}")
+        if self.config.notifications_enabled:
+            # Not "critical": those never expire and bypass do-not-disturb on
+            # KDE and dunst, which is too much for a cancelled prompt.
+            notify(_t("AdGuard Tray – Error"), msg, tray=self)
 
     def _set_busy(self, busy: bool) -> None:
         self._busy = busy
@@ -531,12 +583,18 @@ class AdGuardTray(QSystemTrayIcon):
 
     def _on_action_done(self, ok: bool, msg: str) -> None:
         self._set_busy(False)
-        if not ok and self.config.notifications_enabled:
-            notify(_t("AdGuard Tray – Error"), msg or _t("Command failed"),
-                   urgency="critical", tray=self)
+        if ok:
+            self._last_error = ""
+        else:
+            self._report_error(msg or _t("Command failed"))
         # Refresh immediately – cli.stop() already verified the state
         self.worker.refresh()
         # Second check to catch delayed state changes
+        QTimer.singleShot(2000, self.worker.refresh)
+
+    def _refresh_status_soon(self) -> None:
+        """Re-poll now and once more after the CLI settled."""
+        self.worker.refresh()
         QTimer.singleShot(2000, self.worker.refresh)
 
     def _restart_cli_async(self) -> None:
@@ -547,6 +605,15 @@ class AdGuardTray(QSystemTrayIcon):
         self._restart_debouncer.start()
 
     def _fire_pending_restart(self) -> None:
+        if self._restart_pending and self._last_status in (
+            AdGuardStatus.INACTIVE, AdGuardStatus.NOT_INSTALLED
+        ):
+            # Protection was stopped after the change was queued – restarting
+            # would silently turn it back on. Ambiguous states (UNKNOWN/ERROR)
+            # still restart: dropping a config change is worse there.
+            logger.info("Skipping queued restart, AdGuard is not running")
+            self._restart_pending = False
+            return
         if not self._restart_pending or self._busy:
             # If something else is in flight, push it out a bit instead of
             # racing — the next config change will re-arm us anyway.
@@ -561,26 +628,23 @@ class AdGuardTray(QSystemTrayIcon):
 
     def _on_restart_done(self, ok: bool, msg: str) -> None:
         self._set_busy(False)
-        if self.config.notifications_enabled:
-            if ok:
+        if ok:
+            self._last_error = ""
+            if self.config.notifications_enabled:
                 notify("AdGuard Tray", _t("AdGuard restarted."), tray=self)
-            else:
-                notify(_t("AdGuard Tray – Error"),
-                       _t("Restart failed: {}", msg or _t("Unknown error")),
-                       urgency="critical", tray=self)
+        else:
+            self._report_error(_t("Restart failed: {}", msg or _t("Unknown error")))
         self.worker.refresh()
         QTimer.singleShot(2000, self.worker.refresh)
 
     # ── Autostart ──────────────────────────────────────────────────────────
 
     def _toggle_autostart(self, enable: bool) -> None:
-        from .settings_dialog import _AUTOSTART_DIR, _DESKTOP_TEMPLATE
+        from .settings_dialog import _AUTOSTART_DIR, desktop_entry
         if enable:
             try:
                 _AUTOSTART_DIR.mkdir(parents=True, exist_ok=True)
-                _AUTOSTART_FILE.write_text(
-                    _DESKTOP_TEMPLATE.format(exec=self.exec_path), encoding="utf-8"
-                )
+                _AUTOSTART_FILE.write_text(desktop_entry(self.exec_path), encoding="utf-8")
                 logger.info("Autostart enabled")
             except OSError as exc:
                 logger.error("Autostart enable failed: %s", exc)
@@ -606,6 +670,7 @@ class AdGuardTray(QSystemTrayIcon):
             return
         self._manager_win = ManagerWindow(
             self.cli, self.config, on_restart=self._restart_cli_async,
+            on_status_change=self._refresh_status_soon,
             initial_tab=initial_tab,
         )
         self._manager_win.show()
@@ -630,7 +695,7 @@ class AdGuardTray(QSystemTrayIcon):
         if dlg.exec():
             self.worker.set_interval(self.config.refresh_interval)
             # Sync autostart checkbox with whatever settings dialog did
-            self._act_autostart.setChecked(_AUTOSTART_FILE.exists())
+            self._act_autostart.setChecked(autostart_enabled())
 
     def _show_filters_dialog(self) -> None:
         # Route to the Manager's Filters tab. The legacy modal lacked

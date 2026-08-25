@@ -22,6 +22,8 @@ from PyQt6.QtWidgets import QApplication, QMessageBox, QPushButton, QSystemTrayI
 from .cli import AdGuardCLI
 from .config import load_config
 from .i18n import _t
+from .icons import icon_active
+from .notifications import notify
 from .tray import AdGuardTray
 
 LOG_DIR = Path.home() / ".local" / "share" / "adguard-tray"
@@ -53,27 +55,60 @@ def _setup_logging(level: str) -> None:
     logging.basicConfig(level=numeric, format=fmt, datefmt=datefmt, handlers=handlers)
 
 
+USAGE = """\
+Usage: adguard-tray [options]
+
+System tray monitor and controller for adguard-cli.
+
+Options:
+  -V, --version   print the version and exit
+  -h, --help      print this help and exit
+
+Config:  ~/.config/adguard-tray/config.json
+Log:     ~/.local/share/adguard-tray/adguard-tray.log
+"""
+
+
 def main() -> None:
     if "--version" in sys.argv or "-V" in sys.argv:
         print(f"adguard-tray {_get_version()}")
         sys.exit(0)
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print(USAGE, end="")
+        sys.exit(0)
 
-    config = load_config()
-    _setup_logging(config.log_level)
+    # Logging first: a broken config.json must end up in the log file, not in
+    # a stderr nobody reads under autostart.
+    _setup_logging("INFO")
     logger = logging.getLogger(__name__)
+    config = load_config()
+    logging.getLogger().setLevel(getattr(logging, config.log_level.upper(), logging.INFO))
     logger.info("AdGuard Tray v%s starting", _get_version())
     logger.debug("Log file: %s", LOG_FILE)
+
+    # PyQt turns an unhandled exception in a slot into qFatal(), i.e. the tray
+    # dies on the first hiccup. Log it and keep running instead.
+    sys.excepthook = lambda exc_type, exc, tb: logger.error(
+        "Unhandled exception", exc_info=(exc_type, exc, tb)
+    )
 
     # Qt application
     app = QApplication.instance() or QApplication(sys.argv)
     app.setApplicationName("AdGuard Tray")
     app.setApplicationDisplayName("AdGuard Tray")
     app.setApplicationVersion(_get_version())
+    # Lets the compositor match windows to the .desktop file (icon, grouping,
+    # window rules); without it Wayland falls back to "python3".
+    app.setDesktopFileName("adguard-tray")
+    app.setWindowIcon(icon_active())
     # Stay alive when all windows are closed (tray-only app)
     app.setQuitOnLastWindowClosed(False)
 
     # Single-instance guard – refuse to start a second tray
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        logger.warning("Could not create %s: %s", CONFIG_DIR, exc)
     lock = QLockFile(str(LOCK_FILE))
     lock.setStaleLockTime(0)  # treat only live PIDs as holders
     if not lock.tryLock(100):
@@ -104,6 +139,13 @@ def main() -> None:
                     "Still no system tray host after 30s — check that your "
                     "bar exposes one (waybar tray module, GNOME AppIndicator "
                     "extension, …)."
+                )
+                # No icon to click, so the notification daemon is the only way
+                # left to tell the user the app is running at all.
+                notify(
+                    "AdGuard Tray",
+                    _t("No system tray found. AdGuard Tray is running without "
+                       "an icon — enable a tray/AppIndicator in your panel."),
                 )
 
         QTimer.singleShot(30_000, _late_check)
@@ -137,14 +179,14 @@ def _get_version() -> str:
     return __version__
 
 
-def _resolve_exec() -> str:
-    """Best-effort: find how this script was launched."""
+def _resolve_exec() -> list[str]:
+    """Best-effort argv of how this app was launched (for the autostart entry)."""
     ep = Path(sys.argv[0])
     if ep.exists() and ep.suffix != ".py":
         # Installed console script / launcher – directly executable
-        return str(ep.resolve())
+        return [str(ep.resolve())]
     script = ep.resolve() if ep.exists() else Path(__file__).parent.parent / "adguard-tray.py"
-    return f"{sys.executable} {script}"
+    return [sys.executable, str(script)]
 
 
 _INSTALL_CMD = "curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/release/install.sh | sh -s -- -v"

@@ -29,6 +29,7 @@ class ExceptionsTab(QWidget):
         super().__init__(parent)
         self._on_change = on_change
         self._other_lines: list[str] | None = []
+        self._loaded_domains: list[str] = []
 
         self._build_ui()
         self._load()
@@ -89,6 +90,7 @@ class ExceptionsTab(QWidget):
             self.btn_remove.setEnabled(False)
             self.input_domain.setEnabled(False)
             return
+        self._loaded_domains = list(domains)
         self.domain_list.clear()
         for d in sorted(domains):
             self.domain_list.addItem(d)
@@ -134,7 +136,9 @@ class ExceptionsTab(QWidget):
         if self._other_lines is None:
             return
         domains = [self.domain_list.item(i).text() for i in range(self.domain_list.count())]
-        ok, err = save_user_rules(domains, self._other_lines)
+        ok, err = save_user_rules(domains, self._other_lines, self._loaded_domains)
+        if ok:
+            self._loaded_domains = domains
         if ok:
             if self._on_change:
                 self._on_change()

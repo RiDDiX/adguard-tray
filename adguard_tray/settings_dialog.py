@@ -9,6 +9,7 @@ Manages:
 
 import logging
 import os
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -32,6 +33,7 @@ from PyQt6.QtWidgets import (
 
 from .config import Config, save_config
 from .i18n import _TRANSLATIONS, _t
+from .tray import autostart_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +50,35 @@ def _looks_like_adguard_cli(path: str) -> bool:
 _AUTOSTART_DIR = Path.home() / ".config" / "autostart"
 _AUTOSTART_FILE = _AUTOSTART_DIR / "adguard-tray.desktop"
 
+def _xdg_quote(arg: str) -> str:
+    """Quote one Exec argument per the XDG Desktop Entry spec."""
+    if not arg or any(c in arg for c in ' \t"\'\\><~|&;$*?#()`'):
+        escaped = arg.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$").replace("`", "\\`")
+        return f'"{escaped}"'
+    return arg
+
+
+def desktop_entry(exec_path) -> str:
+    """Autostart entry for *exec_path* (a string or an argv list).
+
+    Exec arguments are quoted per the XDG spec, and TryExec points at the
+    script rather than the interpreter, so the desktop skips a stale entry
+    instead of failing silently at every login.
+    """
+    if isinstance(exec_path, str):
+        try:
+            parts = shlex.split(exec_path) or [exec_path]
+        except ValueError:  # unbalanced quotes – treat it as one path
+            parts = [exec_path]
+    else:
+        parts = list(exec_path) or [""]
+    # "python3 /path/app.py" → check the script, not the interpreter
+    tryexec = parts[1] if len(parts) > 1 and parts[0].endswith(("python", "python3")) else parts[0]
+    return _DESKTOP_TEMPLATE.format(
+        exec=" ".join(_xdg_quote(p) for p in parts), tryexec=tryexec
+    )
+
+
 _DESKTOP_TEMPLATE = """\
 [Desktop Entry]
 Type=Application
@@ -59,6 +90,7 @@ Comment=System tray monitor and controller for adguard-cli
 Comment[de]=System tray Überwachung und Steuerung für adguard-cli
 Comment[zh_CN]=adguard-cli 的系统托盘监视器和控制器
 Exec={exec}
+TryExec={tryexec}
 Icon=security-high
 Categories=Network;Security;System;
 Keywords=adguard;dns;privacy;security;ad-blocker;filter;
@@ -70,7 +102,7 @@ X-GNOME-Autostart-enabled=true
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, config: Config, exec_path: str, parent=None) -> None:
+    def __init__(self, config: Config, exec_path: list[str] | str, parent=None) -> None:
         super().__init__(parent)
         self.config = config
         self.exec_path = exec_path
@@ -148,7 +180,7 @@ class SettingsDialog(QDialog):
         self.cb_autostart = QCheckBox(
             _t("Start automatically on desktop login (XDG Autostart)")
         )
-        self.cb_autostart.setChecked(_AUTOSTART_FILE.exists())
+        self.cb_autostart.setChecked(autostart_enabled())
         auto_layout.addWidget(self.cb_autostart)
 
         autostart_hint = QLabel(
@@ -234,7 +266,13 @@ class SettingsDialog(QDialog):
         self.config.log_level = self.combo_log.currentText()
         self.config.adguard_cli_path = cli_path
         self.config.language = self.combo_language.currentData() or ""
-        save_config(self.config)
+        ok, err = save_config(self.config)
+        if not ok:
+            QMessageBox.critical(
+                self, _t("AdGuard Tray – Settings"),
+                _t("Could not save the settings:\n{}", err),
+            )
+            return
         self._manage_autostart(self.cb_autostart.isChecked())
         self.accept()
 
@@ -243,7 +281,7 @@ class SettingsDialog(QDialog):
             try:
                 _AUTOSTART_DIR.mkdir(parents=True, exist_ok=True)
                 _AUTOSTART_FILE.write_text(
-                    _DESKTOP_TEMPLATE.format(exec=self.exec_path),
+                    desktop_entry(self.exec_path),
                     encoding="utf-8",
                 )
                 logger.info("Autostart entry created: %s", _AUTOSTART_FILE)

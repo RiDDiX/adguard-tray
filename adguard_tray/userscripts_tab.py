@@ -172,7 +172,10 @@ class UserscriptsTab(QWidget):
             return
         enable = item.checkState(0) == Qt.CheckState.Checked
         self._set_busy(True)
-        self.tree.itemChanged.disconnect(self._on_item_changed)
+        try:
+            self.tree.itemChanged.disconnect(self._on_item_changed)
+        except TypeError:
+            pass
         w = _ToggleWorker(self.cli, name, enable)
         w.done.connect(self._on_toggle_done)
         w.finished.connect(lambda: self._workers.remove(w) if w in self._workers else None)
@@ -183,21 +186,16 @@ class UserscriptsTab(QWidget):
         self._set_busy(False)
         if ok:
             self._mark_changed()
-            if name in self._script_map:
-                self._script_map[name].enabled = new_enabled
-            self.lbl_status.setText(
-                _t("Userscript '{}' enabled.", name) if new_enabled
-                else _t("Userscript '{}' disabled.", name)
-            )
-        else:
-            for i in range(self.tree.topLevelItemCount()):
-                child = self.tree.topLevelItem(i)
-                if child.data(0, Qt.ItemDataRole.UserRole) == name:
-                    child.setCheckState(
-                        0, Qt.CheckState.Checked if not new_enabled else Qt.CheckState.Unchecked
-                    )
-                    break
-            self.lbl_status.setText(_t("Error: {}", msg))
+            self._load()
+            return
+        for i in range(self.tree.topLevelItemCount()):
+            child = self.tree.topLevelItem(i)
+            if child.data(0, Qt.ItemDataRole.UserRole) == name:
+                child.setCheckState(
+                    0, Qt.CheckState.Checked if not new_enabled else Qt.CheckState.Unchecked
+                )
+                break
+        self.lbl_status.setText(_t("Error: {}", msg))
         self.tree.itemChanged.connect(self._on_item_changed)
 
     def _install(self) -> None:

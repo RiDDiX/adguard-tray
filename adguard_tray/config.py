@@ -8,6 +8,8 @@ import logging
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
+from ._allowlist import write_atomic
+
 logger = logging.getLogger(__name__)
 
 CONFIG_DIR = Path.home() / ".config" / "adguard-tray"
@@ -37,13 +39,15 @@ def load_config() -> Config:
         return Config()
 
 
-def save_config(config: Config) -> None:
+def save_config(config: Config) -> tuple[bool, str]:
+    """Persist the config. Returns (ok, error) so the UI can say so."""
     try:
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        CONFIG_FILE.write_text(
-            json.dumps(asdict(config), indent=2, ensure_ascii=False),
-            encoding="utf-8",
+        write_atomic(
+            CONFIG_FILE,
+            json.dumps(asdict(config), indent=2, ensure_ascii=False) + "\n",
         )
         logger.debug("Config saved to %s", CONFIG_FILE)
+        return True, ""
     except OSError as exc:
         logger.error("Config save failed: %s", exc)
+        return False, str(exc)

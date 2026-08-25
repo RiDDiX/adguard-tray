@@ -83,11 +83,15 @@ class _RefreshWorker(QThread):
 
 
 class OverviewTab(QWidget):
-    def __init__(self, cli: AdGuardCLI, on_restart=None, parent=None) -> None:
+    def __init__(self, cli: AdGuardCLI, on_status_change=None, parent=None) -> None:
         super().__init__(parent)
         self.cli = cli
-        self._on_restart = on_restart
+        # Enable/Disable/Restart here change the run state, not the config, so
+        # the tray only needs to re-poll – restarting would fight the user.
+        self._on_status_change = on_status_change
         self._workers: list[QThread] = []
+        self._refreshing = False
+        self._acting = False
         self._build_ui()
         self._refresh()
 
@@ -204,6 +208,9 @@ class OverviewTab(QWidget):
         layout.addStretch()
 
     def _refresh(self) -> None:
+        if self._refreshing or self._acting:
+            return
+        self._refreshing = True
         self._set_busy(True)
         self.lbl_status.setText(_t("Checking status…"))
         w = _RefreshWorker(self.cli)
@@ -213,6 +220,7 @@ class OverviewTab(QWidget):
         w.start()
 
     def _on_refresh_done(self, data: dict) -> None:
+        self._refreshing = False
         self._set_busy(False)
 
         # Status
@@ -256,12 +264,16 @@ class OverviewTab(QWidget):
         self.combo_channel.blockSignals(False)
 
     def _run_action(self, fn) -> None:
+        self._acting = True
         self._set_busy(True)
         w = _Worker(fn)
 
         def _done(ok, msg):
+            self._acting = False
             self._set_busy(False)
             self.lbl_result.setText(msg)
+            if ok and self._on_status_change:
+                self._on_status_change()
             self._refresh()
 
         w.done.connect(_done)
@@ -270,7 +282,9 @@ class OverviewTab(QWidget):
         w.start()
 
     def _set_busy(self, busy: bool) -> None:
+        busy = busy or self._acting
         for btn in (self.btn_enable, self.btn_disable, self.btn_restart,
+                    self.btn_refresh,
                     self.btn_update, self.btn_reset_license, self.btn_cert):
             btn.setEnabled(not busy)
         # Only (re)enable the channel combo when we actually loaded a value

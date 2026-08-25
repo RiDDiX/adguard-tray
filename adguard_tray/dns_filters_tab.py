@@ -251,9 +251,16 @@ class DnsFiltersTab(QWidget):
         if fid is None:
             return
         enable = item.checkState(0) == Qt.CheckState.Checked
-        was_added = self._filter_map[fid].is_added
+        entry = self._filter_map.get(fid)
+        if entry is None:
+            self._load_filters()
+            return
+        was_added = entry.is_added
         self._set_busy(True)
-        self.tree.itemChanged.disconnect(self._on_item_changed)
+        try:
+            self.tree.itemChanged.disconnect(self._on_item_changed)
+        except TypeError:
+            pass
         w = _ToggleWorker(self.cli, fid, enable, was_added)
         w.done.connect(self._on_toggle_done)
         w.finished.connect(lambda: self._workers.remove(w) if w in self._workers else None)

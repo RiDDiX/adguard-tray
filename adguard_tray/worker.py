@@ -50,12 +50,15 @@ def safe_result(fn, result_cls, **kwargs):
 class _Signals(QObject):
     result = pyqtSignal(object)  # StatusResult
 
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+
 
 class _StatusRunnable(QRunnable):
-    def __init__(self, cli: AdGuardCLI) -> None:
+    def __init__(self, cli: AdGuardCLI, signals: "_Signals") -> None:
         super().__init__()
         self.cli = cli
-        self.signals = _Signals()
+        self.signals = signals
         self.setAutoDelete(True)
 
     @pyqtSlot()
@@ -84,6 +87,10 @@ class StatusWorker(QObject):
         self.cli = cli
         self._interval = max(5, interval_seconds)
         self._pool = QThreadPool.globalInstance()
+        # One long-lived signals object owned by this worker: a per-poll one
+        # can be garbage collected while its result is still in flight.
+        self._signals = _Signals(self)
+        self._signals.result.connect(self._on_result)
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._enqueue)
         self._running = False
@@ -120,9 +127,7 @@ class StatusWorker(QObject):
             logger.debug("Status check already pending, skipping")
             return
         self._pending = True
-        runnable = _StatusRunnable(self.cli)
-        runnable.signals.result.connect(self._on_result)
-        self._pool.start(runnable)
+        self._pool.start(_StatusRunnable(self.cli, self._signals))
 
     def _on_result(self, result) -> None:
         self._pending = False

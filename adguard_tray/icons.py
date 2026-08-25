@@ -20,7 +20,7 @@ def _make_icon(
     symbol: str,  # "check" | "x" | "exclaim" | "question"
     size: int = 64,
 ) -> QIcon:
-    key = f"{fill_hex}:{symbol}:{size}"
+    key = f"{fill_hex}:{border_hex}:{symbol}:{size}"
     if key in _CACHE:
         return _CACHE[key]
 
@@ -129,7 +129,7 @@ def icon_active() -> QIcon:
 
 
 def icon_inactive() -> QIcon:
-    return _make_icon("#4b5563", "#374151", "x")
+    return _make_icon("#9ca3af", "#6b7280", "x")
 
 
 def icon_error() -> QIcon:

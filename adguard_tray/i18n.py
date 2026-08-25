@@ -674,6 +674,12 @@ _DE: dict[str, str] = {
         "Es kann nur eine Instanz gleichzeitig laufen. Schau in den System-Tray.",
     "Authentication cancelled":         "Authentifizierung abgebrochen",
     "Authorization failed":             "Autorisierung fehlgeschlagen",
+    "Could not save the settings:\n{}":
+        "Einstellungen konnten nicht gespeichert werden:\n{}",
+    "Could not read the filter list (unexpected CLI output).":
+        "Filterliste konnte nicht gelesen werden (unerwartete CLI-Ausgabe).",
+    "No system tray found. AdGuard Tray is running without an icon — enable a tray/AppIndicator in your panel.":
+        "Kein System-Tray gefunden. AdGuard Tray läuft ohne Symbol – aktiviere ein Tray/AppIndicator in deiner Leiste.",
     "URL must start with http:// or https://":
         "URL muss mit http:// oder https:// beginnen",
     "Log level and CLI path changes apply after a restart.":
@@ -1316,6 +1322,12 @@ _ZH_CN: dict[str, str] = {
         "一次只能运行一个实例。请检查你的系统托盘。",
     "Authentication cancelled":         "身份验证已取消",
     "Authorization failed":             "授权失败",
+    "Could not save the settings:\n{}":
+        "无法保存设置：\n{}",
+    "Could not read the filter list (unexpected CLI output).":
+        "无法读取过滤器列表（CLI 输出异常）。",
+    "No system tray found. AdGuard Tray is running without an icon — enable a tray/AppIndicator in your panel.":
+        "未找到系统托盘。AdGuard Tray 正在无图标运行 — 请在面板中启用托盘/AppIndicator。",
     "URL must start with http:// or https://":
         "URL 必须以 http:// 或 https:// 开头",
     "Log level and CLI path changes apply after a restart.":

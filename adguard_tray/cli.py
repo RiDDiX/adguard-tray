@@ -54,10 +54,20 @@ _FAILURE_KEYWORDS = (
 )
 
 
-def _is_cli_failure(stdout: str) -> bool:
-    """Detect failure reported in stdout (adguard-cli returns exit 0 on some failures)."""
-    lower = stdout.lower()
+def _is_cli_failure(*streams: str) -> bool:
+    """Detect failure reported in the output (adguard-cli exits 0 on some failures)."""
+    lower = " ".join(streams).lower()
     return any(kw in lower for kw in _FAILURE_KEYWORDS)
+
+
+# Messages end up in labels, menu entries and notifications; a runaway CLI
+# must not freeze the GUI while Qt measures a multi-megabyte string. Only
+# messages are clipped – parsers always see the full output.
+_MAX_OUTPUT = 20_000
+
+
+def _clip(text: str) -> str:
+    return text if len(text) <= _MAX_OUTPUT else text[:_MAX_OUTPUT] + "\n…"
 
 
 def _valid_url(url: str) -> bool:
@@ -153,9 +163,12 @@ class AdGuardCLI:
                 return StatusResult(AdGuardStatus.ACTIVE, out, out, proxy_port, filtering_enabled)
             return StatusResult(AdGuardStatus.INACTIVE, out, out, proxy_port, filtering_enabled)
 
-        # Ambiguous output → fallback to systemctl
+        # Ambiguous output → fallback to systemctl, but keep what we parsed
         logger.debug("Status output ambiguous, checking systemctl: %r", out)
-        return self._systemctl_fallback(out)
+        fallback = self._systemctl_fallback(out)
+        return StatusResult(
+            fallback.status, out, out, proxy_port, filtering_enabled
+        )
 
     def _systemctl_fallback(self, original: str) -> StatusResult:
         code, out, _ = _run(["systemctl", "is-active", "adguard-cli"], timeout=5)
@@ -169,17 +182,17 @@ class AdGuardCLI:
     # ── Control commands ───────────────────────────────────────────────────
 
     def start(self) -> tuple[bool, str]:
-        ok, msg = self._privileged_command("start")
-        if not ok and "socket busy" in msg.lower():
+        ok, msg, first_error = self._privileged_command("start")
+        if not ok and "socket busy" in (msg + " " + first_error).lower():
             # Stale socket from a previous unclean stop – kill and retry.
             logger.warning("Socket busy on start, cleaning up stale processes")
             self._force_kill()
             time.sleep(0.5)
-            ok, msg = self._privileged_command("start")
+            ok, msg, _ = self._privileged_command("start")
         return ok, msg
 
     def stop(self) -> tuple[bool, str]:
-        ok, msg = self._privileged_command("stop")
+        ok, msg, _ = self._privileged_command("stop")
         if not ok:
             # e.g. polkit prompt cancelled – don't follow up with a force-kill
             # that would prompt again.
@@ -187,8 +200,22 @@ class AdGuardCLI:
         # Verify the service actually stopped – adguard-cli stop can report
         # success while leaving the process alive (stale socket).
         time.sleep(1)
-        status = self.get_status()
-        if status.status == AdGuardStatus.ACTIVE:
+        code, out, err = _run([self.BINARY, "status"])
+        cli_says_stopped = code >= 0 and _STOPPED_RE.search((out + " " + err).lower())
+        unit_active = _run(["systemctl", "is-active", "adguard-cli"], timeout=5)[1].strip() == "active"
+        if unit_active:
+            # systemd keeps it alive (the CLI may lack a PID file and report
+            # "not running"). Stop the unit instead of pkill-ing root processes.
+            logger.info("adguard-cli unit still active after stop, stopping the unit")
+            code2, out2, err2 = _run(["pkexec", "systemctl", "stop", "adguard-cli"], timeout=60)
+            if code2 == 0:
+                return True, _t("AdGuard via systemctl {} ok", "stop")
+            if code2 == 126:
+                return False, _t("Authentication cancelled")
+            return False, _clip(err2 or out2) or _t("Could not stop AdGuard – process may still be running")
+        if cli_says_stopped:
+            return ok, msg
+        if self.get_status().status == AdGuardStatus.ACTIVE:
             logger.warning("stop reported success but service still active, force-killing")
             return self._force_kill()
         return ok, msg
@@ -224,7 +251,7 @@ class AdGuardCLI:
         return False, _t("Could not stop AdGuard – process may still be running")
 
     def restart(self) -> tuple[bool, str]:
-        ok, msg = self._privileged_command("restart")
+        ok, msg, _ = self._privileged_command("restart")
         if not ok:
             return ok, msg
         # `adguard-cli restart` doesn't always start a stopped proxy. Verify
@@ -239,29 +266,31 @@ class AdGuardCLI:
         s = self.get_status()
         return self.stop() if s.status == AdGuardStatus.ACTIVE else self.start()
 
-    def _privileged_command(self, cmd: str) -> tuple[bool, str]:
+    def _privileged_command(self, cmd: str) -> tuple[bool, str, str]:
         """
         Try in order:
           1. adguard-cli <cmd>              (no privilege needed if configured)
           2. pkexec adguard-cli <cmd>       (polkit GUI prompt)
           3. pkexec systemctl <cmd> adguard-cli  (fallback via systemd)
         """
-        # Attempt 1: direct
+        # Attempt 1: direct. Its output is returned alongside the final
+        # message: the fallbacks' errors hide the real cause (e.g. "socket busy").
         code, out, err = _run([self.BINARY, cmd])
+        first_error = err or out
         if code == 0:
             logger.info("adguard-cli %s succeeded (direct)", cmd)
-            return True, out or _t("AdGuard {} ok", cmd)
+            return True, _clip(out) or _t("AdGuard {} ok", cmd), first_error
         if code == -1:
             # Binary missing – pkexec would only raise pointless prompts.
-            return False, err
+            return False, err, first_error
 
-        logger.debug("Direct %s failed (exit %d): %s – trying pkexec", cmd, code, err)
+        logger.info("Direct %s failed (exit %d): %s – trying pkexec", cmd, code, err or out)
 
         # Attempt 2: pkexec adguard-cli
         code2, out2, err2 = _run(["pkexec", self.BINARY, cmd], timeout=60)
         if code2 == 0:
             logger.info("adguard-cli %s succeeded (pkexec)", cmd)
-            return True, out2 or _t("AdGuard {} ok", cmd)
+            return True, _clip(out2) or _t("AdGuard {} ok", cmd), first_error
 
         # pkexec exits 126 when the user dismisses the dialog, 127 when
         # authorization failed or the command could not be run. Surface that
@@ -269,12 +298,15 @@ class AdGuardCLI:
         # prompt again.
         if code2 == 126:
             logger.info("pkexec authentication cancelled (exit 126)")
-            return False, _t("Authentication cancelled")
+            # No first_error: the user said no, so callers must not "recover"
+            # by force-killing and prompting again.
+            return False, _t("Authentication cancelled"), ""
         if code2 == 127:
             logger.error("pkexec authorization failed (exit 127): %s", err2)
-            return False, _t("Authorization failed")
+            return False, _t("Authorization failed"), ""
 
-        logger.debug("pkexec adguard-cli %s failed (exit %d) – trying systemctl", cmd, code2)
+        logger.info("pkexec adguard-cli %s failed (exit %d): %s – trying systemctl",
+                    cmd, code2, err2 or out2)
 
         # Attempt 3: pkexec systemctl
         systemctl_cmd = {"start": "start", "stop": "stop", "restart": "restart"}.get(cmd)
@@ -284,18 +316,19 @@ class AdGuardCLI:
             )
             if code3 == 0:
                 logger.info("systemctl %s adguard-cli succeeded (pkexec)", systemctl_cmd)
-                return True, _t("AdGuard via systemctl {} ok", systemctl_cmd)
+                return True, _t("AdGuard via systemctl {} ok", systemctl_cmd), first_error
             if code3 == 126:
-                return False, _t("Authentication cancelled")
+                return False, _t("Authentication cancelled"), ""
             if code3 == 127:
-                return False, _t("Authorization failed")
+                return False, _t("Authorization failed"), ""
             final_err = err3 or out3
         else:
             final_err = err2 or out2 or err or out
 
-        msg = final_err or _t("'{}' failed – insufficient privileges?", cmd)
-        logger.error("All privilege attempts for '%s' failed. Last error: %s", cmd, msg)
-        return False, msg
+        msg = _clip(final_err or first_error) or _t("'{}' failed – insufficient privileges?", cmd)
+        logger.error("All privilege attempts for '%s' failed. First error: %s | last error: %s",
+                     cmd, first_error, final_err)
+        return False, msg, first_error
 
     # ── Filter management ──────────────────────────────────────────────────
 
@@ -306,33 +339,33 @@ class AdGuardCLI:
             args.append("--all")
         code, out, err = _run(args, timeout=20)
         if code != 0:
-            return FilterListResult(error=err or out or _t("Could not retrieve filter list"))
+            return FilterListResult(error=_clip(err or out) or _t("Could not retrieve filter list"))
         return _parse_filter_list(out)
 
     def enable_filter(self, filter_id: int) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "filters", "enable", str(filter_id)], timeout=15)
-        if code == 0 and not _is_cli_failure(out):
+        if code == 0 and not _is_cli_failure(out, err):
             logger.info("Filter %d enabled", filter_id)
-            return True, out or _t("Filter {} enabled", filter_id)
-        msg = err or out or _t("Could not enable filter {}", filter_id)
+            return True, _clip(out) or _t("Filter {} enabled", filter_id)
+        msg = _clip(err or out) or _t("Could not enable filter {}", filter_id)
         logger.error("enable_filter(%d) failed: %s", filter_id, msg)
         return False, msg
 
     def disable_filter(self, filter_id: int) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "filters", "disable", str(filter_id)], timeout=15)
-        if code == 0 and not _is_cli_failure(out):
+        if code == 0 and not _is_cli_failure(out, err):
             logger.info("Filter %d disabled", filter_id)
-            return True, out or _t("Filter {} disabled", filter_id)
-        msg = err or out or _t("Could not disable filter {}", filter_id)
+            return True, _clip(out) or _t("Filter {} disabled", filter_id)
+        msg = _clip(err or out) or _t("Could not disable filter {}", filter_id)
         logger.error("disable_filter(%d) failed: %s", filter_id, msg)
         return False, msg
 
     def remove_filter(self, filter_id: int) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "filters", "remove", str(filter_id)], timeout=15)
-        if code == 0 and not _is_cli_failure(out):
+        if code == 0 and not _is_cli_failure(out, err):
             logger.info("Filter %d removed", filter_id)
-            return True, out or _t("Filter {} removed", filter_id)
-        msg = err or out or _t("Could not remove filter {}", filter_id)
+            return True, _clip(out) or _t("Filter {} removed", filter_id)
+        msg = _clip(err or out) or _t("Could not remove filter {}", filter_id)
         logger.error("remove_filter(%d) failed: %s", filter_id, msg)
         return False, msg
 
@@ -342,11 +375,15 @@ class AdGuardCLI:
         filters, DNS filters, userscripts, SafebrowsingV2, CRLite, app.
         (`adguard-cli filters update` is deprecated and redirects here.)
         """
+        # No _is_cli_failure here: check-update updates filters, DNS filters,
+        # userscripts, Safebrowsing and CRLite in one run, and a single failed
+        # download must not mark the whole update as failed. The raw output is
+        # shown to the user.
         code, out, err = _run([self.BINARY, "check-update"], timeout=120)
         if code == 0:
             logger.info("Filter update completed")
-            return True, out or _t("Filters updated")
-        msg = err or out or _t("Update failed")
+            return True, _clip(out) or _t("Filters updated")
+        msg = _clip(err or out) or _t("Update failed")
         logger.error("update_filters failed: %s", msg)
         return False, msg
 
@@ -362,7 +399,7 @@ class AdGuardCLI:
         """
         code, out, err = _run([self.BINARY, "userscripts", "list"], timeout=15)
         if code != 0:
-            return UserscriptListResult(error=err or out or _t("Could not retrieve userscript list"))
+            return UserscriptListResult(error=_clip(err or out) or _t("Could not retrieve userscript list"))
         parsed = _parse_userscript_list(out)
 
         # Build filesystem inventory: real_id → (real_id, title).
@@ -427,25 +464,25 @@ class AdGuardCLI:
 
     def enable_userscript(self, name: str) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "userscripts", "enable", name], timeout=15)
-        if code == 0 and not _is_cli_failure(out):
-            return True, out or _t("Userscript '{}' enabled", name)
-        msg = err or out or _t("Could not enable userscript '{}'", name)
+        if code == 0 and not _is_cli_failure(out, err):
+            return True, _clip(out) or _t("Userscript '{}' enabled", name)
+        msg = _clip(err or out) or _t("Could not enable userscript '{}'", name)
         logger.error("enable_userscript(%s) failed: %s", name, msg)
         return False, msg
 
     def disable_userscript(self, name: str) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "userscripts", "disable", name], timeout=15)
-        if code == 0 and not _is_cli_failure(out):
-            return True, out or _t("Userscript '{}' disabled", name)
-        msg = err or out or _t("Could not disable userscript '{}'", name)
+        if code == 0 and not _is_cli_failure(out, err):
+            return True, _clip(out) or _t("Userscript '{}' disabled", name)
+        msg = _clip(err or out) or _t("Could not disable userscript '{}'", name)
         logger.error("disable_userscript(%s) failed: %s", name, msg)
         return False, msg
 
     def remove_userscript(self, name: str) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "userscripts", "remove", name], timeout=15)
-        if code == 0 and not _is_cli_failure(out):
-            return True, out or _t("Userscript '{}' removed", name)
-        msg = err or out or _t("Could not remove userscript '{}'", name)
+        if code == 0 and not _is_cli_failure(out, err):
+            return True, _clip(out) or _t("Userscript '{}' removed", name)
+        msg = _clip(err or out) or _t("Could not remove userscript '{}'", name)
         logger.error("remove_userscript(%s) failed: %s", name, msg)
         return False, msg
 
@@ -453,9 +490,9 @@ class AdGuardCLI:
         if not _valid_url(url):
             return False, _t("URL must start with http:// or https://")
         code, out, err = _run([self.BINARY, "userscripts", "install", url], timeout=30)
-        if code == 0 and not _is_cli_failure(out):
-            return True, out or _t("Userscript installed")
-        msg = err or out or _t("Installation failed")
+        if code == 0 and not _is_cli_failure(out, err):
+            return True, _clip(out) or _t("Userscript installed")
+        msg = _clip(err or out) or _t("Installation failed")
         logger.error("install_userscript(%s) failed: %s", url, msg)
         return False, msg
 
@@ -467,22 +504,22 @@ class AdGuardCLI:
             args.append("--all")
         code, out, err = _run(args, timeout=20)
         if code != 0:
-            return FilterListResult(error=err or out or _t("Could not retrieve DNS filter list"))
+            return FilterListResult(error=_clip(err or out) or _t("Could not retrieve DNS filter list"))
         return _parse_filter_list(out)
 
     def enable_dns_filter(self, filter_id: int) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "dns", "filters", "enable", str(filter_id)], timeout=15)
-        if code == 0 and not _is_cli_failure(out):
-            return True, out or _t("DNS filter {} enabled", filter_id)
-        msg = err or out or _t("Could not enable DNS filter {}", filter_id)
+        if code == 0 and not _is_cli_failure(out, err):
+            return True, _clip(out) or _t("DNS filter {} enabled", filter_id)
+        msg = _clip(err or out) or _t("Could not enable DNS filter {}", filter_id)
         logger.error("enable_dns_filter(%s) failed: %s", filter_id, msg)
         return False, msg
 
     def disable_dns_filter(self, filter_id: int) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "dns", "filters", "disable", str(filter_id)], timeout=15)
-        if code == 0 and not _is_cli_failure(out):
-            return True, out or _t("DNS filter {} disabled", filter_id)
-        msg = err or out or _t("Could not disable DNS filter {}", filter_id)
+        if code == 0 and not _is_cli_failure(out, err):
+            return True, _clip(out) or _t("DNS filter {} disabled", filter_id)
+        msg = _clip(err or out) or _t("Could not disable DNS filter {}", filter_id)
         logger.error("disable_dns_filter(%s) failed: %s", filter_id, msg)
         return False, msg
 
@@ -493,25 +530,25 @@ class AdGuardCLI:
         if title:
             args += ["--title", title]
         code, out, err = _run(args, timeout=30)
-        if code == 0 and not _is_cli_failure(out):
-            return True, out or _t("DNS filter installed")
-        msg = err or out or _t("Installation failed")
+        if code == 0 and not _is_cli_failure(out, err):
+            return True, _clip(out) or _t("DNS filter installed")
+        msg = _clip(err or out) or _t("Installation failed")
         logger.error("install_dns_filter(%s) failed: %s", url, msg)
         return False, msg
 
     def remove_dns_filter(self, filter_id: int) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "dns", "filters", "remove", str(filter_id)], timeout=15)
-        if code == 0 and not _is_cli_failure(out):
-            return True, out or _t("DNS filter {} removed", filter_id)
-        msg = err or out or _t("Could not remove DNS filter {}", filter_id)
+        if code == 0 and not _is_cli_failure(out, err):
+            return True, _clip(out) or _t("DNS filter {} removed", filter_id)
+        msg = _clip(err or out) or _t("Could not remove DNS filter {}", filter_id)
         logger.error("remove_dns_filter(%s) failed: %s", filter_id, msg)
         return False, msg
 
     def add_dns_filter(self, filter_id: str) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "dns", "filters", "add", str(filter_id)], timeout=15)
-        if code == 0 and not _is_cli_failure(out):
-            return True, out or _t("DNS filter added")
-        msg = err or out or _t("Could not add DNS filter")
+        if code == 0 and not _is_cli_failure(out, err):
+            return True, _clip(out) or _t("DNS filter added")
+        msg = _clip(err or out) or _t("Could not add DNS filter")
         logger.error("add_dns_filter(%s) failed: %s", filter_id, msg)
         return False, msg
 
@@ -519,9 +556,9 @@ class AdGuardCLI:
         code, out, err = _run(
             [self.BINARY, "dns", "filters", "set-title", str(filter_id), title], timeout=15
         )
-        if code == 0 and not _is_cli_failure(out):
-            return True, out or _t("DNS filter title updated")
-        msg = err or out or _t("Could not set DNS filter title")
+        if code == 0 and not _is_cli_failure(out, err):
+            return True, _clip(out) or _t("DNS filter title updated")
+        msg = _clip(err or out) or _t("Could not set DNS filter title")
         logger.error("set_dns_filter_title(%d) failed: %s", filter_id, msg)
         return False, msg
 
@@ -530,9 +567,9 @@ class AdGuardCLI:
     def add_filter(self, filter_id: str) -> tuple[bool, str]:
         """Add an internal filter by ID or name."""
         code, out, err = _run([self.BINARY, "filters", "add", filter_id], timeout=15)
-        if code == 0 and not _is_cli_failure(out):
-            return True, out or _t("Filter added")
-        msg = err or out or _t("Could not add filter")
+        if code == 0 and not _is_cli_failure(out, err):
+            return True, _clip(out) or _t("Filter added")
+        msg = _clip(err or out) or _t("Could not add filter")
         logger.error("add_filter(%s) failed: %s", filter_id, msg)
         return False, msg
 
@@ -541,9 +578,9 @@ class AdGuardCLI:
             [self.BINARY, "filters", "set-trusted", str(filter_id), str(trusted).lower()],
             timeout=15,
         )
-        if code == 0 and not _is_cli_failure(out):
-            return True, out or _t("Filter trust updated")
-        msg = err or out or _t("Could not update filter trust")
+        if code == 0 and not _is_cli_failure(out, err):
+            return True, _clip(out) or _t("Filter trust updated")
+        msg = _clip(err or out) or _t("Could not update filter trust")
         logger.error("set_filter_trusted(%d) failed: %s", filter_id, msg)
         return False, msg
 
@@ -551,9 +588,9 @@ class AdGuardCLI:
         code, out, err = _run(
             [self.BINARY, "filters", "set-title", str(filter_id), title], timeout=15
         )
-        if code == 0 and not _is_cli_failure(out):
-            return True, out or _t("Filter title updated")
-        msg = err or out or _t("Could not set filter title")
+        if code == 0 and not _is_cli_failure(out, err):
+            return True, _clip(out) or _t("Filter title updated")
+        msg = _clip(err or out) or _t("Could not set filter title")
         logger.error("set_filter_title(%d) failed: %s", filter_id, msg)
         return False, msg
 
@@ -567,9 +604,9 @@ class AdGuardCLI:
         if title:
             args += ["--title", title]
         code, out, err = _run(args, timeout=30)
-        if code == 0 and not _is_cli_failure(out):
-            return True, out or _t("Filter installed")
-        msg = err or out or _t("Installation failed")
+        if code == 0 and not _is_cli_failure(out, err):
+            return True, _clip(out) or _t("Filter installed")
+        msg = _clip(err or out) or _t("Installation failed")
         logger.error("install_filter_ext(%s) failed: %s", url, msg)
         return False, msg
 
@@ -593,10 +630,10 @@ class AdGuardCLI:
         code, out, err = _run(
             [self.BINARY, "config", "set", "update_channel", channel], timeout=10
         )
-        if code == 0 and not _is_cli_failure(out):
+        if code == 0 and not _is_cli_failure(out, err):
             logger.info("Update channel set to %s", channel)
-            return True, out or _t("Update channel set to {}", channel)
-        msg = err or out or _t("Could not set update channel")
+            return True, _clip(out) or _t("Update channel set to {}", channel)
+        msg = _clip(err or out) or _t("Could not set update channel")
         logger.error("set_update_channel(%s) failed: %s", channel, msg)
         return False, msg
 
@@ -605,14 +642,14 @@ class AdGuardCLI:
     def get_license(self) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "license"], timeout=10)
         if code == 0:
-            return True, out
-        return False, err or out or _t("Could not retrieve license info")
+            return True, _clip(out)
+        return False, _clip(err or out) or _t("Could not retrieve license info")
 
     def reset_license(self) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "reset-license"], timeout=15)
         if code == 0:
-            return True, out or _t("License reset")
-        msg = err or out or _t("Could not reset license")
+            return True, _clip(out) or _t("License reset")
+        msg = _clip(err or out) or _t("Could not reset license")
         logger.error("reset_license failed: %s", msg)
         return False, msg
 
@@ -631,8 +668,8 @@ class AdGuardCLI:
             args, timeout=60, stdin_data="yes\n",
         )
         if code == 0:
-            return True, out or _t("Certificate generated")
-        msg = err or out or _t("Certificate generation failed")
+            return True, _clip(out) or _t("Certificate generated")
+        msg = _clip(err or out) or _t("Certificate generation failed")
         logger.error("generate_cert failed: %s", msg)
         return False, msg
 
@@ -644,8 +681,8 @@ class AdGuardCLI:
             args += ["-o", output_dir]
         code, out, err = _run(args, timeout=60)
         if code == 0:
-            return True, out or _t("Logs exported")
-        msg = err or out or _t("Log export failed")
+            return True, _clip(out) or _t("Logs exported")
+        msg = _clip(err or out) or _t("Log export failed")
         logger.error("export_logs failed: %s", msg)
         return False, msg
 
@@ -655,16 +692,16 @@ class AdGuardCLI:
             args += ["-o", output_dir]
         code, out, err = _run(args, timeout=60)
         if code == 0:
-            return True, out or _t("Settings exported")
-        msg = err or out or _t("Settings export failed")
+            return True, _clip(out) or _t("Settings exported")
+        msg = _clip(err or out) or _t("Settings export failed")
         logger.error("export_settings failed: %s", msg)
         return False, msg
 
     def import_settings(self, input_path: str) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "import-settings", "-i", input_path], timeout=60)
         if code == 0:
-            return True, out or _t("Settings imported")
-        msg = err or out or _t("Settings import failed")
+            return True, _clip(out) or _t("Settings imported")
+        msg = _clip(err or out) or _t("Settings import failed")
         logger.error("import_settings failed: %s", msg)
         return False, msg
 
@@ -673,16 +710,16 @@ class AdGuardCLI:
     def check_cli_update(self) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "update"], timeout=120)
         if code == 0:
-            return True, out or _t("Update check completed")
-        msg = err or out or _t("Update check failed")
+            return True, _clip(out) or _t("Update check completed")
+        msg = _clip(err or out) or _t("Update check failed")
         logger.error("check_cli_update failed: %s", msg)
         return False, msg
 
     def run_speed_benchmark(self) -> tuple[bool, str]:
         code, out, err = _run([self.BINARY, "speed", "--json"], timeout=120)
         if code == 0:
-            return True, out
-        msg = err or out or _t("Benchmark failed")
+            return True, _clip(out)
+        msg = _clip(err or out) or _t("Benchmark failed")
         logger.error("run_speed_benchmark failed: %s", msg)
         return False, msg
 
@@ -791,6 +828,8 @@ def _parse_userscript_list(raw: str) -> UserscriptListResult:
 def _parse_filter_list(raw: str) -> FilterListResult:
     result = FilterListResult()
     current_group = _t("Other")
+    pending_group = ""
+    saw_header = False
 
     for line in raw.splitlines():
         line = line.strip()
@@ -799,6 +838,7 @@ def _parse_filter_list(raw: str) -> FilterListResult:
 
         # Skip table header row
         if _HEADER_RE.search(line):
+            saw_header = True
             continue
 
         m = _FILTER_LINE_RE.match(line)
@@ -821,6 +861,9 @@ def _parse_filter_list(raw: str) -> FilterListResult:
                 last_update = ""
                 title = rest.strip()
 
+            if pending_group:
+                current_group = pending_group
+                pending_group = ""
             entry = FilterEntry(
                 id=fid,
                 title=title,
@@ -834,9 +877,16 @@ def _parse_filter_list(raw: str) -> FilterListResult:
         else:
             # Non-filter line without `|` is either a group header or a footer.
             # CLI footers wrap to multiple lines and tend to be long; group
-            # names are short. Use length as the structural cue (locale-safe).
+            # names are short. Use length as the structural cue (locale-safe)
+            # and only commit the name once a filter line actually follows, so
+            # a short footer doesn't create a phantom group.
             if "|" not in line and len(line) <= 40:
-                current_group = line
-                logger.debug("Filter group: %r", current_group)
+                pending_group = line
+                logger.debug("Filter group candidate: %r", pending_group)
 
+    if raw.strip() and not result.groups and not saw_header:
+        # Neither a filter row nor a table header: the CLI changed its format.
+        # Report it instead of showing an empty list as if nothing was
+        # installed. (A header-only table is a legitimate "nothing installed".)
+        result.error = _t("Could not read the filter list (unexpected CLI output).")
     return result

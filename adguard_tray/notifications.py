@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 APP_NAME = "AdGuard Tray"
 APP_ICON = "security-high"  # XDG icon name, available in Breeze and most themes
+DESKTOP_ENTRY = "adguard-tray"  # matches the installed .desktop file
 
 _QT_ICON = {
     "low":      QSystemTrayIcon.MessageIcon.Information,
@@ -44,6 +45,7 @@ def notify(
     body: str,
     urgency: str = "normal",          # low | normal | critical
     tray: QSystemTrayIcon | None = None,
+    replace_tag: str = "",
 ) -> None:
     """Send a desktop notification. Never raises, never blocks the caller (GUI thread)."""
     global _relay
@@ -62,6 +64,13 @@ def notify(
                 "--app-name", APP_NAME,
                 "--icon", APP_ICON,
                 "--urgency", urgency,
+                # Lets KDE/GNOME map the notification to the app (per-app
+                # settings, icon, history).
+                "--hint", f"string:desktop-entry:{DESKTOP_ENTRY}",
+                # Only notifications sharing a tag replace each other – an
+                # error must not be swallowed by the status change it caused.
+                *(["--hint", f"string:x-canonical-private-synchronous:{replace_tag}"]
+                  if replace_tag else []),
                 title,
                 body,
             ],
@@ -84,6 +93,7 @@ def notify(
             _, err = proc.communicate(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
+            proc.wait()  # reap it, or the zombie stays until the next notify
             logger.warning("notify-send timed out – falling back")
             fallback()
             return
