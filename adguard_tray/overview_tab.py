@@ -8,6 +8,7 @@ Shows status, version, license info, and quick actions:
   - Generate HTTPS certificate
 """
 
+import html
 import logging
 import re
 
@@ -56,6 +57,20 @@ class _Worker(QThread):
         except Exception as exc:
             ok, msg = False, str(exc)
         self.done.emit(ok, msg)
+
+
+class _CertWorker(QThread):
+    """Imports the AdGuard CA into the browsers' certificate stores."""
+    done = pyqtSignal(bool, str, object)
+
+    def run(self):
+        from .certs import install_into_browsers
+        try:
+            ok, msg, targets = install_into_browsers()
+        except Exception as exc:  # never abort the app from a worker
+            logger.exception("Certificate install failed")
+            ok, msg, targets = False, str(exc), []
+        self.done.emit(ok, msg, targets)
 
 
 class _RefreshWorker(QThread):
@@ -197,6 +212,27 @@ class OverviewTab(QWidget):
         self.btn_cert = QPushButton(_t("Generate certificate"))
         self.btn_cert.clicked.connect(self._do_gen_cert)
         cl.addWidget(self.btn_cert)
+
+        browser_info = QLabel("<small>" + _t(
+            "Chromium-based browsers (Brave, Chrome, ungoogled-chromium, Vivaldi, …) "
+            "keep their own certificate store and ignore the system one. "
+            "This adds AdGuard's certificate to every browser profile found, "
+            "which lets AdGuard read those browsers' HTTPS traffic."
+        ) + "</small>")
+        browser_info.setTextFormat(Qt.TextFormat.RichText)
+        browser_info.setWordWrap(True)
+        cl.addWidget(browser_info)
+
+        self.btn_cert_browsers = QPushButton(_t("Install certificate in browsers…"))
+        self.btn_cert_browsers.clicked.connect(self._do_install_cert_browsers)
+        cl.addWidget(self.btn_cert_browsers)
+
+        self.lbl_cert_targets = QLabel("")
+        self.lbl_cert_targets.setTextFormat(Qt.TextFormat.RichText)
+        self.lbl_cert_targets.setWordWrap(True)
+        self.lbl_cert_targets.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.lbl_cert_targets.hide()
+        cl.addWidget(self.lbl_cert_targets)
         layout.addWidget(grp_cert)
 
         # Result label
@@ -284,7 +320,7 @@ class OverviewTab(QWidget):
     def _set_busy(self, busy: bool) -> None:
         busy = busy or self._acting
         for btn in (self.btn_enable, self.btn_disable, self.btn_restart,
-                    self.btn_refresh,
+                    self.btn_refresh, self.btn_cert_browsers,
                     self.btn_update, self.btn_reset_license, self.btn_cert):
             btn.setEnabled(not busy)
         # Only (re)enable the channel combo when we actually loaded a value
@@ -318,6 +354,48 @@ class OverviewTab(QWidget):
         self.lbl_result.setText(_t("Generating certificate…"))
         profile = self.edit_firefox_profile.text().strip()
         self._run_action(lambda: self.cli.generate_cert(firefox_profile=profile))
+
+    def _do_install_cert_browsers(self) -> None:
+        reply = QMessageBox.question(
+            self,
+            _t("Install certificate in browsers"),
+            _t("AdGuard's certificate will be added to every browser profile found "
+               "on this system.\n\nThis allows AdGuard to inspect HTTPS traffic in "
+               "those browsers. Close your browsers first – they read the "
+               "certificate store at startup.\n\nContinue?"),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self.lbl_cert_targets.hide()
+        self.lbl_result.setText(_t("Installing certificate in browsers…"))
+        self._acting = True
+        self._set_busy(True)
+        w = _CertWorker()
+        w.done.connect(self._on_cert_browsers_done)
+        w.finished.connect(lambda: self._workers.remove(w) if w in self._workers else None)
+        self._workers.append(w)
+        w.start()
+
+    def _on_cert_browsers_done(self, ok: bool, msg: str, targets: object) -> None:
+        self._acting = False
+        self._set_busy(False)
+        self.lbl_result.setText(msg)
+        rows = []
+        for target in targets or []:
+            mark = "✓" if target.ok else "✗"
+            # Names and paths come from the filesystem, the label is rich text.
+            name = html.escape(str(target.name))
+            path = html.escape(str(target.path))
+            detail = "" if target.ok else f" – {html.escape(str(target.error))}"
+            rows.append(f"{mark} {name} <code>{path}</code>{detail}")
+        if rows:
+            hint = _t("Restart your browsers for the certificate to take effect.")
+            self.lbl_cert_targets.setText(
+                "<small>" + "<br>".join(rows) + (f"<br><br>{hint}" if ok else "") + "</small>"
+            )
+            self.lbl_cert_targets.show()
 
     def _on_channel_changed(self, channel: str) -> None:
         if not self._channel_loaded or not channel:

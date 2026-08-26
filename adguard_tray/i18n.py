@@ -674,6 +674,90 @@ _DE: dict[str, str] = {
         "Es kann nur eine Instanz gleichzeitig laufen. Schau in den System-Tray.",
     "Authentication cancelled":         "Authentifizierung abgebrochen",
     "Authorization failed":             "Autorisierung fehlgeschlagen",
+    "No filters installed":
+        "Keine Filter installiert",
+    "HTTP/3 is blocked by a firewall rule; browsers use HTTP/2.":
+        "Eine Firewall-Regel blockiert HTTP/3; Browser nutzen HTTP/2.",
+    "Apps excluded from filtering (their HTTP/3 traffic is not filtered either): {}":
+        "Von der Filterung ausgenommene Apps (auch deren HTTP/3-Verkehr wird nicht gefiltert): {}",
+    "AdGuard is not running – nothing is filtered.":
+        "AdGuard läuft nicht – es wird nichts gefiltert.",
+    "could not remove the previous certificate":
+        "Vorheriges Zertifikat konnte nicht entfernt werden",
+    "HTTP/3 state unknown":
+        "HTTP/3-Status unbekannt",
+    "A firewall rule rejects outgoing UDP 443, so QUIC cannot be used.":
+        "Eine Firewall-Regel weist ausgehendes UDP 443 ab, QUIC ist damit nicht nutzbar.",
+    "Browser policy disables QUIC: {}":
+        "Browser-Richtlinie deaktiviert QUIC: {}",
+    "Browsers can bypass AdGuard over HTTP/3 (UDP 443).":
+        "Browser können AdGuard über HTTP/3 (UDP 443) umgehen.",
+    "Browsers prefer HTTP/3 over UDP port 443. AdGuard only sees that traffic in <i>auto</i> proxy mode; otherwise those requests reach the site directly and are not filtered.":
+        "Browser bevorzugen HTTP/3 über UDP-Port 443. AdGuard sieht diesen Verkehr nur im Proxy-Modus <i>auto</i>; sonst gehen die Anfragen direkt zur Website und werden nicht gefiltert.",
+    "Checking…":
+        "Wird geprüft…",
+    "Could not read proxy.yaml – HTTP/3 state unknown.":
+        "proxy.yaml konnte nicht gelesen werden – HTTP/3-Status unbekannt.",
+    "Disable HTTP/3 in Firefox profiles":
+        "HTTP/3 in Firefox-Profilen deaktivieren",
+    "Firefox-family profiles with HTTP/3 switched off: {} of {}":
+        "Firefox-Profile mit deaktiviertem HTTP/3: {} von {}",
+    "HTTP/3 (QUIC)":
+        "HTTP/3 (QUIC)",
+    "HTTP/3 is blocked by AdGuard; browsers fall back to filtered HTTP/2.":
+        "AdGuard blockiert HTTP/3; Browser weichen auf gefiltertes HTTP/2 aus.",
+    "HTTP/3 is filtered by AdGuard.":
+        "HTTP/3 wird von AdGuard gefiltert.",
+    "HTTP/3 re-enabled in Firefox profiles – restart the browser.":
+        "HTTP/3 in den Firefox-Profilen wieder aktiviert – Browser neu starten.",
+    "HTTP/3 switched off in Firefox profiles – restart the browser.":
+        "HTTP/3 in den Firefox-Profilen deaktiviert – Browser neu starten.",
+    "HTTPS filtering is off – nothing is filtered.":
+        "HTTPS-Filterung ist aus – es wird nichts gefiltert.",
+    "On: AdGuard filters HTTP/3 (QUIC) itself – experimental, and some\nbrowsers refuse HTTP/3 through a user-installed certificate anyway.\nOff: AdGuard blocks QUIC instead, so browsers fall back to HTTP/2,\nwhich is filtered reliably.\nEither way this only applies in 'auto' proxy mode – in manual mode\nHTTP/3 traffic never reaches AdGuard.":
+        "An: AdGuard filtert HTTP/3 (QUIC) selbst – experimentell, und manche\nBrowser lehnen HTTP/3 über ein selbst installiertes Zertifikat ohnehin ab.\nAus: AdGuard blockiert QUIC stattdessen, Browser weichen auf HTTP/2 aus,\ndas zuverlässig gefiltert wird.\nBeides gilt nur im Proxy-Modus „auto“ – im Modus „manual“ erreicht\nHTTP/3-Verkehr AdGuard gar nicht.",
+    "Proxy mode: auto – UDP port 443 is redirected to AdGuard.":
+        "Proxy-Modus: auto – UDP-Port 443 wird zu AdGuard umgeleitet.",
+    "Proxy mode: {} – only traffic sent through the proxy is filtered, and browsers do not send QUIC through it.":
+        "Proxy-Modus: {} – gefiltert wird nur, was über den Proxy läuft, und QUIC schicken Browser nicht darüber.",
+    "Re-enable HTTP/3 in Firefox profiles":
+        "HTTP/3 in Firefox-Profilen wieder aktivieren",
+    "Switch HTTP/3 off in {} Firefox-family profile(s)?\n\nTheir traffic then uses HTTP/2, which AdGuard can filter. Restart the browser afterwards.":
+        "HTTP/3 in {} Firefox-Profil(en) deaktivieren?\n\nDeren Verkehr läuft dann über HTTP/2, das AdGuard filtern kann. Browser danach neu starten.",
+    "unknown":
+        "unbekannt",
+    "↺ Re-check":
+        "↺ Erneut prüfen",
+    "AdGuard's certificate was not found. Generate it first.":
+        "AdGuards Zertifikat wurde nicht gefunden. Erzeuge es zuerst.",
+    "AdGuard's certificate will be added to every browser profile found on this system.\n\nThis allows AdGuard to inspect HTTPS traffic in those browsers. Close your browsers first – they read the certificate store at startup.\n\nContinue?":
+        "AdGuards Zertifikat wird in jedes gefundene Browser-Profil auf diesem System eingetragen.\n\nDamit kann AdGuard den HTTPS-Verkehr dieser Browser mitlesen. Schließe die Browser vorher – sie lesen den Zertifikatsspeicher beim Start.\n\nFortfahren?",
+    "Certificate could not be installed in any browser.":
+        "Zertifikat konnte in keinem Browser installiert werden.",
+    "Certificate installed for {} of {} stores.":
+        "Zertifikat in {} von {} Speichern installiert.",
+    "Chromium-based browsers":
+        "Chromium-basierte Browser",
+    "Chromium-based browsers (Brave, Chrome, ungoogled-chromium, Vivaldi, …) keep their own certificate store and ignore the system one. This adds AdGuard's certificate to every browser profile found, which lets AdGuard read those browsers' HTTPS traffic.":
+        "Chromium-basierte Browser (Brave, Chrome, ungoogled-chromium, Vivaldi, …) haben einen eigenen Zertifikatsspeicher und ignorieren den des Systems. Das trägt AdGuards Zertifikat in jedes gefundene Browser-Profil ein und erlaubt AdGuard, den HTTPS-Verkehr dieser Browser mitzulesen.",
+    "Install certificate in browsers":
+        "Zertifikat in Browsern installieren",
+    "Install certificate in browsers…":
+        "Zertifikat in Browsern installieren…",
+    "Installing certificate in browsers…":
+        "Zertifikat wird in Browsern installiert…",
+    "No browser certificate stores found.":
+        "Keine Browser-Zertifikatsspeicher gefunden.",
+    "Restart your browsers for the certificate to take effect.":
+        "Starte die Browser neu, damit das Zertifikat wirkt.",
+    "Run this without sudo/pkexec – it installs into your own browser profiles":
+        "Ohne sudo/pkexec ausführen – die Installation erfolgt in deine eigenen Browser-Profile",
+    "certificate not found after import":
+        "Zertifikat nach dem Import nicht gefunden",
+    "certutil not found – install the 'nss' package":
+        "certutil nicht gefunden – Paket „nss“ installieren",
+    "not found":
+        "nicht vorhanden",
     "Could not save the settings:\n{}":
         "Einstellungen konnten nicht gespeichert werden:\n{}",
     "Could not read the filter list (unexpected CLI output).":
@@ -1322,6 +1406,90 @@ _ZH_CN: dict[str, str] = {
         "一次只能运行一个实例。请检查你的系统托盘。",
     "Authentication cancelled":         "身份验证已取消",
     "Authorization failed":             "授权失败",
+    "No filters installed":
+        "未安装过滤器",
+    "HTTP/3 is blocked by a firewall rule; browsers use HTTP/2.":
+        "防火墙规则阻止了 HTTP/3；浏览器将使用 HTTP/2。",
+    "Apps excluded from filtering (their HTTP/3 traffic is not filtered either): {}":
+        "已排除过滤的应用（其 HTTP/3 流量同样不被过滤）：{}",
+    "AdGuard is not running – nothing is filtered.":
+        "AdGuard 未运行 — 不会过滤任何内容。",
+    "could not remove the previous certificate":
+        "无法移除先前的证书",
+    "HTTP/3 state unknown":
+        "HTTP/3 状态未知",
+    "A firewall rule rejects outgoing UDP 443, so QUIC cannot be used.":
+        "防火墙规则拒绝出站 UDP 443，因此无法使用 QUIC。",
+    "Browser policy disables QUIC: {}":
+        "浏览器策略已禁用 QUIC：{}",
+    "Browsers can bypass AdGuard over HTTP/3 (UDP 443).":
+        "浏览器可通过 HTTP/3（UDP 443）绕过 AdGuard。",
+    "Browsers prefer HTTP/3 over UDP port 443. AdGuard only sees that traffic in <i>auto</i> proxy mode; otherwise those requests reach the site directly and are not filtered.":
+        "浏览器优先使用基于 UDP 443 端口的 HTTP/3。只有在 <i>auto</i> 代理模式下 AdGuard 才能看到这些流量；否则请求会直连网站且不被过滤。",
+    "Checking…":
+        "正在检查…",
+    "Could not read proxy.yaml – HTTP/3 state unknown.":
+        "无法读取 proxy.yaml — HTTP/3 状态未知。",
+    "Disable HTTP/3 in Firefox profiles":
+        "在 Firefox 配置文件中禁用 HTTP/3",
+    "Firefox-family profiles with HTTP/3 switched off: {} of {}":
+        "已禁用 HTTP/3 的 Firefox 系列配置文件：{} / {}",
+    "HTTP/3 (QUIC)":
+        "HTTP/3（QUIC）",
+    "HTTP/3 is blocked by AdGuard; browsers fall back to filtered HTTP/2.":
+        "AdGuard 阻止 HTTP/3；浏览器回退到受过滤的 HTTP/2。",
+    "HTTP/3 is filtered by AdGuard.":
+        "HTTP/3 由 AdGuard 过滤。",
+    "HTTP/3 re-enabled in Firefox profiles – restart the browser.":
+        "已在 Firefox 配置文件中重新启用 HTTP/3 — 请重启浏览器。",
+    "HTTP/3 switched off in Firefox profiles – restart the browser.":
+        "已在 Firefox 配置文件中禁用 HTTP/3 — 请重启浏览器。",
+    "HTTPS filtering is off – nothing is filtered.":
+        "HTTPS 过滤已关闭 — 不会过滤任何内容。",
+    "On: AdGuard filters HTTP/3 (QUIC) itself – experimental, and some\nbrowsers refuse HTTP/3 through a user-installed certificate anyway.\nOff: AdGuard blocks QUIC instead, so browsers fall back to HTTP/2,\nwhich is filtered reliably.\nEither way this only applies in 'auto' proxy mode – in manual mode\nHTTP/3 traffic never reaches AdGuard.":
+        "开启：AdGuard 自行过滤 HTTP/3（QUIC）— 属实验功能，且部分浏览器\n本就拒绝通过用户安装的证书使用 HTTP/3。\n关闭：AdGuard 转为阻止 QUIC，浏览器回退到 HTTP/2，可被可靠过滤。\n两者都仅在 “auto” 代理模式下生效 — 在 “manual” 模式下\nHTTP/3 流量根本不会到达 AdGuard。",
+    "Proxy mode: auto – UDP port 443 is redirected to AdGuard.":
+        "代理模式：auto — UDP 443 端口被重定向到 AdGuard。",
+    "Proxy mode: {} – only traffic sent through the proxy is filtered, and browsers do not send QUIC through it.":
+        "代理模式：{} — 只有经过代理的流量会被过滤，而浏览器不会通过代理发送 QUIC。",
+    "Re-enable HTTP/3 in Firefox profiles":
+        "在 Firefox 配置文件中重新启用 HTTP/3",
+    "Switch HTTP/3 off in {} Firefox-family profile(s)?\n\nTheir traffic then uses HTTP/2, which AdGuard can filter. Restart the browser afterwards.":
+        "在 {} 个 Firefox 系列配置文件中禁用 HTTP/3？\n\n其流量将改用 HTTP/2，AdGuard 可以过滤。之后请重启浏览器。",
+    "unknown":
+        "未知",
+    "↺ Re-check":
+        "↺ 重新检查",
+    "AdGuard's certificate was not found. Generate it first.":
+        "未找到 AdGuard 证书。请先生成。",
+    "AdGuard's certificate will be added to every browser profile found on this system.\n\nThis allows AdGuard to inspect HTTPS traffic in those browsers. Close your browsers first – they read the certificate store at startup.\n\nContinue?":
+        "AdGuard 证书将被添加到本机找到的每个浏览器配置文件。\n\n这将允许 AdGuard 检查这些浏览器的 HTTPS 流量。请先关闭浏览器 — 它们在启动时读取证书库。\n\n是否继续？",
+    "Certificate could not be installed in any browser.":
+        "无法在任何浏览器中安装证书。",
+    "Certificate installed for {} of {} stores.":
+        "已在 {} / {} 个证书库中安装证书。",
+    "Chromium-based browsers":
+        "基于 Chromium 的浏览器",
+    "Chromium-based browsers (Brave, Chrome, ungoogled-chromium, Vivaldi, …) keep their own certificate store and ignore the system one. This adds AdGuard's certificate to every browser profile found, which lets AdGuard read those browsers' HTTPS traffic.":
+        "基于 Chromium 的浏览器（Brave、Chrome、ungoogled-chromium、Vivaldi 等）使用自己的证书库，会忽略系统证书库。此操作会将 AdGuard 证书添加到找到的每个浏览器配置文件，使 AdGuard 能够读取这些浏览器的 HTTPS 流量。",
+    "Install certificate in browsers":
+        "在浏览器中安装证书",
+    "Install certificate in browsers…":
+        "在浏览器中安装证书…",
+    "Installing certificate in browsers…":
+        "正在浏览器中安装证书…",
+    "No browser certificate stores found.":
+        "未找到浏览器证书库。",
+    "Restart your browsers for the certificate to take effect.":
+        "请重启浏览器以使证书生效。",
+    "Run this without sudo/pkexec – it installs into your own browser profiles":
+        "请勿使用 sudo/pkexec 运行 — 证书会安装到你自己的浏览器配置文件中",
+    "certificate not found after import":
+        "导入后未找到证书",
+    "certutil not found – install the 'nss' package":
+        "未找到 certutil — 请安装 “nss” 软件包",
+    "not found":
+        "不存在",
     "Could not save the settings:\n{}":
         "无法保存设置：\n{}",
     "Could not read the filter list (unexpected CLI output).":

@@ -323,8 +323,12 @@ class ProxyConfigDialog(QDialog):
         self.cb_http3 = QCheckBox(_t("Filter HTTP/3 (QUIC) – experimental"))
         self.cb_http3.setChecked(_get(https, "http3_filtering_enabled", default=True))
         self.cb_http3.setToolTip(_t(
-            "Filter HTTP/3 (QUIC) traffic.\n"
-            "Experimental – may cause issues with some sites."
+            "On: AdGuard filters HTTP/3 (QUIC) itself – experimental, and some\n"
+            "browsers refuse HTTP/3 through a user-installed certificate anyway.\n"
+            "Off: AdGuard blocks QUIC instead, so browsers fall back to HTTP/2,\n"
+            "which is filtered reliably.\n"
+            "Either way this only applies in 'auto' proxy mode – in manual mode\n"
+            "HTTP/3 traffic never reaches AdGuard."
         ))
         form.addWidget(self.cb_http3)
 

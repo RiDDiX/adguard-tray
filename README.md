@@ -19,6 +19,8 @@ The UI language is detected automatically from the system locale (override in Se
 - Install custom filter lists by URL
 - Desktop notifications when status changes (with dedup to prevent spam)
 - Autostart toggle right in the tray menu
+- Install the HTTPS certificate into Chromium-based browsers (Brave, Chrome, ungoogled-chromium, Vivaldi, …) and Firefox-family profiles
+- HTTP/3 (QUIC) check: tells you when browsers can bypass filtering
 - `--version` / `-V` flag
 
 ---
@@ -113,6 +115,53 @@ Start/stop requires root. The app tries in order:
 3. `pkexec systemctl start/stop adguard-cli`
 
 ---
+
+## HTTPS certificate
+
+`adguard-cli cert` adds AdGuard's root certificate to the system trust store,
+which covers Firefox's default profile and WebKit browsers. Chromium-based
+browsers keep their own certificate store and ignore the system one, so HTTPS
+filtering silently does nothing there.
+
+The Manager's **Overview** tab has *Install certificate in browsers…*, which
+imports the certificate into every browser certificate store it finds:
+
+- `~/.pki/nssdb` and `~/.local/share/pki/nssdb` (Chromium 146+ prefers the latter) — created when missing
+- Flatpak and Snap browser stores
+- Firefox, LibreWolf, Waterfox and Zen profiles listed in their `profiles.ini`
+
+It needs `certutil` (Arch: `nss`); the copy shipped with adguard-cli is used as
+a fallback. Browsers read the store at startup, so restart them afterwards.
+
+This installs a certificate authority that lets AdGuard read those browsers'
+HTTPS traffic — the same trade-off HTTPS filtering always makes.
+
+## HTTP/3 (QUIC)
+
+Browsers prefer HTTP/3 over UDP port 443. What AdGuard does with it depends on
+the proxy mode in `proxy.yaml`:
+
+| Proxy mode | HTTP/3 |
+|---|---|
+| `auto` | UDP 443 is redirected into AdGuard. `https_filtering.http3_filtering_enabled: true` filters HTTP/3, `false` **blocks** QUIC so browsers fall back to HTTP/2 — which is filtered reliably, so `false` is the safer setting |
+| `manual` | Nothing touches UDP 443. Browsers reach sites directly over HTTP/3 and that traffic is **not filtered** |
+
+The Manager's **Diagnostics** tab shows which case applies, whether a firewall
+rule or a browser policy blocks QUIC, and can switch HTTP/3 off in Firefox-family
+profiles (writes `network.http.http3.enable` to the profile's `user.js`).
+
+Chromium-based browsers have no per-user switch; the options are
+`chrome://flags/#enable-quic` → *Disabled* per browser, or a system-wide policy:
+
+```bash
+# Brave: /etc/brave/policies/managed/ — Chrome: /etc/opt/chrome/policies/managed/
+# Chromium/ungoogled-chromium/Vivaldi: /etc/chromium/policies/managed/
+sudo mkdir -p /etc/brave/policies/managed
+echo '{ "QuicAllowed": false }' | sudo tee /etc/brave/policies/managed/quic.json
+```
+
+Blocking UDP 443 in the firewall also works, but it breaks DNS-over-QUIC,
+WireGuard on port 443 and some video calls — so the app does not do it for you.
 
 ## Config
 

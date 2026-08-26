@@ -177,6 +177,10 @@ class AdGuardTray(QSystemTrayIcon):
         self._bg_threads: list[QThread] = []  # keep refs alive
         self._loading_filters = False
         self._loading_userscripts = False
+        self._filter_sig: tuple | None = None
+        self._us_sig: tuple | None = None
+        self._filter_placeholder: QAction | None = None
+        self._us_placeholder: QAction | None = None
         self._last_notify: tuple[AdGuardStatus, AdGuardStatus, float] | None = None
         self._last_error = ""
         self._last_error_at = 0.0
@@ -201,6 +205,11 @@ class AdGuardTray(QSystemTrayIcon):
         self.worker = StatusWorker(self.cli, config.refresh_interval)
         self.worker.status_updated.connect(self._on_status_result)
         self.worker.start()
+
+        # Fill the submenus up front: on Wayland panels the menu is exported
+        # over D-Bus, and the first popup shows whatever is there right then.
+        QTimer.singleShot(0, self._load_filter_submenu)
+        QTimer.singleShot(0, self._load_userscript_submenu)
 
     # ── Icons ──────────────────────────────────────────────────────────────
 
@@ -242,11 +251,17 @@ class AdGuardTray(QSystemTrayIcon):
         # Filter submenu
         self._filter_menu = QMenu(_t("Filters"))
         self._filter_menu.aboutToShow.connect(self._load_filter_submenu)
+        self._filter_tail = self._seed_submenu(
+            self._filter_menu, _t("Manage filters…"), self._show_filters_dialog
+        )
         menu.addMenu(self._filter_menu)
 
         # Userscript submenu
         self._us_menu = QMenu(_t("Userscripts"))
         self._us_menu.aboutToShow.connect(self._load_userscript_submenu)
+        self._us_tail = self._seed_submenu(
+            self._us_menu, _t("Manage userscripts…"), self._show_userscripts_dialog
+        )
         menu.addMenu(self._us_menu)
 
         menu.addSeparator()
@@ -297,8 +312,59 @@ class AdGuardTray(QSystemTrayIcon):
         self.setContextMenu(menu)
         self._update_menu_state(None)
 
+    def _drop_placeholder(self, menu: QMenu, attr: str) -> None:
+        """Remove the "Loading…" entry, including on the unchanged-list path."""
+        placeholder = getattr(self, attr, None)
+        if placeholder is not None:
+            menu.removeAction(placeholder)
+            placeholder.setParent(None)
+            placeholder.deleteLater()
+            setattr(self, attr, None)
+
+    @staticmethod
+    def _submenu_is_empty(menu: QMenu, tail: list[QAction]) -> bool:
+        return all(act in tail for act in menu.actions())
+
+    @staticmethod
+    def _replace_submenu_items(
+        menu: QMenu, tail: list[QAction], new_actions: list[QAction], anchor: QAction
+    ) -> None:
+        """Swap a submenu's items without it ever being empty.
+
+        New items go in above the permanent tail first, the old ones are
+        removed afterwards – dropping to zero children would make
+        libdbusmenu-gtk destroy the submenu for the rest of the session.
+        """
+        old = [act for act in menu.actions() if act not in tail]
+        for act in new_actions:
+            menu.insertAction(anchor, act)
+        for act in old:
+            # removeAction only detaches – without deleting, every rebuild
+            # would leave its actions behind for the life of the process.
+            menu.removeAction(act)
+            act.setParent(None)
+            act.deleteLater()
+
+    def _seed_submenu(self, menu: QMenu, manage_text: str, manage_slot) -> list[QAction]:
+        """Give a submenu its permanent tail.
+
+        A submenu that is exported empty (or drops back to zero children) is
+        destroyed for good by libdbusmenu-gtk, which is what waybar uses – so
+        these two entries stay in place and new items are inserted above them.
+        """
+        separator = menu.addSeparator()
+        act_manage = menu.addAction(manage_text)
+        act_manage.triggered.connect(manage_slot)
+        return [separator, act_manage]
+
     def _refresh_dynamic_menu_state(self) -> None:
         self._act_autostart.setChecked(autostart_enabled())
+        # waybar's dbusmenu client never sends AboutToShow for a submenu (GTK
+        # doesn't emit "activate" for items that have one), so the submenus
+        # would stay empty forever on Hyprland. Refresh them from here, where
+        # AboutToShow does arrive. No-op on KDE, which asks per submenu.
+        self._load_filter_submenu()
+        self._load_userscript_submenu()
 
     def _update_menu_state(self, status: AdGuardStatus | None) -> None:
         is_active = status == AdGuardStatus.ACTIVE
@@ -325,9 +391,10 @@ class AdGuardTray(QSystemTrayIcon):
         if self._loading_filters:
             return
         self._loading_filters = True
-        self._filter_menu.clear()
-        placeholder = self._filter_menu.addAction(_t("Loading…"))
-        placeholder.setEnabled(False)
+        if self._submenu_is_empty(self._filter_menu, self._filter_tail):
+            self._filter_placeholder = QAction(_t("Loading…"), self._filter_menu)
+            self._filter_placeholder.setEnabled(False)
+            self._filter_menu.insertAction(self._filter_tail[0], self._filter_placeholder)
 
         w = _FilterLoader(self.cli)
         w.done.connect(self._populate_filter_submenu)
@@ -337,19 +404,42 @@ class AdGuardTray(QSystemTrayIcon):
 
     def _populate_filter_submenu(self, result: FilterListResult) -> None:
         self._loading_filters = False
-        self._filter_menu.clear()
+        self._drop_placeholder(self._filter_menu, "_filter_placeholder")
+        signature = (
+            result.error,
+            tuple((group, tuple((f.id, f.title) for f in filters))
+                  for group, filters in result.groups.items()),
+        )
+        if signature == self._filter_sig:
+            # Same list – just sync the check marks instead of rebuilding the
+            # menu (every rebuild is a round of dbusmenu layout churn).
+            states = {f.id: f.enabled for f in result.all_filters}
+            for act in self._filter_menu.actions():
+                if act.data() in states:
+                    act.blockSignals(True)
+                    act.setChecked(states[act.data()])
+                    act.blockSignals(False)
+            return
+        self._filter_sig = signature
 
+        anchor = self._filter_tail[0]
+        new_actions: list[QAction] = []
         if result.error:
-            err = self._filter_menu.addAction(_t("Error: {}", result.error))
+            err = QAction(_t("Error: {}", result.error), self._filter_menu)
             err.setEnabled(False)
+            new_actions.append(err)
+        elif not result.groups:
+            none_act = QAction(_t("No filters installed"), self._filter_menu)
+            none_act.setEnabled(False)
+            new_actions.append(none_act)
         else:
             for group_name, filters in result.groups.items():
-                # Group header
-                grp_action = self._filter_menu.addAction(f"── {group_name} ──")
+                grp_action = QAction(f"── {group_name} ──", self._filter_menu)
                 grp_action.setEnabled(False)
                 font = grp_action.font()
                 font.setBold(True)
                 grp_action.setFont(font)
+                new_actions.append(grp_action)
 
                 for f in filters:
                     act = QAction(f.title, self._filter_menu)
@@ -360,11 +450,9 @@ class AdGuardTray(QSystemTrayIcon):
                     act.triggered.connect(
                         lambda checked, fid=f.id: self._toggle_filter(fid, checked)
                     )
-                    self._filter_menu.addAction(act)
+                    new_actions.append(act)
 
-        self._filter_menu.addSeparator()
-        act_manage = self._filter_menu.addAction(_t("Manage filters…"))
-        act_manage.triggered.connect(self._show_filters_dialog)
+        self._replace_submenu_items(self._filter_menu, self._filter_tail, new_actions, anchor)
 
     def _toggle_filter(self, fid: int, enable: bool) -> None:
         w = _FilterToggle(self.cli, fid, enable)
@@ -392,9 +480,10 @@ class AdGuardTray(QSystemTrayIcon):
         if self._loading_userscripts:
             return
         self._loading_userscripts = True
-        self._us_menu.clear()
-        placeholder = self._us_menu.addAction(_t("Loading…"))
-        placeholder.setEnabled(False)
+        if self._submenu_is_empty(self._us_menu, self._us_tail):
+            self._us_placeholder = QAction(_t("Loading…"), self._us_menu)
+            self._us_placeholder.setEnabled(False)
+            self._us_menu.insertAction(self._us_tail[0], self._us_placeholder)
 
         w = _UserscriptLoader(self.cli)
         w.done.connect(self._populate_userscript_submenu)
@@ -404,14 +493,28 @@ class AdGuardTray(QSystemTrayIcon):
 
     def _populate_userscript_submenu(self, result: UserscriptListResult) -> None:
         self._loading_userscripts = False
-        self._us_menu.clear()
+        self._drop_placeholder(self._us_menu, "_us_placeholder")
+        signature = (result.error, tuple((s.name, s.title) for s in result.scripts))
+        if signature == self._us_sig:
+            states = {s.name: s.enabled for s in result.scripts}
+            for act in self._us_menu.actions():
+                if act.data() in states:
+                    act.blockSignals(True)
+                    act.setChecked(states[act.data()])
+                    act.blockSignals(False)
+            return
+        self._us_sig = signature
 
+        anchor = self._us_tail[0]
+        new_actions: list[QAction] = []
         if result.error:
-            err = self._us_menu.addAction(_t("Error: {}", result.error))
+            err = QAction(_t("Error: {}", result.error), self._us_menu)
             err.setEnabled(False)
+            new_actions.append(err)
         elif not result.scripts:
-            none_act = self._us_menu.addAction(_t("No userscripts installed"))
+            none_act = QAction(_t("No userscripts installed"), self._us_menu)
             none_act.setEnabled(False)
+            new_actions.append(none_act)
         else:
             for s in result.scripts:
                 act = QAction(s.title, self._us_menu)
@@ -421,11 +524,9 @@ class AdGuardTray(QSystemTrayIcon):
                 act.triggered.connect(
                     lambda checked, name=s.name: self._toggle_userscript(name, checked)
                 )
-                self._us_menu.addAction(act)
+                new_actions.append(act)
 
-        self._us_menu.addSeparator()
-        act_manage = self._us_menu.addAction(_t("Manage userscripts…"))
-        act_manage.triggered.connect(self._show_userscripts_dialog)
+        self._replace_submenu_items(self._us_menu, self._us_tail, new_actions, anchor)
 
     def _toggle_userscript(self, name: str, enable: bool) -> None:
         w = _UserscriptToggle(self.cli, name, enable)

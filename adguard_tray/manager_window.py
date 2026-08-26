@@ -100,4 +100,12 @@ class ManagerWindow(QMainWindow):
         self.tabs.addTab(self._diagnostics, _t("Diagnostics"))
 
     def closeEvent(self, event) -> None:
+        # Tab workers hold a reference to the tab, so a long CLI call (a
+        # certificate import, a 120 s check-update) would otherwise still be
+        # running when Qt tears the window down.
+        for tab in (self._overview, self._filters, self._dns_filters,
+                    self._userscripts, self._diagnostics):
+            for worker in list(getattr(tab, "_workers", [])):
+                if worker.isRunning():
+                    worker.wait(500)
         super().closeEvent(event)
