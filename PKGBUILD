@@ -26,7 +26,7 @@ optdepends=(
     'nss: install the HTTPS certificate into browsers (certutil)'
 )
 source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
-sha256sums=('a220a65faac4d359ee65c1b65488437b335f18d47191613b7508727cad7f3709')
+sha256sums=('b5e00cf5eebd0805771cbba1a1858df05164addc5cd899db4ffe690ad1a266b7')
 
 build() {
     cd "${srcdir}/${pkgname}-${pkgver}"
