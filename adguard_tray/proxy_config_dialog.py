@@ -336,15 +336,17 @@ class ProxyConfigDialog(QDialog):
         self.cb_ocsp.setChecked(_get(https, "ocsp_check_enabled", default=True))
         self.cb_ocsp.setToolTip(_t(
             "Check certificate revocation status via OCSP.\n"
-            "Slower but more secure."
+            "Slower, and a slow or unreachable OCSP responder can keep sites\n"
+            "from loading. Turn off if pages hang or fail."
         ))
         form.addWidget(self.cb_ocsp)
 
         self.cb_ct = QCheckBox(_t("Enforce Certificate Transparency"))
         self.cb_ct.setChecked(_get(https, "enforce_certificate_transparency", default=True))
         self.cb_ct.setToolTip(_t(
-            "Enforce Certificate Transparency timestamp checks.\n"
-            "Similar to Chrome's built-in CT policy."
+            "Enforce Certificate Transparency timestamp checks (Chrome's CT\n"
+            "policy). AdGuard stops filtering a site whose certificate does not\n"
+            "comply, and such sites can fail to load. Turn off if that happens."
         ))
         form.addWidget(self.cb_ct)
 
@@ -378,13 +380,47 @@ class ProxyConfigDialog(QDialog):
         self.combo_sdns.setToolTip(_t(
             "off: No secure DNS filtering\n"
             "transparent: Filter DoH/DoT inline without changing destination\n"
-            "redirect: Redirect all secure DNS to the local DNS proxy"
+            "redirect: Redirect all secure DNS to the local DNS proxy\n"
+            "Set to 'off' if name resolution or single sites stop working."
         ))
         form2.addRow(_t("Mode:"), self.combo_sdns)
 
         layout.addWidget(grp2)
+
+        grp_compat = QGroupBox(_t("Compatibility"))
+        cl = QVBoxLayout(grp_compat)
+        compat_info = QLabel("<small>" + _t(
+            "If sites like github.com stop loading with HTTPS filtering on, the "
+            "usual causes are the strict certificate checks above and the "
+            "experimental HTTP/3 filtering. This turns off HTTP/3 filtering, "
+            "OCSP checks, Certificate Transparency enforcement and secure DNS "
+            "filtering – filtering itself keeps working. You can switch each "
+            "one back on individually."
+        ) + "</small>")
+        compat_info.setTextFormat(Qt.TextFormat.RichText)
+        compat_info.setWordWrap(True)
+        cl.addWidget(compat_info)
+
+        self.btn_compat = QPushButton(_t("Apply compatibility settings"))
+        self.btn_compat.clicked.connect(self._apply_compat_settings)
+        cl.addWidget(self.btn_compat)
+        layout.addWidget(grp_compat)
+
         layout.addStretch()
         return _scrollable(w)
+
+    def _apply_compat_settings(self) -> None:
+        """The combination that keeps strict sites loading behind the proxy.
+
+        Every one of these makes AdGuard reject or stop filtering connections
+        it is not sure about, which shows up as a page that never loads.
+        """
+        self.cb_http3.setChecked(False)
+        self.cb_ocsp.setChecked(False)
+        self.cb_ct.setChecked(False)
+        self.combo_sdns.setCurrentText("off")
+        self.btn_compat.setText(_t("Applied – press Save to keep it"))
+        self.btn_compat.setEnabled(False)
 
     # ── Tab 3: DNS ────────────────────────────────────────────────────────
 

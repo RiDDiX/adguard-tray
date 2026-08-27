@@ -21,6 +21,7 @@ The UI language is detected automatically from the system locale (override in Se
 - Autostart toggle right in the tray menu
 - Install the HTTPS certificate into Chromium-based browsers (Brave, Chrome, ungoogled-chromium, Vivaldi, …) and Firefox-family profiles
 - HTTP/3 (QUIC) check: tells you when browsers can bypass filtering
+- One-click compatibility settings for sites that refuse to load behind the proxy
 - `--version` / `-V` flag
 
 ---
@@ -135,6 +136,28 @@ a fallback. Browsers read the store at startup, so restart them afterwards.
 
 This installs a certificate authority that lets AdGuard read those browsers'
 HTTPS traffic — the same trade-off HTTPS filtering always makes.
+
+## Websites don't load with HTTPS filtering on
+
+AdGuard stops filtering — and sites can fail to load entirely — when one of its
+strict certificate checks is unhappy or when the experimental HTTP/3 filtering
+kicks in. Per AdGuard's own documentation, a certificate that doesn't comply
+with Chrome's Certificate Transparency policy means the site isn't filtered,
+and HTTP/3 filtering isn't supported in Chrome-based browsers at all because
+they reject user-installed certificates.
+
+**AdGuard Configuration → HTTPS → Compatibility → *Apply compatibility settings***
+turns off the four settings that cause this, then press *Save*:
+
+| Setting | Set to |
+|---|---|
+| Filter HTTP/3 (QUIC) – experimental | off |
+| OCSP certificate checks | off |
+| Enforce Certificate Transparency | off |
+| Secure DNS filtering | off |
+
+HTTPS filtering itself keeps working; you can switch each option back on
+individually to find the one that bothers you.
 
 ## HTTP/3 (QUIC)
 

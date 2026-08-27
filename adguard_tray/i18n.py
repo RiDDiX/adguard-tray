@@ -674,6 +674,20 @@ _DE: dict[str, str] = {
         "Es kann nur eine Instanz gleichzeitig laufen. Schau in den System-Tray.",
     "Authentication cancelled":         "Authentifizierung abgebrochen",
     "Authorization failed":             "Autorisierung fehlgeschlagen",
+    "Applied – press Save to keep it":
+        "Übernommen – zum Behalten auf Speichern klicken",
+    "Apply compatibility settings":
+        "Kompatibilitätseinstellungen anwenden",
+    "Check certificate revocation status via OCSP.\nSlower, and a slow or unreachable OCSP responder can keep sites\nfrom loading. Turn off if pages hang or fail.":
+        "Sperrstatus von Zertifikaten per OCSP prüfen.\nLangsamer, und ein langsamer oder nicht erreichbarer OCSP-Server kann\nverhindern, dass Seiten laden. Bei hängenden Seiten ausschalten.",
+    "Compatibility":
+        "Kompatibilität",
+    "Enforce Certificate Transparency timestamp checks (Chrome's CT\npolicy). AdGuard stops filtering a site whose certificate does not\ncomply, and such sites can fail to load. Turn off if that happens.":
+        "Certificate-Transparency-Prüfung erzwingen (Chromes CT-Richtlinie).\nAdGuard filtert eine Seite nicht mehr, deren Zertifikat nicht konform\nist; solche Seiten können gar nicht laden. Dann ausschalten.",
+    "If sites like github.com stop loading with HTTPS filtering on, the usual causes are the strict certificate checks above and the experimental HTTP/3 filtering. This turns off HTTP/3 filtering, OCSP checks, Certificate Transparency enforcement and secure DNS filtering – filtering itself keeps working. You can switch each one back on individually.":
+        "Wenn Seiten wie github.com mit aktivierter HTTPS-Filterung nicht mehr laden, liegt es meist an den strengen Zertifikatsprüfungen oben und der experimentellen HTTP/3-Filterung. Das schaltet HTTP/3-Filterung, OCSP-Prüfungen, Certificate-Transparency-Zwang und die Secure-DNS-Filterung aus – die Filterung selbst läuft weiter. Jede Option lässt sich einzeln wieder einschalten.",
+    "off: No secure DNS filtering\ntransparent: Filter DoH/DoT inline without changing destination\nredirect: Redirect all secure DNS to the local DNS proxy\nSet to 'off' if name resolution or single sites stop working.":
+        "off: Keine Secure-DNS-Filterung\ntransparent: DoH/DoT direkt filtern, ohne das Ziel zu ändern\nredirect: Alle Secure-DNS-Anfragen zum lokalen DNS-Proxy umleiten\nAuf „off“ setzen, wenn Namensauflösung oder einzelne Seiten streiken.",
     "No filters installed":
         "Keine Filter installiert",
     "HTTP/3 is blocked by a firewall rule; browsers use HTTP/2.":
@@ -1406,6 +1420,20 @@ _ZH_CN: dict[str, str] = {
         "一次只能运行一个实例。请检查你的系统托盘。",
     "Authentication cancelled":         "身份验证已取消",
     "Authorization failed":             "授权失败",
+    "Applied – press Save to keep it":
+        "已应用 — 请点击保存以生效",
+    "Apply compatibility settings":
+        "应用兼容性设置",
+    "Check certificate revocation status via OCSP.\nSlower, and a slow or unreachable OCSP responder can keep sites\nfrom loading. Turn off if pages hang or fail.":
+        "通过 OCSP 检查证书吊销状态。\n速度较慢；OCSP 响应端缓慢或不可达时会导致网站无法加载。\n若页面卡住或失败，请关闭。",
+    "Compatibility":
+        "兼容性",
+    "Enforce Certificate Transparency timestamp checks (Chrome's CT\npolicy). AdGuard stops filtering a site whose certificate does not\ncomply, and such sites can fail to load. Turn off if that happens.":
+        "强制执行证书透明度时间戳检查（Chrome 的 CT 策略）。\n证书不合规的网站将不再被 AdGuard 过滤，且可能完全无法加载。\n出现该情况时请关闭。",
+    "If sites like github.com stop loading with HTTPS filtering on, the usual causes are the strict certificate checks above and the experimental HTTP/3 filtering. This turns off HTTP/3 filtering, OCSP checks, Certificate Transparency enforcement and secure DNS filtering – filtering itself keeps working. You can switch each one back on individually.":
+        "如果开启 HTTPS 过滤后 github.com 等网站无法加载，通常是上面的严格证书检查和实验性 HTTP/3 过滤所致。此操作会关闭 HTTP/3 过滤、OCSP 检查、证书透明度强制和安全 DNS 过滤 — 过滤功能本身仍然有效。每一项都可以单独重新开启。",
+    "off: No secure DNS filtering\ntransparent: Filter DoH/DoT inline without changing destination\nredirect: Redirect all secure DNS to the local DNS proxy\nSet to 'off' if name resolution or single sites stop working.":
+        "off：不过滤安全 DNS\ntransparent：就地过滤 DoH/DoT，不改变目标\nredirect：将所有安全 DNS 重定向到本地 DNS 代理\n若域名解析或个别网站异常，请设为 “off”。",
     "No filters installed":
         "未安装过滤器",
     "HTTP/3 is blocked by a firewall rule; browsers use HTTP/2.":
