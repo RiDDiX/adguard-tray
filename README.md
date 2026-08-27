@@ -21,7 +21,7 @@ The UI language is detected automatically from the system locale (override in Se
 - Autostart toggle right in the tray menu
 - Install the HTTPS certificate into Chromium-based browsers (Brave, Chrome, ungoogled-chromium, Vivaldi, …) and Firefox-family profiles
 - HTTP/3 (QUIC) check: tells you when browsers can bypass filtering
-- One-click compatibility settings for sites that refuse to load behind the proxy
+- Guided settings for sites that refuse to load behind the proxy
 - `--version` / `-V` flag
 
 ---
@@ -139,25 +139,31 @@ HTTPS traffic — the same trade-off HTTPS filtering always makes.
 
 ## Websites don't load with HTTPS filtering on
 
-AdGuard stops filtering — and sites can fail to load entirely — when one of its
-strict certificate checks is unhappy or when the experimental HTTP/3 filtering
-kicks in. Per AdGuard's own documentation, a certificate that doesn't comply
-with Chrome's Certificate Transparency policy means the site isn't filtered,
-and HTTP/3 filtering isn't supported in Chrome-based browsers at all because
-they reject user-installed certificates.
+Change **one** setting at a time in *AdGuard Configuration → HTTPS*, save, and
+retry — the four below are listed in the order worth trying, not as four causes
+of the same problem.
 
-**AdGuard Configuration → HTTPS → Compatibility → *Apply compatibility settings***
-turns off the four settings that cause this, then press *Save*:
+**1. Filter HTTP/3 (QUIC) – experimental.** The documented one: AdGuard states
+that Chrome-based browsers do not accept user certificates, so HTTP/3 filtering
+is unsupported there. Turning it off costs nothing on Chromium and is the first
+thing to try. There is a button for it in the *Sites that don't load* section.
 
-| Setting | Set to |
-|---|---|
-| Filter HTTP/3 (QUIC) – experimental | off |
-| OCSP certificate checks | off |
-| Enforce Certificate Transparency | off |
-| Secure DNS filtering | off |
+**2. Enforce Certificate Transparency.** AdGuard stops filtering a site whose
+own certificate does not satisfy Chrome's CT policy, and the browser may then
+refuse it. Big sites are CT-compliant, so this only explains a failure when the
+browser actually reports a certificate error.
 
-HTTPS filtering itself keeps working; you can switch each option back on
-individually to find the one that bothers you.
+**3. Secure DNS filtering.** Only affects browsers using DoH/DoT. Relevant when
+name resolution itself breaks, not when a single site fails to render. Setting
+it to `off` also lets browsers resolve past AdGuard's DNS filtering.
+
+**4. OCSP certificate checks.** Least likely: AdGuard checks revocation
+asynchronously and lets the connection through when the check is slow.
+
+The *Turn off all strict checks* button does 2–4 at once. It is the blunt
+option: revoked or mis-issued certificates then go unnoticed on **every**
+connection, not just the site that was broken. Prefer switching a single
+setting, and switch it back once the real cause is known.
 
 ## HTTP/3 (QUIC)
 

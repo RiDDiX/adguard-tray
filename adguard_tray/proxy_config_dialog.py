@@ -44,6 +44,14 @@ logger = logging.getLogger(__name__)
 
 _PROXY_YAML = Path.home() / ".local" / "share" / "adguard-cli" / "proxy.yaml"
 
+# The top-level keys this dialog owns; everything else in proxy.yaml is left
+# to adguard-cli and re-read from disk when saving.
+_UI_SECTIONS = (
+    "proxy_mode", "filtered_ports", "listen_ports", "listen_address",
+    "worker_threads", "https_filtering", "dns_filtering", "stealthmode",
+    "apps", "safebrowsing", "crlite", "ad_blocking_enabled",
+)
+
 
 # ── YAML helpers ──────────────────────────────────────────────────────────────
 
@@ -335,18 +343,20 @@ class ProxyConfigDialog(QDialog):
         self.cb_ocsp = QCheckBox(_t("OCSP certificate checks"))
         self.cb_ocsp.setChecked(_get(https, "ocsp_check_enabled", default=True))
         self.cb_ocsp.setToolTip(_t(
-            "Check certificate revocation status via OCSP.\n"
-            "Slower, and a slow or unreachable OCSP responder can keep sites\n"
-            "from loading. Turn off if pages hang or fail."
+            "Check whether a site's certificate was revoked (OCSP).\n"
+            "AdGuard checks asynchronously and lets the connection through if\n"
+            "the check is slow, so this rarely breaks a site – leave it on\n"
+            "unless you have narrowed a problem down to it."
         ))
         form.addWidget(self.cb_ocsp)
 
         self.cb_ct = QCheckBox(_t("Enforce Certificate Transparency"))
         self.cb_ct.setChecked(_get(https, "enforce_certificate_transparency", default=True))
         self.cb_ct.setToolTip(_t(
-            "Enforce Certificate Transparency timestamp checks (Chrome's CT\n"
-            "policy). AdGuard stops filtering a site whose certificate does not\n"
-            "comply, and such sites can fail to load. Turn off if that happens."
+            "Enforce Certificate Transparency checks (Chrome's CT policy).\n"
+            "Sites whose own certificate is not CT-compliant stop being filtered\n"
+            "and the browser may refuse them. Large sites are compliant, so try\n"
+            "this only for a site that reports a certificate error."
         ))
         form.addWidget(self.cb_ct)
 
@@ -374,34 +384,46 @@ class ProxyConfigDialog(QDialog):
 
         self.combo_sdns = QComboBox()
         self.combo_sdns.addItems(["off", "transparent", "redirect"])
-        self.combo_sdns.setCurrentText(
-            _get(https, "filter_secure_dns_mode", default="transparent")
-        )
+        current_sdns = str(_get(https, "filter_secure_dns_mode", default="transparent"))
+        if self.combo_sdns.findText(current_sdns) < 0:
+            # A mode this version doesn't know must not be silently rewritten
+            self.combo_sdns.addItem(current_sdns)
+        self.combo_sdns.setCurrentText(current_sdns)
         self.combo_sdns.setToolTip(_t(
             "off: No secure DNS filtering\n"
             "transparent: Filter DoH/DoT inline without changing destination\n"
             "redirect: Redirect all secure DNS to the local DNS proxy\n"
-            "Set to 'off' if name resolution or single sites stop working."
+            "Only affects browsers that use DoH/DoT. 'off' lets them resolve\n"
+            "past AdGuard's DNS filtering, so try it only if name resolution\n"
+            "itself is broken."
         ))
         form2.addRow(_t("Mode:"), self.combo_sdns)
 
         layout.addWidget(grp2)
 
-        grp_compat = QGroupBox(_t("Compatibility"))
+        grp_compat = QGroupBox(_t("Sites that don't load"))
         cl = QVBoxLayout(grp_compat)
         compat_info = QLabel("<small>" + _t(
-            "If sites like github.com stop loading with HTTPS filtering on, the "
-            "usual causes are the strict certificate checks above and the "
-            "experimental HTTP/3 filtering. This turns off HTTP/3 filtering, "
-            "OCSP checks, Certificate Transparency enforcement and secure DNS "
-            "filtering – filtering itself keeps working. You can switch each "
-            "one back on individually."
+            "Start with HTTP/3: AdGuard's HTTP/3 filtering is experimental and "
+            "Chromium-based browsers reject it through a user-installed "
+            "certificate, so it is the usual culprit. Change one setting at a "
+            "time and save in between – the other three above weaken security "
+            "for every site, so only turn them off if HTTP/3 wasn't it."
         ) + "</small>")
         compat_info.setTextFormat(Qt.TextFormat.RichText)
         compat_info.setWordWrap(True)
         cl.addWidget(compat_info)
 
-        self.btn_compat = QPushButton(_t("Apply compatibility settings"))
+        self.btn_http3_off = QPushButton(_t("Turn off HTTP/3 filtering"))
+        self.btn_http3_off.clicked.connect(lambda: self.cb_http3.setChecked(False))
+        cl.addWidget(self.btn_http3_off)
+
+        self.btn_compat = QPushButton(_t("Turn off all strict checks (weakens security)"))
+        self.btn_compat.setToolTip(_t(
+            "Also turns off OCSP revocation checks, Certificate Transparency\n"
+            "and secure DNS filtering. Revoked or mis-issued certificates then\n"
+            "go unnoticed, and browsers can resolve past AdGuard's DNS filter."
+        ))
         self.btn_compat.clicked.connect(self._apply_compat_settings)
         cl.addWidget(self.btn_compat)
         layout.addWidget(grp_compat)
@@ -410,17 +432,15 @@ class ProxyConfigDialog(QDialog):
         return _scrollable(w)
 
     def _apply_compat_settings(self) -> None:
-        """The combination that keeps strict sites loading behind the proxy.
+        """Turn off every check that can stop a site from being served.
 
-        Every one of these makes AdGuard reject or stop filtering connections
-        it is not sure about, which shows up as a page that never loads.
+        This is the blunt instrument: it also disables revocation and
+        mis-issuance detection for connections that were working fine.
         """
         self.cb_http3.setChecked(False)
         self.cb_ocsp.setChecked(False)
         self.cb_ct.setChecked(False)
         self.combo_sdns.setCurrentText("off")
-        self.btn_compat.setText(_t("Applied – press Save to keep it"))
-        self.btn_compat.setEnabled(False)
 
     # ── Tab 3: DNS ────────────────────────────────────────────────────────
 
@@ -973,6 +993,15 @@ class ProxyConfigDialog(QDialog):
 
     def _save(self) -> None:
         data = self._collect()
+        # This dialog holds the snapshot it was opened with, while adguard-cli
+        # keeps writing proxy.yaml. Re-read and put back only the sections this
+        # dialog actually edits, so everything else keeps the newer value.
+        fresh = _load_yaml()
+        if isinstance(fresh, dict) and fresh:
+            for key in _UI_SECTIONS:
+                if key in data:
+                    fresh[key] = data[key]
+            data = fresh
         ok, err = _save_yaml(data)
         if ok:
             self.accept()

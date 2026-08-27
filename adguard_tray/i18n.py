@@ -173,8 +173,6 @@ _DE: dict[str, str] = {
     "Loading userscripts…":                 "Userscripts werden geladen…",
     "No userscripts installed.":            "Keine Userscripts installiert.",
     "{} of {} userscripts active":          "{} von {} Userscripts aktiv",
-    "Userscript '{}' enabled.":             "Userscript '{}' aktiviert.",
-    "Userscript '{}' disabled.":            "Userscript '{}' deaktiviert.",
     "Install Userscript":                   "Userscript installieren",
     "Userscript URL (direct .js URL):":     "Userscript-URL (direkte .js-URL):",
     "Userscript installed.":                "Userscript installiert.",
@@ -282,18 +280,8 @@ _DE: dict[str, str] = {
         "TLS 1.3 für gefilterte Verbindungen aktivieren.",
     "Filter HTTP/3 (QUIC) – experimental":
         "HTTP/3 (QUIC) filtern – experimentell",
-    "Filter HTTP/3 (QUIC) traffic.\nExperimental – may cause issues with some sites.":
-        "HTTP/3 (QUIC)-Traffic filtern.\nExperimentell – kann bei manchen Seiten Probleme verursachen.",
     "OCSP certificate checks":          "OCSP-Zertifikatsprüfung",
-    "Check certificate revocation status via OCSP.\n"
-    "Slower but more secure.":
-        "Zertifikatswiderruf per OCSP prüfen.\n"
-        "Langsamer, aber sicherer.",
     "Enforce Certificate Transparency": "Certificate Transparency erzwingen",
-    "Enforce Certificate Transparency timestamp checks.\n"
-    "Similar to Chrome's built-in CT policy.":
-        "Certificate-Transparency-Prüfungen erzwingen.\n"
-        "Ähnlich der CT-Richtlinie von Chrome.",
     "Filter EV certificate sites":      "EV-Zertifikat-Seiten filtern",
     "By default, sites with Extended Validation certificates are not filtered.\n"
     "Enable this to filter them as well (e.g. banking sites).":
@@ -303,12 +291,6 @@ _DE: dict[str, str] = {
     "Enable ECH for better privacy.\nRequires DNS filtering to be enabled.":
         "ECH für besseren Datenschutz aktivieren.\nErfordert aktivierte DNS-Filterung.",
     "Secure DNS Filtering":             "Sichere DNS-Filterung",
-    "off: No secure DNS filtering\n"
-    "transparent: Filter DoH/DoT inline without changing destination\n"
-    "redirect: Redirect all secure DNS to the local DNS proxy":
-        "off: Keine sichere DNS-Filterung\n"
-        "transparent: DoH/DoT inline filtern ohne Ziel zu ändern\n"
-        "redirect: Alle sichere DNS-Anfragen zum lokalen DNS-Proxy umleiten",
     "DNS Filtering":                    "DNS-Filterung",
     "Enable DNS filtering":             "DNS-Filterung aktivieren",
     "Filter DNS queries to block ads and trackers at the DNS level.\n"
@@ -674,20 +656,22 @@ _DE: dict[str, str] = {
         "Es kann nur eine Instanz gleichzeitig laufen. Schau in den System-Tray.",
     "Authentication cancelled":         "Authentifizierung abgebrochen",
     "Authorization failed":             "Autorisierung fehlgeschlagen",
-    "Applied – press Save to keep it":
-        "Übernommen – zum Behalten auf Speichern klicken",
-    "Apply compatibility settings":
-        "Kompatibilitätseinstellungen anwenden",
-    "Check certificate revocation status via OCSP.\nSlower, and a slow or unreachable OCSP responder can keep sites\nfrom loading. Turn off if pages hang or fail.":
-        "Sperrstatus von Zertifikaten per OCSP prüfen.\nLangsamer, und ein langsamer oder nicht erreichbarer OCSP-Server kann\nverhindern, dass Seiten laden. Bei hängenden Seiten ausschalten.",
-    "Compatibility":
-        "Kompatibilität",
-    "Enforce Certificate Transparency timestamp checks (Chrome's CT\npolicy). AdGuard stops filtering a site whose certificate does not\ncomply, and such sites can fail to load. Turn off if that happens.":
-        "Certificate-Transparency-Prüfung erzwingen (Chromes CT-Richtlinie).\nAdGuard filtert eine Seite nicht mehr, deren Zertifikat nicht konform\nist; solche Seiten können gar nicht laden. Dann ausschalten.",
-    "If sites like github.com stop loading with HTTPS filtering on, the usual causes are the strict certificate checks above and the experimental HTTP/3 filtering. This turns off HTTP/3 filtering, OCSP checks, Certificate Transparency enforcement and secure DNS filtering – filtering itself keeps working. You can switch each one back on individually.":
-        "Wenn Seiten wie github.com mit aktivierter HTTPS-Filterung nicht mehr laden, liegt es meist an den strengen Zertifikatsprüfungen oben und der experimentellen HTTP/3-Filterung. Das schaltet HTTP/3-Filterung, OCSP-Prüfungen, Certificate-Transparency-Zwang und die Secure-DNS-Filterung aus – die Filterung selbst läuft weiter. Jede Option lässt sich einzeln wieder einschalten.",
-    "off: No secure DNS filtering\ntransparent: Filter DoH/DoT inline without changing destination\nredirect: Redirect all secure DNS to the local DNS proxy\nSet to 'off' if name resolution or single sites stop working.":
-        "off: Keine Secure-DNS-Filterung\ntransparent: DoH/DoT direkt filtern, ohne das Ziel zu ändern\nredirect: Alle Secure-DNS-Anfragen zum lokalen DNS-Proxy umleiten\nAuf „off“ setzen, wenn Namensauflösung oder einzelne Seiten streiken.",
+    "Also turns off OCSP revocation checks, Certificate Transparency\nand secure DNS filtering. Revoked or mis-issued certificates then\ngo unnoticed, and browsers can resolve past AdGuard's DNS filter.":
+        "Schaltet zusätzlich OCSP-Sperrprüfung, Certificate Transparency\nund Secure-DNS-Filterung ab. Widerrufene oder falsch ausgestellte\nZertifikate fallen dann nicht mehr auf, und Browser können an\nAdGuards DNS-Filter vorbei auflösen.",
+    "Check whether a site's certificate was revoked (OCSP).\nAdGuard checks asynchronously and lets the connection through if\nthe check is slow, so this rarely breaks a site – leave it on\nunless you have narrowed a problem down to it.":
+        "Prüft, ob das Zertifikat einer Seite widerrufen wurde (OCSP).\nAdGuard prüft asynchron und lässt die Verbindung durch, wenn die\nPrüfung langsam ist – bricht also selten eine Seite. Nur ausschalten,\nwenn ein Problem konkret darauf eingegrenzt wurde.",
+    "Enforce Certificate Transparency checks (Chrome's CT policy).\nSites whose own certificate is not CT-compliant stop being filtered\nand the browser may refuse them. Large sites are compliant, so try\nthis only for a site that reports a certificate error.":
+        "Certificate-Transparency-Prüfung erzwingen (Chromes CT-Richtlinie).\nSeiten, deren eigenes Zertifikat nicht CT-konform ist, werden nicht\nmehr gefiltert und vom Browser evtl. abgelehnt. Große Seiten sind\nkonform – nur bei gemeldetem Zertifikatsfehler probieren.",
+    "Sites that don't load":
+        "Seiten, die nicht laden",
+    "Start with HTTP/3: AdGuard's HTTP/3 filtering is experimental and Chromium-based browsers reject it through a user-installed certificate, so it is the usual culprit. Change one setting at a time and save in between – the other three above weaken security for every site, so only turn them off if HTTP/3 wasn't it.":
+        "Fang mit HTTP/3 an: AdGuards HTTP/3-Filterung ist experimentell, und Chromium-basierte Browser lehnen sie über ein selbst installiertes Zertifikat ab – das ist der übliche Übeltäter. Ändere immer nur eine Einstellung und speichere dazwischen; die anderen drei oben senken die Sicherheit für alle Seiten und sollten nur dran glauben, wenn es nicht an HTTP/3 lag.",
+    "Turn off HTTP/3 filtering":
+        "HTTP/3-Filterung abschalten",
+    "Turn off all strict checks (weakens security)":
+        "Alle strengen Prüfungen abschalten (senkt die Sicherheit)",
+    "off: No secure DNS filtering\ntransparent: Filter DoH/DoT inline without changing destination\nredirect: Redirect all secure DNS to the local DNS proxy\nOnly affects browsers that use DoH/DoT. 'off' lets them resolve\npast AdGuard's DNS filtering, so try it only if name resolution\nitself is broken.":
+        "off: Keine Secure-DNS-Filterung\ntransparent: DoH/DoT direkt filtern, ohne das Ziel zu ändern\nredirect: Alle Secure-DNS-Anfragen zum lokalen DNS-Proxy umleiten\nBetrifft nur Browser, die DoH/DoT nutzen. Mit „off“ lösen sie an\nAdGuards DNS-Filter vorbei auf – also nur probieren, wenn die\nNamensauflösung selbst kaputt ist.",
     "No filters installed":
         "Keine Filter installiert",
     "HTTP/3 is blocked by a firewall rule; browsers use HTTP/2.":
@@ -921,8 +905,6 @@ _ZH_CN: dict[str, str] = {
     "Loading userscripts…":                 "正在加载用户脚本…",
     "No userscripts installed.":            "未安装用户脚本。",
     "{} of {} userscripts active":          "{} / {} 个用户脚本已激活",
-    "Userscript '{}' enabled.":             "用户脚本 '{}' 已启用。",
-    "Userscript '{}' disabled.":            "用户脚本 '{}' 已禁用。",
     "Install Userscript":                   "安装用户脚本",
     "Userscript URL (direct .js URL):":     "用户脚本 URL（直接 .js URL）：",
     "Userscript installed.":                "用户脚本已安装。",
@@ -1028,18 +1010,8 @@ _ZH_CN: dict[str, str] = {
         "为过滤的连接启用 TLS 1.3 支持。",
     "Filter HTTP/3 (QUIC) – experimental":
         "过滤 HTTP/3 (QUIC) – 实验性",
-    "Filter HTTP/3 (QUIC) traffic.\nExperimental – may cause issues with some sites.":
-        "过滤 HTTP/3 (QUIC) 流量。\n实验性 – 可能会导致某些网站出现问题。",
     "OCSP certificate checks":          "OCSP 证书检查",
-    "Check certificate revocation status via OCSP.\n"
-    "Slower but more secure.":
-        "通过 OCSP 检查证书撤销状态。\n"
-        "较慢但更安全。",
     "Enforce Certificate Transparency": "强制证书透明度",
-    "Enforce Certificate Transparency timestamp checks.\n"
-    "Similar to Chrome's built-in CT policy.":
-        "强制证书透明度时间戳检查。\n"
-        "类似于 Chrome 的内置 CT 策略。",
     "Filter EV certificate sites":      "过滤 EV 证书网站",
     "By default, sites with Extended Validation certificates are not filtered.\n"
     "Enable this to filter them as well (e.g. banking sites).":
@@ -1049,12 +1021,6 @@ _ZH_CN: dict[str, str] = {
     "Enable ECH for better privacy.\nRequires DNS filtering to be enabled.":
         "启用 ECH 以获得更好的隐私。\n需要启用 DNS 过滤。",
     "Secure DNS Filtering":             "安全 DNS 过滤",
-    "off: No secure DNS filtering\n"
-    "transparent: Filter DoH/DoT inline without changing destination\n"
-    "redirect: Redirect all secure DNS to the local DNS proxy":
-        "off：无安全 DNS 过滤\n"
-        "transparent：内联过滤 DoH/DoT，无需更改目标\n"
-        "redirect：将所有安全 DNS 重定向到本地 DNS 代理",
     "DNS Filtering":                    "DNS 过滤",
     "Enable DNS filtering":             "启用 DNS 过滤",
     "Filter DNS queries to block ads and trackers at the DNS level.\n"
@@ -1420,20 +1386,22 @@ _ZH_CN: dict[str, str] = {
         "一次只能运行一个实例。请检查你的系统托盘。",
     "Authentication cancelled":         "身份验证已取消",
     "Authorization failed":             "授权失败",
-    "Applied – press Save to keep it":
-        "已应用 — 请点击保存以生效",
-    "Apply compatibility settings":
-        "应用兼容性设置",
-    "Check certificate revocation status via OCSP.\nSlower, and a slow or unreachable OCSP responder can keep sites\nfrom loading. Turn off if pages hang or fail.":
-        "通过 OCSP 检查证书吊销状态。\n速度较慢；OCSP 响应端缓慢或不可达时会导致网站无法加载。\n若页面卡住或失败，请关闭。",
-    "Compatibility":
-        "兼容性",
-    "Enforce Certificate Transparency timestamp checks (Chrome's CT\npolicy). AdGuard stops filtering a site whose certificate does not\ncomply, and such sites can fail to load. Turn off if that happens.":
-        "强制执行证书透明度时间戳检查（Chrome 的 CT 策略）。\n证书不合规的网站将不再被 AdGuard 过滤，且可能完全无法加载。\n出现该情况时请关闭。",
-    "If sites like github.com stop loading with HTTPS filtering on, the usual causes are the strict certificate checks above and the experimental HTTP/3 filtering. This turns off HTTP/3 filtering, OCSP checks, Certificate Transparency enforcement and secure DNS filtering – filtering itself keeps working. You can switch each one back on individually.":
-        "如果开启 HTTPS 过滤后 github.com 等网站无法加载，通常是上面的严格证书检查和实验性 HTTP/3 过滤所致。此操作会关闭 HTTP/3 过滤、OCSP 检查、证书透明度强制和安全 DNS 过滤 — 过滤功能本身仍然有效。每一项都可以单独重新开启。",
-    "off: No secure DNS filtering\ntransparent: Filter DoH/DoT inline without changing destination\nredirect: Redirect all secure DNS to the local DNS proxy\nSet to 'off' if name resolution or single sites stop working.":
-        "off：不过滤安全 DNS\ntransparent：就地过滤 DoH/DoT，不改变目标\nredirect：将所有安全 DNS 重定向到本地 DNS 代理\n若域名解析或个别网站异常，请设为 “off”。",
+    "Also turns off OCSP revocation checks, Certificate Transparency\nand secure DNS filtering. Revoked or mis-issued certificates then\ngo unnoticed, and browsers can resolve past AdGuard's DNS filter.":
+        "同时关闭 OCSP 吊销检查、证书透明度和安全 DNS 过滤。\n被吊销或错误签发的证书将不再被发现，\n浏览器也可绕过 AdGuard 的 DNS 过滤进行解析。",
+    "Check whether a site's certificate was revoked (OCSP).\nAdGuard checks asynchronously and lets the connection through if\nthe check is slow, so this rarely breaks a site – leave it on\nunless you have narrowed a problem down to it.":
+        "检查网站证书是否已被吊销（OCSP）。\nAdGuard 采用异步检查，检查缓慢时会放行连接，\n因此很少导致网站打不开 — 除非已确定问题出在这里，否则请保持开启。",
+    "Enforce Certificate Transparency checks (Chrome's CT policy).\nSites whose own certificate is not CT-compliant stop being filtered\nand the browser may refuse them. Large sites are compliant, so try\nthis only for a site that reports a certificate error.":
+        "强制执行证书透明度检查（Chrome 的 CT 策略）。\n自身证书不符合 CT 要求的网站将不再被过滤，浏览器可能拒绝访问。\n大型网站均符合要求，仅在网站报告证书错误时才尝试关闭。",
+    "Sites that don't load":
+        "无法加载的网站",
+    "Start with HTTP/3: AdGuard's HTTP/3 filtering is experimental and Chromium-based browsers reject it through a user-installed certificate, so it is the usual culprit. Change one setting at a time and save in between – the other three above weaken security for every site, so only turn them off if HTTP/3 wasn't it.":
+        "先从 HTTP/3 开始：AdGuard 的 HTTP/3 过滤属实验功能，基于 Chromium 的浏览器会拒绝通过用户安装的证书使用它，因此通常是它的问题。每次只更改一项设置并保存；上面另外三项会降低所有网站的安全性，只有确认与 HTTP/3 无关时才关闭。",
+    "Turn off HTTP/3 filtering":
+        "关闭 HTTP/3 过滤",
+    "Turn off all strict checks (weakens security)":
+        "关闭所有严格检查（降低安全性）",
+    "off: No secure DNS filtering\ntransparent: Filter DoH/DoT inline without changing destination\nredirect: Redirect all secure DNS to the local DNS proxy\nOnly affects browsers that use DoH/DoT. 'off' lets them resolve\npast AdGuard's DNS filtering, so try it only if name resolution\nitself is broken.":
+        "off：不过滤安全 DNS\ntransparent：就地过滤 DoH/DoT，不改变目标\nredirect：将所有安全 DNS 重定向到本地 DNS 代理\n仅影响使用 DoH/DoT 的浏览器。设为 “off” 后它们会绕过\nAdGuard 的 DNS 过滤，因此仅在域名解析本身出问题时尝试。",
     "No filters installed":
         "未安装过滤器",
     "HTTP/3 is blocked by a firewall rule; browsers use HTTP/2.":
