@@ -786,12 +786,8 @@ _DE: dict[str, str] = {
         'Noch kein Zugriffsprotokoll ({}). AdGuard schreibt es, sobald es Datenverkehr gefiltert hat; läuft es als Systemdienst, gehört das Protokoll root und ist hier nicht lesbar.',
     'Cannot read the access log ({}): {}':
         'Zugriffsprotokoll ({}) nicht lesbar: {}',
-    '{} requests · {} blocked · {} allowed':
-        '{} Anfragen · {} blockiert · {} erlaubt',
     'Blocked':
         'Blockiert',
-    'Reading the access log…':
-        'Zugriffsprotokoll wird gelesen…',
     'Filter by domain or rule…':
         'Nach Domain oder Regel filtern…',
     'Blocked only':
@@ -816,8 +812,6 @@ _DE: dict[str, str] = {
         'Größe',
     'Time (ms)':
         'Dauer (ms)',
-    'Top blocked domains':
-        'Häufigste blockierte Domains',
     'Count':
         'Anzahl',
     'Could not read the access log.':
@@ -846,6 +840,20 @@ _DE: dict[str, str] = {
         'Häufigste Domains',
     'Requests per hour, {} to {} · busiest hour: {}':
         'Anfragen pro Stunde, {} bis {} · stärkste Stunde: {}',
+    'Last 24 hours':
+        'Letzte 24 Stunden',
+    'Last 7 days':
+        'Letzte 7 Tage',
+    'Everything in the log':
+        'Alles im Protokoll',
+    'Requests':
+        'Anfragen',
+    'Traffic':
+        'Datenmenge',
+    'Most blocked domains':
+        'Häufigste blockierte Domains',
+    'Most active domains':
+        'Aktivste Domains',
 }
 
 # ── Simplified Chinese translations ──────────────────────────────────────
@@ -1582,12 +1590,8 @@ _ZH_CN: dict[str, str] = {
         '尚无访问日志（{}）。AdGuard 过滤流量后才会写入；若以系统服务运行，日志属于 root，此处无法读取。',
     'Cannot read the access log ({}): {}':
         '无法读取访问日志（{}）：{}',
-    '{} requests · {} blocked · {} allowed':
-        '{} 个请求 · 已拦截 {} · 已放行 {}',
     'Blocked':
         '已拦截',
-    'Reading the access log…':
-        '正在读取访问日志…',
     'Filter by domain or rule…':
         '按域名或规则筛选…',
     'Blocked only':
@@ -1612,8 +1616,6 @@ _ZH_CN: dict[str, str] = {
         '大小',
     'Time (ms)':
         '耗时（毫秒）',
-    'Top blocked domains':
-        '拦截最多的域名',
     'Count':
         '次数',
     'Could not read the access log.':
@@ -1642,6 +1644,20 @@ _ZH_CN: dict[str, str] = {
         '访问最多的域名',
     'Requests per hour, {} to {} · busiest hour: {}':
         '每小时请求数，{} 至 {} · 最繁忙时段：{}',
+    'Last 24 hours':
+        '最近 24 小时',
+    'Last 7 days':
+        '最近 7 天',
+    'Everything in the log':
+        '日志中的全部记录',
+    'Requests':
+        '请求',
+    'Traffic':
+        '流量',
+    'Most blocked domains':
+        '拦截最多的域名',
+    'Most active domains':
+        '请求最多的域名',
 }
 
 # ── Translation registry ──────────────────────────────────────────────────

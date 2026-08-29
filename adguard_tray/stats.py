@@ -76,6 +76,27 @@ class Activity:
     def allowed(self) -> int:
         return self.total - self.blocked
 
+    @property
+    def bytes_total(self) -> int:
+        return sum(r.size for r in self.requests if r.size > 0)
+
+    def window(self, hours: int | None) -> "Activity":
+        """A copy holding only the last *hours* of requests (None = all).
+
+        The cut is relative to the newest entry in the log, not to the wall
+        clock: a log from yesterday would otherwise come out empty.
+        """
+        if not hours or not self.requests:
+            return self
+        newest = max((r.when for r in self.requests if r.when), default=None)
+        if newest is None:
+            return self
+        cutoff = newest - timedelta(hours=hours)
+        return Activity(
+            requests=[r for r in self.requests if r.when is None or r.when >= cutoff],
+            unparsed=self.unparsed, log_path=self.log_path, problem=self.problem,
+        )
+
     def top_hosts(self, limit: int = 10, blocked_only: bool = False) -> list[tuple[str, int]]:
         counts: dict[str, int] = {}
         for r in self.requests:

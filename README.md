@@ -170,10 +170,12 @@ setting, and switch it back once the real cause is known.
 ## Activity
 
 The Manager's Activity tab shows what AdGuard did with each request: domain,
-whether a rule matched, which rule, response size and duration. It also lists
-the most frequently blocked domains and the request count per hour, and lets
-you allow or block the selected domain with one click (the rule goes into
-`user.txt`).
+whether a rule matched, which rule, response size and duration. Above the list
+are counters for requests, blocked, allowed and traffic, a bar chart of the
+requests per hour, and top-10 lists of the most blocked and the most active
+domains. The range selector switches between the last 24 hours, the last 7 days
+and everything the log still holds. Selecting an entry and clicking allow or
+block writes the matching rule into `user.txt`.
 
 The data comes from adguard-cli's access log – `access_log_file` in
 `proxy.yaml`, by default `~/.local/share/adguard-cli/logs/access.log`. That log
