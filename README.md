@@ -19,6 +19,7 @@ The UI language is detected automatically from the system locale (override in Se
 - Install custom filter lists by URL
 - Desktop notifications when status changes (with dedup to prevent spam)
 - Autostart toggle right in the tray menu
+- Activity view: requests, blocked/allowed counts and top domains read from adguard-cli's access log
 - Install the HTTPS certificate into Chromium-based browsers (Brave, Chrome, ungoogled-chromium, Vivaldi, …) and Firefox-family profiles
 - HTTP/3 (QUIC) check: tells you when browsers can bypass filtering
 - Guided settings for sites that refuse to load behind the proxy
@@ -96,6 +97,7 @@ The entry goes to `~/.config/autostart/adguard-tray.desktop` (standard XDG autos
   Refresh status
 ──────────────────────────────
   Open Manager…         (full tabbed GUI)
+  Activity…             (requests from the access log)
   AdGuard Configuration…(proxy.yaml editor)
   Website Exceptions…
   Settings…
@@ -164,6 +166,31 @@ The *Turn off all strict checks* button does 2–4 at once. It is the blunt
 option: revoked or mis-issued certificates then go unnoticed on **every**
 connection, not just the site that was broken. Prefer switching a single
 setting, and switch it back once the real cause is known.
+
+## Activity
+
+The Manager's Activity tab shows what AdGuard did with each request: domain,
+whether a rule matched, which rule, response size and duration. It also lists
+the most frequently blocked domains and the request count per hour, and lets
+you allow or block the selected domain with one click (the rule goes into
+`user.txt`).
+
+The data comes from adguard-cli's access log – `access_log_file` in
+`proxy.yaml`, by default `~/.local/share/adguard-cli/logs/access.log`. That log
+is the only per-request record adguard-cli keeps; there is no statistics
+command and no API. Two consequences:
+
+- Nothing is shown before AdGuard has filtered traffic, because the log does
+  not exist yet.
+- When AdGuard runs as a system service, the log belongs to root and cannot be
+  read from the desktop session. The tab says so instead of showing zero.
+
+The log format is undocumented, so the parser reads the parts that carry
+meaning (request line, size, duration, matched rule) and counts lines it cannot
+read instead of guessing. Blocked versus allowed is derived from the rule
+itself: `@@` marks an exception in AdGuard's syntax.
+
+---
 
 ## HTTP/3 (QUIC)
 

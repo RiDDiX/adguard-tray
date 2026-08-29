@@ -3,12 +3,13 @@ Manager window – full GUI for managing AdGuard CLI.
 
 Tabs:
   1. Overview     – status, version, license, quick actions
-  2. Filters      – HTTP filter management (existing dialog as tab page)
-  3. DNS Filters  – DNS filter management
-  4. Userscripts  – userscript management (existing dialog as tab page)
-  5. Exceptions   – website exceptions (existing dialog as tab page)
-  6. Configuration – proxy.yaml editor (existing dialog as tab page)
-  7. Diagnostics  – export logs/settings, import, benchmark
+  2. Activity     – requests read from adguard-cli's access log
+  3. Filters      – HTTP filter management (existing dialog as tab page)
+  4. DNS Filters  – DNS filter management
+  5. Userscripts  – userscript management (existing dialog as tab page)
+  6. Exceptions   – website exceptions (existing dialog as tab page)
+  7. Configuration – proxy.yaml editor (existing dialog as tab page)
+  8. Diagnostics  – export logs/settings, import, benchmark
 """
 
 import logging
@@ -24,12 +25,13 @@ logger = logging.getLogger(__name__)
 
 # Tab indices used by callers that want to open a specific page.
 TAB_OVERVIEW = 0
-TAB_FILTERS = 1
-TAB_DNS_FILTERS = 2
-TAB_USERSCRIPTS = 3
-TAB_EXCEPTIONS = 4
-TAB_CONFIGURATION = 5
-TAB_DIAGNOSTICS = 6
+TAB_ACTIVITY = 1
+TAB_FILTERS = 2
+TAB_DNS_FILTERS = 3
+TAB_USERSCRIPTS = 4
+TAB_EXCEPTIONS = 5
+TAB_CONFIGURATION = 6
+TAB_DIAGNOSTICS = 7
 
 
 class ManagerWindow(QMainWindow):
@@ -69,32 +71,37 @@ class ManagerWindow(QMainWindow):
         self._overview = OverviewTab(self.cli, on_status_change=self._on_status_change)
         self.tabs.addTab(self._overview, _t("Overview"))
 
-        # Tab 2: Filters
+        # Tab 2: Activity
+        from .activity_tab import ActivityTab
+        self._activity = ActivityTab(on_change=self._on_restart)
+        self.tabs.addTab(self._activity, _t("Activity"))
+
+        # Tab 3: Filters
         from .filters_tab import FiltersTab
         self._filters = FiltersTab(self.cli, on_change=self._on_restart)
         self.tabs.addTab(self._filters, _t("Filters"))
 
-        # Tab 3: DNS Filters
+        # Tab 4: DNS Filters
         from .dns_filters_tab import DnsFiltersTab
         self._dns_filters = DnsFiltersTab(self.cli, on_change=self._on_restart)
         self.tabs.addTab(self._dns_filters, _t("DNS Filters"))
 
-        # Tab 4: Userscripts
+        # Tab 5: Userscripts
         from .userscripts_tab import UserscriptsTab
         self._userscripts = UserscriptsTab(self.cli, on_change=self._on_restart)
         self.tabs.addTab(self._userscripts, _t("Userscripts"))
 
-        # Tab 5: Exceptions
+        # Tab 6: Exceptions
         from .exceptions_tab import ExceptionsTab
         self._exceptions = ExceptionsTab(on_change=self._on_restart)
         self.tabs.addTab(self._exceptions, _t("Exceptions"))
 
-        # Tab 6: Configuration
+        # Tab 7: Configuration
         from .config_tab import ConfigTab
         self._config_tab = ConfigTab(on_restart=self._on_restart)
         self.tabs.addTab(self._config_tab, _t("Configuration"))
 
-        # Tab 7: Diagnostics
+        # Tab 8: Diagnostics
         from .diagnostics_tab import DiagnosticsTab
         self._diagnostics = DiagnosticsTab(self.cli, on_restart=self._on_restart)
         self.tabs.addTab(self._diagnostics, _t("Diagnostics"))
@@ -103,7 +110,7 @@ class ManagerWindow(QMainWindow):
         # Tab workers hold a reference to the tab, so a long CLI call (a
         # certificate import, a 120 s check-update) would otherwise still be
         # running when Qt tears the window down.
-        for tab in (self._overview, self._filters, self._dns_filters,
+        for tab in (self._overview, self._activity, self._filters, self._dns_filters,
                     self._userscripts, self._diagnostics):
             for worker in list(getattr(tab, "_workers", [])):
                 if worker.isRunning():

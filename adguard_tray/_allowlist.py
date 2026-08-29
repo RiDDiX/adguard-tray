@@ -59,6 +59,29 @@ def domain_to_rule(domain: str) -> str:
     return f"@@||{domain}^$important,document"
 
 
+def add_rule_line(rule: str) -> tuple[bool, str]:
+    """Append a raw filter rule to user.txt, keeping every existing line.
+
+    save_user_rules() rewrites the file from the allowlist it manages, so a
+    plain blocking rule has to be appended separately.
+    """
+    try:
+        existing = USER_RULES_FILE.read_text(encoding="utf-8") if USER_RULES_FILE.exists() else ""
+    except (OSError, ValueError) as exc:
+        logger.warning("Could not read user rules: %s", exc)
+        return False, str(exc)
+    lines = existing.splitlines()
+    if any(line.strip() == rule for line in lines):
+        return True, ""
+    lines.append(rule)
+    try:
+        write_atomic(USER_RULES_FILE, "\n".join(lines) + "\n")
+    except OSError as exc:
+        logger.error("Failed to add rule: %s", exc)
+        return False, str(exc)
+    return True, ""
+
+
 def load_user_rules() -> tuple[list[str], list[str]]:
     """Load user.txt and split into (allowlist_domains, other_lines).
 

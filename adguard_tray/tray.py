@@ -24,6 +24,7 @@ Menu structure (English default – translated at runtime via i18n):
   ⟳  Refresh status
   ─────────────────────────────────────
   Open Manager…          (tabbed GUI)
+Activity…              (Manager's Activity tab)
   AdGuard Configuration… (proxy.yaml editor)
   Website Exceptions…
   ⚙  Settings…
@@ -275,6 +276,10 @@ class AdGuardTray(QSystemTrayIcon):
         self._act_manager = QAction(_t("Open Manager…"))
         self._act_manager.triggered.connect(self._show_manager)
         menu.addAction(self._act_manager)
+
+        self._act_activity = QAction(_t("Activity…"))
+        self._act_activity.triggered.connect(self._show_activity)
+        menu.addAction(self._act_activity)
 
         self._act_proxy_config = QAction(_t("AdGuard Configuration…"))
         self._act_proxy_config.triggered.connect(self._show_proxy_config)
@@ -803,6 +808,10 @@ class AdGuardTray(QSystemTrayIcon):
         # add-by-id, --trusted/--title, set-trusted, set-title, and --all.
         from .manager_window import TAB_FILTERS
         self._show_manager(initial_tab=TAB_FILTERS)
+
+    def _show_activity(self) -> None:
+        from .manager_window import TAB_ACTIVITY
+        self._show_manager(initial_tab=TAB_ACTIVITY)
 
     def _show_userscripts_dialog(self) -> None:
         from .manager_window import TAB_USERSCRIPTS

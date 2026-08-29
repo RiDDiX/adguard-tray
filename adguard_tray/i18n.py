@@ -780,6 +780,72 @@ _DE: dict[str, str] = {
     "Update channel set to {}":         "Update-Channel auf {} gesetzt",
     "Could not set update channel":     "Update-Channel konnte nicht gesetzt werden",
     "Invalid channel: {}":              "Ungültiger Channel: {}",
+
+    # ── Activity ──────────────────────────────────────────────────────────
+    'No access log yet ({}). AdGuard writes it once it has filtered traffic; when it runs as a system service the log belongs to root and is not readable here.':
+        'Noch kein Zugriffsprotokoll ({}). AdGuard schreibt es, sobald es Datenverkehr gefiltert hat; läuft es als Systemdienst, gehört das Protokoll root und ist hier nicht lesbar.',
+    'Cannot read the access log ({}): {}':
+        'Zugriffsprotokoll ({}) nicht lesbar: {}',
+    '{} requests · {} blocked · {} allowed':
+        '{} Anfragen · {} blockiert · {} erlaubt',
+    'Blocked':
+        'Blockiert',
+    'Reading the access log…':
+        'Zugriffsprotokoll wird gelesen…',
+    'Filter by domain or rule…':
+        'Nach Domain oder Regel filtern…',
+    'Blocked only':
+        'Nur blockierte',
+    'Refresh':
+        'Aktualisieren',
+    'Allow selected domain':
+        'Ausgewählte Domain erlauben',
+    'Block selected domain':
+        'Ausgewählte Domain blockieren',
+    'Activity':
+        'Aktivität',
+    'Time':
+        'Zeit',
+    'Domain':
+        'Domain',
+    'Result':
+        'Ergebnis',
+    'Rule':
+        'Regel',
+    'Size':
+        'Größe',
+    'Time (ms)':
+        'Dauer (ms)',
+    'Top blocked domains':
+        'Häufigste blockierte Domains',
+    'Count':
+        'Anzahl',
+    'Could not read the access log.':
+        'Zugriffsprotokoll konnte nicht gelesen werden.',
+    'No activity to show.':
+        'Keine Aktivität vorhanden.',
+    '{} lines not understood':
+        '{} Zeilen nicht verstanden',
+    'Select a request first.':
+        'Zuerst eine Anfrage auswählen.',
+    'Not a valid domain: {}':
+        'Keine gültige Domain: {}',
+    'Restart AdGuard to apply changes.':
+        'AdGuard neu starten, um die Änderungen zu übernehmen.',
+    'Source: {}':
+        'Quelle: {}',
+    'Allowed by rule':
+        'Durch Regel erlaubt',
+    'Allowed':
+        'Erlaubt',
+    'Added rule: {}':
+        'Regel hinzugefügt: {}',
+    'Activity…':
+        'Aktivität…',
+    'Top domains':
+        'Häufigste Domains',
+    'Requests per hour, {} to {} · busiest hour: {}':
+        'Anfragen pro Stunde, {} bis {} · stärkste Stunde: {}',
 }
 
 # ── Simplified Chinese translations ──────────────────────────────────────
@@ -1510,6 +1576,72 @@ _ZH_CN: dict[str, str] = {
     "Update channel set to {}":         "更新通道已设置为 {}",
     "Could not set update channel":     "无法设置更新通道",
     "Invalid channel: {}":              "无效通道：{}",
+
+    # ── Activity ──────────────────────────────────────────────────────────
+    'No access log yet ({}). AdGuard writes it once it has filtered traffic; when it runs as a system service the log belongs to root and is not readable here.':
+        '尚无访问日志（{}）。AdGuard 过滤流量后才会写入；若以系统服务运行，日志属于 root，此处无法读取。',
+    'Cannot read the access log ({}): {}':
+        '无法读取访问日志（{}）：{}',
+    '{} requests · {} blocked · {} allowed':
+        '{} 个请求 · 已拦截 {} · 已放行 {}',
+    'Blocked':
+        '已拦截',
+    'Reading the access log…':
+        '正在读取访问日志…',
+    'Filter by domain or rule…':
+        '按域名或规则筛选…',
+    'Blocked only':
+        '仅已拦截',
+    'Refresh':
+        '刷新',
+    'Allow selected domain':
+        '允许所选域名',
+    'Block selected domain':
+        '拦截所选域名',
+    'Activity':
+        '活动',
+    'Time':
+        '时间',
+    'Domain':
+        '域名',
+    'Result':
+        '结果',
+    'Rule':
+        '规则',
+    'Size':
+        '大小',
+    'Time (ms)':
+        '耗时（毫秒）',
+    'Top blocked domains':
+        '拦截最多的域名',
+    'Count':
+        '次数',
+    'Could not read the access log.':
+        '无法读取访问日志。',
+    'No activity to show.':
+        '暂无活动记录。',
+    '{} lines not understood':
+        '{} 行无法解析',
+    'Select a request first.':
+        '请先选择一个请求。',
+    'Not a valid domain: {}':
+        '不是有效域名：{}',
+    'Restart AdGuard to apply changes.':
+        '重启 AdGuard 以应用更改。',
+    'Source: {}':
+        '来源：{}',
+    'Allowed by rule':
+        '按规则放行',
+    'Allowed':
+        '已放行',
+    'Added rule: {}':
+        '已添加规则：{}',
+    'Activity…':
+        '活动…',
+    'Top domains':
+        '访问最多的域名',
+    'Requests per hour, {} to {} · busiest hour: {}':
+        '每小时请求数，{} 至 {} · 最繁忙时段：{}',
 }
 
 # ── Translation registry ──────────────────────────────────────────────────
