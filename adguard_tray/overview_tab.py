@@ -73,6 +73,51 @@ class _CertWorker(QThread):
         self.done.emit(ok, msg, targets)
 
 
+class _AppUpdateWorker(QThread):
+    """Asks GitHub for the newest adguard-tray release."""
+    done = pyqtSignal(object, bool, str)   # release, newer, error
+
+    def run(self):
+        from .updates import check
+        try:
+            release, newer, error = check()
+        except Exception as exc:
+            logger.exception("Update check failed")
+            release, newer, error = None, False, str(exc)
+        self.done.emit(release, newer, error)
+
+
+class _InstallKindWorker(QThread):
+    """detect_install() shells out to pacman – not on the GUI thread."""
+    done = pyqtSignal(object)
+
+    def run(self):
+        from .updates import detect_install
+        try:
+            self.done.emit(detect_install())
+        except Exception:
+            logger.exception("Install detection failed")
+            self.done.emit(None)
+
+
+class _SelfUpdateWorker(QThread):
+    """Downloads and installs a release into a ~/.local installation."""
+    done = pyqtSignal(bool, str)
+
+    def __init__(self, release):
+        super().__init__()
+        self._release = release
+
+    def run(self):
+        from .updates import self_update
+        try:
+            ok, msg = self_update(self._release)
+        except Exception as exc:
+            logger.exception("Self-update failed")
+            ok, msg = False, str(exc)
+        self.done.emit(ok, msg)
+
+
 class _RefreshWorker(QThread):
     done = pyqtSignal(object)  # dict with status, version, license
 
@@ -107,6 +152,8 @@ class OverviewTab(QWidget):
         self._workers: list[QThread] = []
         self._refreshing = False
         self._acting = False
+        self._app_busy = False
+        self._release = None
         self._build_ui()
         self._refresh()
 
@@ -166,6 +213,34 @@ class OverviewTab(QWidget):
         info_btns.addStretch()
         il.addLayout(info_btns)
         layout.addWidget(grp_info)
+
+        # adguard-tray itself
+        grp_app = QGroupBox(_t("Application update"))
+        al = QVBoxLayout(grp_app)
+        self.lbl_app_version = QLabel("")
+        self.lbl_app_version.setWordWrap(True)
+        self.lbl_app_version.setTextFormat(Qt.TextFormat.RichText)
+        al.addWidget(self.lbl_app_version)
+
+        app_btns = QHBoxLayout()
+        self.btn_app_update = QPushButton(_t("Check for update"))
+        self.btn_app_update.clicked.connect(self._do_app_update_check)
+        app_btns.addWidget(self.btn_app_update)
+
+        self.btn_app_install = QPushButton(_t("Install update"))
+        self.btn_app_install.clicked.connect(self._do_app_install)
+        self.btn_app_install.setVisible(False)
+        app_btns.addWidget(self.btn_app_install)
+        app_btns.addStretch()
+        al.addLayout(app_btns)
+
+        self.lbl_app_result = QLabel("")
+        self.lbl_app_result.setWordWrap(True)
+        self.lbl_app_result.setTextFormat(Qt.TextFormat.RichText)
+        self.lbl_app_result.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        al.addWidget(self.lbl_app_result)
+        layout.addWidget(grp_app)
+        self._describe_install()
 
         # Update channel
         grp_channel = QGroupBox(_t("Update channel"))
@@ -323,6 +398,10 @@ class OverviewTab(QWidget):
                     self.btn_refresh, self.btn_cert_browsers,
                     self.btn_update, self.btn_reset_license, self.btn_cert):
             btn.setEnabled(not busy)
+        # An update check or install runs on its own; a finishing CLI action
+        # must not hand those buttons back mid-flight.
+        for btn in (self.btn_app_update, self.btn_app_install):
+            btn.setEnabled(not busy and not self._app_busy)
         # Only (re)enable the channel combo when we actually loaded a value
         self.combo_channel.setEnabled(not busy and self._channel_loaded)
 
@@ -334,6 +413,119 @@ class OverviewTab(QWidget):
 
     def _do_restart(self) -> None:
         self._run_action(self.cli.restart)
+
+    # ── adguard-tray's own version ─────────────────────────────────────────
+
+    def _describe_install(self) -> None:
+        """Show the version at once, fill in the install kind when it is known."""
+        from . import __version__
+        from .updates import Install
+
+        self._install = Install()
+        self.lbl_app_version.setText(f"<b>adguard-tray {__version__}</b>")
+        worker = _InstallKindWorker()
+        worker.done.connect(self._on_install_detected)
+        worker.finished.connect(
+            lambda: self._workers.remove(worker) if worker in self._workers else None)
+        self._workers.append(worker)
+        worker.start()
+
+    def _on_install_detected(self, install) -> None:
+        from . import __version__
+        from .updates import Install
+
+        self._install = install or Install()
+        where = {
+            "pacman": lambda: _t("Installed with the AUR package {}",
+                                 self._install.package or "adguard-tray"),
+            "local": lambda: _t("Installed in {}", str(self._install.root or "")),
+            "source": lambda: _t("Running from a source checkout"),
+        }.get(self._install.kind, lambda: _t("Installation not recognised"))()
+        self.lbl_app_version.setText(
+            f"<b>adguard-tray {__version__}</b><br><small>{where}</small>")
+
+    def _do_app_update_check(self) -> None:
+        self._app_busy = True
+        self.btn_app_update.setEnabled(False)
+        self.btn_app_install.setVisible(False)
+        self.lbl_app_result.setText(_t("Checking for updates…"))
+        worker = _AppUpdateWorker()
+        worker.done.connect(self._on_app_update_checked)
+        worker.finished.connect(
+            lambda: self._workers.remove(worker) if worker in self._workers else None)
+        self._workers.append(worker)
+        worker.start()
+
+    def _on_app_update_checked(self, release, newer: bool, error: str) -> None:
+        from . import __version__
+        from .updates import update_command
+
+        self._app_busy = False
+        self.btn_app_update.setEnabled(not self._acting)
+        self._release = release
+        if error or release is None:
+            self.lbl_app_result.setText(error or _t("Could not check for updates."))
+            return
+        if not newer:
+            self.lbl_app_result.setText(
+                _t("You are running the latest version ({}).", __version__))
+            return
+
+        message = _t("Version {} is available (you have {}).", release.version, __version__)
+        command = update_command(self._install)
+        if self._install.can_self_update:
+            self.btn_app_install.setVisible(True)
+        elif command:
+            message += "<br><small>" + _t("Update with: {}", f"<code>{command}</code>") + "</small>"
+        else:
+            message += f'<br><small><a href="{release.url}">{release.url}</a></small>'
+            self.lbl_app_result.setOpenExternalLinks(True)
+        self.lbl_app_result.setText(message)
+
+    def _do_app_install(self) -> None:
+        if not getattr(self, "_release", None):
+            return
+        self._app_busy = True
+        self.btn_app_install.setEnabled(False)
+        self.btn_app_update.setEnabled(False)
+        self.lbl_app_result.setText(_t("Installing update…"))
+        worker = _SelfUpdateWorker(self._release)
+        worker.done.connect(self._on_app_installed)
+        worker.finished.connect(
+            lambda: self._workers.remove(worker) if worker in self._workers else None)
+        self._workers.append(worker)
+        worker.start()
+
+    def _on_app_installed(self, ok: bool, msg: str) -> None:
+        self._app_busy = False
+        self.btn_app_update.setEnabled(not self._acting)
+        self.btn_app_install.setEnabled(not self._acting)
+        self.lbl_app_result.setText(msg)
+        if not ok:
+            return
+        self.btn_app_install.setVisible(False)
+        # The running process still holds the old modules; anything imported
+        # lazily from here on would mix versions.
+        box = QMessageBox(self)
+        box.setWindowTitle(_t("Application update"))
+        box.setText(msg)
+        restart = box.addButton(_t("Restart now"), QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(_t("Later"), QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        if box.clickedButton() is restart:
+            self._restart_app()
+
+    @staticmethod
+    def _restart_app() -> None:
+        from PyQt6.QtCore import QProcess
+        from PyQt6.QtWidgets import QApplication
+
+        from .main import _resolve_exec
+
+        argv = _resolve_exec()
+        if argv:
+            QProcess.startDetached(argv[0], argv[1:])
+        QApplication.quit()
 
     def _do_update(self) -> None:
         self.lbl_result.setText(_t("Checking for updates…"))

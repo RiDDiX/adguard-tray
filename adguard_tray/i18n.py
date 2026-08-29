@@ -854,6 +854,66 @@ _DE: dict[str, str] = {
         'Häufigste blockierte Domains',
     'Most active domains':
         'Aktivste Domains',
+
+    # ── Application update ────────────────────────────────────────────────
+    'Version {} is available (you have {}).':
+        'Version {} ist verfügbar (installiert ist {}).',
+    'Application update':
+        'Anwendungs-Update',
+    'Check for update':
+        'Nach Update suchen',
+    'Install update':
+        'Update installieren',
+    'Installing update…':
+        'Update wird installiert…',
+    'Restart now':
+        'Jetzt neu starten',
+    'Later':
+        'Später',
+    'You are running the latest version ({}).':
+        'Die neueste Version ist installiert ({}).',
+    'Installation not recognised':
+        'Installationsart unbekannt',
+    'Could not check for updates.':
+        'Update-Prüfung fehlgeschlagen.',
+    'Update with: {}':
+        'Aktualisieren mit: {}',
+    'Installed with the AUR package {}':
+        'Installiert über das AUR-Paket {}',
+    'Installed in {}':
+        'Installiert in {}',
+    'Running from a source checkout':
+        'Läuft aus einem Quellcode-Checkout',
+    'Version {} installed. Restart adguard-tray to use it.':
+        'Version {} installiert. adguard-tray neu starten, um sie zu nutzen.',
+    'Unexpected answer from GitHub: {}':
+        'Unerwartete Antwort von GitHub: {}',
+    'Download failed: {}':
+        'Download fehlgeschlagen: {}',
+    'Could not unpack the download: {}':
+        'Download konnte nicht entpackt werden: {}',
+    'This installation is managed elsewhere: {}':
+        'Diese Installation wird anderweitig verwaltet: {}',
+    'No permission to write to {}':
+        'Keine Schreibrechte für {}',
+    'GitHub returned {}.':
+        'GitHub antwortete mit {}.',
+    'No connection to GitHub: {}':
+        'Keine Verbindung zu GitHub: {}',
+    'The download does not contain adguard-tray.':
+        'Der Download enthält kein adguard-tray.',
+    'The download says version {} instead of {} – aborted.':
+        'Der Download meldet Version {} statt {} – abgebrochen.',
+    'GitHub is rate limiting this address. Try again later.':
+        'GitHub drosselt diese Adresse. Später erneut versuchen.',
+    'The download is larger than expected – aborted.':
+        'Der Download ist größer als erwartet – abgebrochen.',
+    'Update failed: {}':
+        'Update fehlgeschlagen: {}',
+    'The archive contains unexpected paths – aborted.':
+        'Das Archiv enthält unerwartete Pfade – abgebrochen.',
+    'Update failed and the old version could not be restored. Restore it from {} or reinstall with: {}':
+        'Update fehlgeschlagen, die alte Version konnte nicht wiederhergestellt werden. Aus {} wiederherstellen oder neu installieren mit: {}',
 }
 
 # ── Simplified Chinese translations ──────────────────────────────────────
@@ -1658,6 +1718,66 @@ _ZH_CN: dict[str, str] = {
         '拦截最多的域名',
     'Most active domains':
         '请求最多的域名',
+
+    # ── Application update ────────────────────────────────────────────────
+    'Version {} is available (you have {}).':
+        '有新版本 {}（当前 {}）。',
+    'Application update':
+        '应用更新',
+    'Check for update':
+        '检查更新',
+    'Install update':
+        '安装更新',
+    'Installing update…':
+        '正在安装更新…',
+    'Restart now':
+        '立即重启',
+    'Later':
+        '稍后',
+    'You are running the latest version ({}).':
+        '已是最新版本（{}）。',
+    'Installation not recognised':
+        '无法识别安装方式',
+    'Could not check for updates.':
+        '无法检查更新。',
+    'Update with: {}':
+        '更新命令：{}',
+    'Installed with the AUR package {}':
+        '通过 AUR 软件包 {} 安装',
+    'Installed in {}':
+        '安装在 {}',
+    'Running from a source checkout':
+        '正在从源码目录运行',
+    'Version {} installed. Restart adguard-tray to use it.':
+        '已安装版本 {}。重启 adguard-tray 后生效。',
+    'Unexpected answer from GitHub: {}':
+        'GitHub 返回了意外的响应：{}',
+    'Download failed: {}':
+        '下载失败：{}',
+    'Could not unpack the download: {}':
+        '无法解压下载内容：{}',
+    'This installation is managed elsewhere: {}':
+        '此安装由其他方式管理：{}',
+    'No permission to write to {}':
+        '没有写入 {} 的权限',
+    'GitHub returned {}.':
+        'GitHub 返回 {}。',
+    'No connection to GitHub: {}':
+        '无法连接 GitHub：{}',
+    'The download does not contain adguard-tray.':
+        '下载内容不包含 adguard-tray。',
+    'The download says version {} instead of {} – aborted.':
+        '下载内容的版本是 {}，而非 {} — 已中止。',
+    'GitHub is rate limiting this address. Try again later.':
+        'GitHub 正在限制此地址的请求，请稍后重试。',
+    'The download is larger than expected – aborted.':
+        '下载内容超出预期大小 — 已中止。',
+    'Update failed: {}':
+        '更新失败：{}',
+    'The archive contains unexpected paths – aborted.':
+        '压缩包中包含异常路径 — 已中止。',
+    'Update failed and the old version could not be restored. Restore it from {} or reinstall with: {}':
+        '更新失败，且未能恢复旧版本。请从 {} 恢复，或重新安装：{}',
 }
 
 # ── Translation registry ──────────────────────────────────────────────────

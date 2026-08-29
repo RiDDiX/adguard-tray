@@ -20,10 +20,11 @@ The UI language is detected automatically from the system locale (override in Se
 - Desktop notifications when status changes (with dedup to prevent spam)
 - Autostart toggle right in the tray menu
 - Activity view: requests, blocked/allowed counts and top domains read from adguard-cli's access log
+- Update check for adguard-tray itself, with one-click install where the files belong to us
 - Install the HTTPS certificate into Chromium-based browsers (Brave, Chrome, ungoogled-chromium, Vivaldi, …) and Firefox-family profiles
 - HTTP/3 (QUIC) check: tells you when browsers can bypass filtering
 - Guided settings for sites that refuse to load behind the proxy
-- `--version` / `-V` flag
+- `--version`, `--check-update` and `--update` flags
 
 ---
 
@@ -69,6 +70,30 @@ Then just run:
 ```bash
 adguard-tray
 ```
+
+---
+
+## Updating adguard-tray
+
+The Overview tab has an **Application update** section: it shows the installed
+version, how this copy was installed, and checks GitHub for a newer release
+when you ask it to. Nothing is contacted unless you press the button.
+
+What happens next depends on who owns the files:
+
+```bash
+adguard-tray --check-update   # print whether a newer release exists
+adguard-tray --update         # install it (only for ~/.local installations)
+```
+
+Installed from the AUR, the package manager owns the files, so the app shows
+the command for your helper (`paru -Syu adguard-tray`) instead of overwriting
+them behind pacman's back. Running from a git checkout it points at
+`git pull && bash install.sh`. Only an installation made by `install.sh` into
+`~/.local/lib/adguard-tray` is replaced directly: the release tarball is
+downloaded, checked that it really carries the version that was announced, and
+swapped in with the old copy kept until the swap worked. Restart the app
+afterwards — the running process still has the old modules loaded.
 
 ---
 

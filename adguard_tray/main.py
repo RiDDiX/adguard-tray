@@ -62,6 +62,8 @@ System tray monitor and controller for adguard-cli.
 
 Options:
   -V, --version   print the version and exit
+  --check-update  check whether a newer release exists and exit
+  --update        install a newer release (only for ~/.local installations)
   -h, --help      print this help and exit
 
 Config:  ~/.config/adguard-tray/config.json
@@ -76,6 +78,8 @@ def main() -> None:
     if "--help" in sys.argv or "-h" in sys.argv:
         print(USAGE, end="")
         sys.exit(0)
+    if "--check-update" in sys.argv or "--update" in sys.argv:
+        sys.exit(_run_update("--update" in sys.argv))
 
     # Logging first: a broken config.json must end up in the log file, not in
     # a stderr nobody reads under autostart.
@@ -111,7 +115,9 @@ def main() -> None:
         logger.warning("Could not create %s: %s", CONFIG_DIR, exc)
     lock = QLockFile(str(LOCK_FILE))
     lock.setStaleLockTime(0)  # treat only live PIDs as holders
-    if not lock.tryLock(100):
+    # Waiting a few seconds instead of failing at once: after an in-app update
+    # the new process starts while the old one is still shutting down.
+    if not lock.tryLock(5000):
         logger.warning("Another adguard-tray instance is already running")
         _info_dialog(
             _t("AdGuard Tray is already running"),
@@ -172,6 +178,33 @@ def main() -> None:
 
     logger.info("Entering event loop")
     sys.exit(app.exec())
+
+
+def _run_update(install: bool) -> int:
+    """`--check-update` / `--update`, without starting the GUI."""
+    from .i18n import _t
+    from .updates import check, detect_install, self_update, update_command
+
+    release, newer, error = check()
+    if release is None:
+        print(error or _t("Could not check for updates."))
+        return 1
+    if not newer:
+        print(_t("You are running the latest version ({}).", _get_version()))
+        return 0
+    print(_t("Version {} is available (you have {}).", release.version, _get_version()))
+
+    where = detect_install()
+    command = update_command(where)
+    if not install:
+        print(_t("Update with: {}", command) if command else release.url)
+        return 0
+    if not where.can_self_update:
+        print(_t("This installation is managed elsewhere: {}", command or release.url))
+        return 1
+    ok, message = self_update(release, where)
+    print(message)
+    return 0 if ok else 1
 
 
 def _get_version() -> str:
