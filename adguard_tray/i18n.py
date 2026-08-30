@@ -828,24 +828,18 @@ _DE: dict[str, str] = {
         'AdGuard neu starten, um die Änderungen zu übernehmen.',
     'Source: {}':
         'Quelle: {}',
-    'Allowed by rule':
-        'Durch Regel erlaubt',
     'Allowed':
         'Erlaubt',
     'Added rule: {}':
         'Regel hinzugefügt: {}',
     'Activity…':
         'Aktivität…',
-    'Top domains':
-        'Häufigste Domains',
     'Requests per hour, {} to {} · busiest hour: {}':
         'Anfragen pro Stunde, {} bis {} · stärkste Stunde: {}',
     'Last 24 hours':
         'Letzte 24 Stunden',
     'Last 7 days':
         'Letzte 7 Tage',
-    'Everything in the log':
-        'Alles im Protokoll',
     'Requests':
         'Anfragen',
     'Traffic':
@@ -914,6 +908,38 @@ _DE: dict[str, str] = {
         'Das Archiv enthält unerwartete Pfade – abgebrochen.',
     'Update failed and the old version could not be restored. Restore it from {} or reinstall with: {}':
         'Update fehlgeschlagen, die alte Version konnte nicht wiederhergestellt werden. Aus {} wiederherstellen oder neu installieren mit: {}',
+    'Last 30 days':
+        'Letzte 30 Tage',
+    'All time':
+        'Gesamter Zeitraum',
+    'Modified':
+        'Verändert',
+    'Most traffic':
+        'Größte Datenmenge',
+    'Top rules':
+        'Häufigste Regeln',
+    'Rules':
+        'Regeln',
+    'Showing {} – show all':
+        'Zeigt {} – alle anzeigen',
+    'history {}':
+        'Verlauf {}',
+    'Filter list ID: {}':
+        'Filterlisten-ID: {}',
+    'App':
+        'App',
+    'Protocol':
+        'Protokoll',
+    'Type':
+        'Typ',
+    'Reset history':
+        'Verlauf zurücksetzen',
+    'Delete the stored history and read the log again.':
+        'Gespeicherten Verlauf löschen und das Protokoll neu einlesen.',
+    'Delete the stored history? Only what the log still holds can be read back.':
+        'Gespeicherten Verlauf löschen? Zurückgelesen werden kann nur, was noch im Protokoll steht.',
+    'History is not being updated: {}':
+        'Verlauf wird nicht aktualisiert: {}',
 }
 
 # ── Simplified Chinese translations ──────────────────────────────────────
@@ -1692,24 +1718,18 @@ _ZH_CN: dict[str, str] = {
         '重启 AdGuard 以应用更改。',
     'Source: {}':
         '来源：{}',
-    'Allowed by rule':
-        '按规则放行',
     'Allowed':
         '已放行',
     'Added rule: {}':
         '已添加规则：{}',
     'Activity…':
         '活动…',
-    'Top domains':
-        '访问最多的域名',
     'Requests per hour, {} to {} · busiest hour: {}':
         '每小时请求数，{} 至 {} · 最繁忙时段：{}',
     'Last 24 hours':
         '最近 24 小时',
     'Last 7 days':
         '最近 7 天',
-    'Everything in the log':
-        '日志中的全部记录',
     'Requests':
         '请求',
     'Traffic':
@@ -1778,6 +1798,38 @@ _ZH_CN: dict[str, str] = {
         '压缩包中包含异常路径 — 已中止。',
     'Update failed and the old version could not be restored. Restore it from {} or reinstall with: {}':
         '更新失败，且未能恢复旧版本。请从 {} 恢复，或重新安装：{}',
+    'Last 30 days':
+        '最近 30 天',
+    'All time':
+        '全部时间',
+    'Modified':
+        '已修改',
+    'Most traffic':
+        '流量最多',
+    'Top rules':
+        '命中最多的规则',
+    'Rules':
+        '规则',
+    'Showing {} – show all':
+        '仅显示 {} — 显示全部',
+    'history {}':
+        '历史 {}',
+    'Filter list ID: {}':
+        '过滤列表 ID：{}',
+    'App':
+        '应用',
+    'Protocol':
+        '协议',
+    'Type':
+        '类型',
+    'Reset history':
+        '重置历史',
+    'Delete the stored history and read the log again.':
+        '删除已保存的历史并重新读取日志。',
+    'Delete the stored history? Only what the log still holds can be read back.':
+        '要删除已保存的历史吗？只有日志中仍存在的记录能被重新读取。',
+    'History is not being updated: {}':
+        '历史未在更新：{}',
 }
 
 # ── Translation registry ──────────────────────────────────────────────────

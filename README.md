@@ -19,7 +19,7 @@ The UI language is detected automatically from the system locale (override in Se
 - Install custom filter lists by URL
 - Desktop notifications when status changes (with dedup to prevent spam)
 - Autostart toggle right in the tray menu
-- Activity view: requests, blocked/allowed counts and top domains read from adguard-cli's access log
+- Activity dashboard: requests, blocked/allowed/modified counts, traffic, per-hour chart, top-10 lists and a searchable request log, kept in a local database so history survives adguard-cli's log rotation
 - Update check for adguard-tray itself, with one-click install where the files belong to us
 - Install the HTTPS certificate into Chromium-based browsers (Brave, Chrome, ungoogled-chromium, Vivaldi, …) and Firefox-family profiles
 - HTTP/3 (QUIC) check: tells you when browsers can bypass filtering
@@ -194,28 +194,74 @@ setting, and switch it back once the real cause is known.
 
 ## Activity
 
-The Manager's Activity tab shows what AdGuard did with each request: domain,
-whether a rule matched, which rule, response size and duration. Above the list
-are counters for requests, blocked, allowed and traffic, a bar chart of the
-requests per hour, and top-10 lists of the most blocked and the most active
-domains. The range selector switches between the last 24 hours, the last 7 days
-and everything the log still holds. Selecting an entry and clicking allow or
-block writes the matching rule into `user.txt`.
+The Manager's Activity tab is a traffic dashboard: counters for requests,
+blocked, allowed, modified and traffic; a bar chart of the requests per hour
+with the blocked share drawn over it; top-10 lists for most blocked, most
+requested, most traffic and most-hit rules; and a searchable request list.
+Click a domain in any list to drill into it, and allow or block the selected
+domain straight from the table.
 
-The data comes from adguard-cli's access log – `access_log_file` in
-`proxy.yaml`, by default `~/.local/share/adguard-cli/logs/access.log`. That log
-is the only per-request record adguard-cli keeps; there is no statistics
-command and no API. Two consequences:
+The range selector covers the last 24 hours, 7 days, 30 days and all time.
 
-- Nothing is shown before AdGuard has filtered traffic, because the log does
-  not exist yet.
-- When AdGuard runs as a system service, the log belongs to root and cannot be
-  read from the desktop session. The tab says so instead of showing zero.
+### Where the numbers come from
 
-The log format is undocumented, so the parser reads the parts that carry
-meaning (request line, size, duration, matched rule) and counts lines it cannot
-read instead of guessing. Blocked versus allowed is derived from the rule
-itself: `@@` marks an exception in AdGuard's syntax.
+adguard-cli has no statistics command, no query log and no API. The only
+per-request record is the access log named by `access_log_file` in
+`proxy.yaml`, and adguard-cli rotates it itself: past 10 MiB it renames
+`access.log` to `access.log.1` and shifts the older generations down to
+`access.log.9`. Those constants are compiled into the binary, so there is no
+setting for them.
+
+Reading the tail of that file therefore only ever shows a sliding window. So
+the tab reads the log *forward* instead, into a SQLite database at
+`~/.local/share/adguard-tray/activity.db`, remembering how far it got. It
+keeps three things:
+
+- raw requests for up to 14 days, or 400 000 requests, whichever runs out
+  first — these feed the request list and the drill-down
+- per-domain and per-rule counts per hour for 90 days — these feed the top
+  lists
+- hourly totals, which are never deleted — this is what makes "last 30 days"
+  and "all time" answerable
+
+On the first run the rotated generations that are still on disk are read too,
+so the history does not start empty. Afterwards, when the file being read is
+renamed away, the remainder is picked up from the rotated copies before the
+new file is read, including the case of several rollovers between two looks.
+Only whole lines are consumed, because the daemon may be halfway through
+writing the last one.
+
+The catch worth knowing: **the log is only read while the Activity tab
+refreshes it.** If the Manager stays closed long enough for the log to rotate
+through all ten generations, the requests in between are gone before anything
+records them. Opening the tab now and then is what keeps the history complete.
+
+`Reset history` empties the database and reads the log again from what is
+still on disk.
+
+One known inaccuracy: log timestamps carry no time zone, so during the hour
+that repeats when daylight saving ends, requests from the second pass land in
+the first pass's hour.
+
+### What it cannot show
+
+The log format is undocumented. It was recovered by disassembling the function
+that writes it, which formats fourteen fields — application, protocol, method,
+URL, status, content type, filtering verdict, rule count, filter-list ID,
+address, bytes, duration and the matched rule. The parser anchors on the parts
+that cannot move — the quoted first field, the `…b` and `…ms` suffixes and the
+` -- ` before the rule — and reads each remaining field only when its own
+marker holds: a known protocol name, a three-digit status, an `ID=<n>`. A
+field whose marker fails is left empty instead of being guessed.
+
+The one exception is blocked-versus-allowed: when the verdict field cannot be
+read, it falls back to AdGuard's rule syntax, where `@@` marks an exception.
+That fallback cannot tell a modified request from a blocked one.
+
+Saved traffic is not shown: a blocked request never transfers the bytes it
+would have, and the log does not record what they would have been. Grouping
+domains into companies, as AdGuard's own apps do, needs a company database
+that is not part of adguard-cli.
 
 ---
 

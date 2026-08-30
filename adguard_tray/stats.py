@@ -2,14 +2,23 @@
 
 adguard-cli has no statistics command, no query log command and no API – the
 only per-request record it keeps is the access log named by `access_log_file`
-in proxy.yaml. Its format is undocumented, so this parser is structural: it
-anchors on the parts that carry meaning (the quoted request line, the `…b`
-size, the `…ms` duration and the ` -- ` rule separator) and ignores the fields
-in between rather than guessing what they mean. Lines it cannot read are
-counted, not dropped silently.
+in proxy.yaml. The format is undocumented; it was recovered by disassembling
+the emitting function, which formats fourteen fields:
 
-Whether a request was blocked is derived from the matched rule using AdGuard's
-documented syntax (`@@` marks an exception), not from a column.
+    "<app>" <proto> <method> <url> <?> <status> <types> <verdict> <rules>
+    <ID=n> <address> <n>b <n>ms -- <rule>
+
+Reading it positionally alone would be reckless – the map came from a binary,
+not from documentation, and field 8 is a space-joined flag set, so the token
+count varies. So the parser anchors on what cannot move (the quoted first
+field, the `…b`/`…ms` suffixes, the ` -- ` separator), then reads the fields
+between them only when their own markers hold: a known protocol name, an
+`ID=<n>` or `-`, a three-digit status. A field whose marker fails stays empty
+instead of being guessed, and the request still counts.
+
+The verdict field says outright whether a request was blocked, whitelisted or
+modified. When it is missing or unreadable, blocked/allowed falls back to
+AdGuard's rule syntax, where `@@` marks an exception.
 """
 
 import logging
@@ -24,7 +33,10 @@ logger = logging.getLogger(__name__)
 
 # The logger prefixes every line: "26.08.2026 21:42:16.791495 "
 _TS_RE = re.compile(r"^(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2}):(\d{2})\.(\d{1,6})\s+")
-_QUOTED_RE = re.compile(r'^"([^"]*)"\s*')
+# The emitter escapes only spaces in this field, so a quote inside it shifts
+# every column. Demanding whitespace after the closing quote makes such a line
+# fail here instead of producing plausible-looking nonsense.
+_QUOTED_RE = re.compile(r'^"([^"]*)"\s+')
 _BYTES_RE = re.compile(r"^(\d+)b$")
 _MS_RE = re.compile(r"^(\d+)ms$")
 _RULE_SEP = " -- "
@@ -32,13 +44,36 @@ _RULE_SEP = " -- "
 # Placeholders adguard-cli writes when no rule matched.
 _NO_RULE = {"", "-", "NONE", "none", "null"}
 
+# Field 2: the AGPROTO_ enum with its prefix stripped, plus DNS for DNS records.
+PROTOCOLS = frozenset({
+    "TCP", "UDP", "STUN_TURN", "GQUIC", "TLS", "HTTP1", "HTTP2", "IQUIC",
+    "HTTP3", "OTHER", "EOF", "DNS",
+})
+# Field 8: the filtering verdict. Several flags can be set at once, joined by
+# spaces, which is why the fields around it are found by their own markers.
+VERDICTS = frozenset({
+    "NONE", "BLOCKED", "WHITELISTED", "MODIFIED_CONTENT", "MODIFIED_META",
+    "blocked", "allowed", "error",
+})
+_BLOCKED_FLAGS = frozenset({"BLOCKED", "blocked"})
+_ALLOWED_FLAGS = frozenset({"WHITELISTED"})
+_MODIFIED_FLAGS = frozenset({"MODIFIED_CONTENT", "MODIFIED_META"})
+
+_METHOD_RE = re.compile(r"^[A-Z]{3,10}$")
+_STATUS_RE = re.compile(r"^[1-5]\d\d$")
+_FILTER_ID_RE = re.compile(r"^ID=(\d+)$")
+_COUNT_RE = re.compile(r"^\d+$")
+
+# Field 1 escapes spaces as "\ "; nothing else is escaped.
+_ESCAPED_SPACE = "\\ "
+
 # Reading the whole file would stall the UI on a long-running proxy.
 MAX_READ_BYTES = 4 * 1024 * 1024
 
 
 @dataclass
 class Request:
-    """One filtered request."""
+    """One filtered request. Fields that could not be read stay empty."""
     when: datetime | None
     url: str
     host: str
@@ -46,14 +81,34 @@ class Request:
     size: int
     duration_ms: int
     raw: str
+    app: str = ""
+    protocol: str = ""
+    method: str = ""
+    status: int = 0
+    content_type: str = ""
+    verdict: str = ""
+    rule_count: int = 0
+    filter_id: int = -1
 
     @property
     def blocked(self) -> bool:
+        """The verdict decides; the rule only when there is no verdict."""
+        flags = self.verdict.split()
+        if flags:
+            # A modified request is not a blocked one, even though it matched a
+            # rule written in blocking syntax – so the verdict settles it.
+            return bool(_BLOCKED_FLAGS.intersection(flags))
         return bool(self.rule) and not self.rule.startswith("@@")
 
     @property
     def allowed_by_rule(self) -> bool:
+        if _ALLOWED_FLAGS.intersection(self.verdict.split()):
+            return True
         return self.rule.startswith("@@")
+
+    @property
+    def modified(self) -> bool:
+        return bool(_MODIFIED_FLAGS.intersection(self.verdict.split()))
 
 
 @dataclass
@@ -179,59 +234,120 @@ def _host_of(url: str) -> str:
         host = urlsplit(url).hostname or ""
         return host
     head = url.split("/", 1)[0]
+    if head.startswith("["):                      # [::1]:443
+        return head[1:].split("]", 1)[0]
     if head.count(":") == 1:
         head = head.split(":", 1)[0]
     return head
 
 
+def _split_rule(body: str) -> tuple[str, str]:
+    """Peel the matched rule off the end.
+
+    The format ends in ` -- {}`, so a request that matched nothing leaves the
+    line ending in " -- " — with the separator still there and nothing after
+    it. Stripping the whole line first would swallow that and make the record
+    unreadable, which is why only the line ending is stripped here.
+    """
+    body = body.rstrip("\r\n")
+    if _RULE_SEP in body:
+        head, rule = body.rsplit(_RULE_SEP, 1)
+        rule = rule.strip()
+        return head.rstrip(), "" if rule in _NO_RULE else rule
+    if body.rstrip().endswith(" --"):                  # trailing space eaten
+        return body.rstrip()[:-3].rstrip(), ""
+    return body.rstrip(), ""
+
+
+def _read_fields(tokens: list[str], request: Request) -> None:
+    """Fill the positional fields, but only where their markers hold.
+
+    The six leading fields are counted from the left and the three trailing
+    ones from the right, because the verdict between them is a space-joined
+    flag set of unpredictable width. Every field is checked against its own
+    marker first; one that does not match is left empty rather than guessed,
+    so a changed format degrades to fewer columns instead of wrong numbers.
+    """
+    if len(tokens) < 10:
+        return
+
+    left, right = tokens[:6], tokens[-3:]
+    # ID=<n> is the strongest marker in the line: without it, trust nothing
+    # that depends on counting from the right.
+    filter_id = _FILTER_ID_RE.match(right[1])
+    if not (filter_id or right[1] == "-") or not _COUNT_RE.match(right[0]):
+        return
+
+    if left[0] in PROTOCOLS:
+        request.protocol = left[0]
+    if left[2] not in ("-", ""):
+        request.url = left[2]
+        request.host = _host_of(left[2])
+    if _METHOD_RE.match(left[1]):
+        request.method = left[1]
+    if _STATUS_RE.match(left[4]):
+        request.status = int(left[4])
+    if left[5] not in ("-", ""):
+        request.content_type = left[5]
+
+    request.rule_count = int(right[0])
+    if filter_id:
+        request.filter_id = int(filter_id.group(1))
+
+    middle = tokens[6:-3]
+    if middle and all(token in VERDICTS for token in middle):
+        request.verdict = " ".join(middle)
+
+
 def parse_line(line: str) -> Request | None:
     """Turn one access-log line into a Request, or None if it isn't one."""
     match = _TS_RE.match(line)
-    when = None
-    rest = line
-    if match:
-        d, mo, y, h, mi, s, frac = match.groups()
-        try:
-            when = datetime(int(y), int(mo), int(d), int(h), int(mi), int(s),
-                            int(frac.ljust(6, "0")))
-        except ValueError:
-            when = None
-        rest = line[match.end():]
+    if not match:
+        # Every record carries the logger's timestamp. Without it this is
+        # something else that happens to end in a byte count.
+        return None
+    d, mo, y, h, mi, s, frac = match.groups()
+    try:
+        when = datetime(int(y), int(mo), int(d), int(h), int(mi), int(s),
+                        int(frac.ljust(6, "0")))
+    except ValueError:
+        when = None
+    rest = line[match.end():]
 
-    rest = rest.rstrip()
-    rule = ""
-    if _RULE_SEP in rest:
-        rest, rule = rest.rsplit(_RULE_SEP, 1)
-        rule = rule.strip()
-        if rule in _NO_RULE:
-            rule = ""
+    rest, rule = _split_rule(rest)
 
     quoted = _QUOTED_RE.match(rest)
     if not quoted:
         return None
-    request_line = quoted.group(1)
-    tail = rest[quoted.end():].split()
+    app = quoted.group(1).replace(_ESCAPED_SPACE, " ")
+    tokens = rest[quoted.end():].split()
 
     # The two trailing anchors: "<size>b <duration>ms".
     size = duration = -1
-    if len(tail) >= 2:
-        ms = _MS_RE.match(tail[-1])
-        by = _BYTES_RE.match(tail[-2])
+    if len(tokens) >= 2:
+        ms = _MS_RE.match(tokens[-1])
+        by = _BYTES_RE.match(tokens[-2])
         if ms and by:
             duration = int(ms.group(1))
             size = int(by.group(1))
     if size < 0:
         return None
+    tokens = tokens[:-2]
 
-    url = ""
-    for token in request_line.split():
-        if "://" in token or "." in token or ":" in token:
-            url = token
-            break
+    # A guess before the fields are validated: only tokens that cannot be the
+    # trailing address are considered, and the quoted field is the last
+    # resort. _read_fields overrides this with the real column when its
+    # markers hold, and an unrecognisable line keeps an empty host rather than
+    # inventing one out of an app name.
+    candidates = tokens[:-3] if len(tokens) >= 10 else tokens
+    url = next((token for token in candidates
+                if "://" in token or "." in token or ":" in token), "")
     if not url:
-        url = request_line
-    return Request(when=when, url=url, host=_host_of(url), rule=rule,
-                   size=size, duration_ms=duration, raw=line.rstrip())
+        url = next((part for part in app.split() if "://" in part or "." in part), "")
+    request = Request(when=when, url=url, host=_host_of(url), rule=rule,
+                      size=size, duration_ms=duration, raw=line.rstrip(), app=app)
+    _read_fields(tokens, request)
+    return request
 
 
 def read_activity(max_lines: int = 5000) -> Activity:
