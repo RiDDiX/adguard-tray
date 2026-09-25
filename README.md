@@ -30,11 +30,22 @@ The UI language is detected automatically from the system locale (override in Se
 
 ## Requirements
 
-- `python` >= 3.11
-- `python-pyqt6`
-- `python-yaml`
-- `libnotify` (for notifications)
+- Python >= 3.11 (with its sqlite3 module), PyQt6 and PyYAML
+- polkit (`pkexec`) and libnotify (`notify-send`)
 - `adguard-cli` — install via **official script** (recommended) or [AUR: adguard-cli-bin](https://aur.archlinux.org/packages/adguard-cli-bin)
+
+`install.sh` installs everything except adguard-cli for you. These are the
+packages it uses:
+
+| Distribution | Packages |
+|---|---|
+| Arch and derivatives | `python-pyqt6 python-yaml polkit libnotify` |
+| Fedora | `python3 python3-pyqt6-base python3-pyyaml polkit libnotify` |
+| Debian 12+ / Ubuntu 24.04+ | `python3 python3-pyqt6 python3-yaml pkexec libnotify-bin` (Ubuntu: from universe) |
+| openSUSE Tumbleweed | `python3 python3-PyQt6 python3-PyYAML pkexec libnotify-tools` |
+
+Older releases such as Ubuntu 22.04 or openSUSE Leap 15 do not package PyQt6
+for a recent enough Python; the installer stops there without changing anything.
 
 ### Installing adguard-cli
 
@@ -54,12 +65,27 @@ If adguard-cli is not found at startup, the app shows a helpful dialog with inst
 
 ## Install
 
+The installer checks what is missing, installs it with your distribution's
+package manager, and puts the app under `~/.local`. It only asks for your
+password (through sudo) when something actually has to be installed.
+
+In one line, without git:
 ```bash
-sudo pacman -S python-pyqt6 python-yaml libnotify
+d=$(mktemp -d) && curl -fsSL https://github.com/RiDDiX/adguard-tray/archive/refs/heads/main.tar.gz | tar xz -C "$d" && bash "$d/adguard-tray-main/install.sh"
+```
+
+Or from a clone:
+```bash
 git clone https://github.com/RiDDiX/adguard-tray.git
 cd adguard-tray
 bash install.sh
 ```
+
+On Arch the AUR package works as well: `paru -S adguard-tray`.
+
+On Fedora Silverblue or Kinoite, `/usr` is read-only, so the installer prints
+the `rpm-ostree install` line for the missing packages instead of installing
+them.
 
 If `~/.local/bin` isn't in your PATH yet (fish):
 ```bash
@@ -158,8 +184,10 @@ imports the certificate into every browser certificate store it finds:
 - Flatpak and Snap browser stores
 - Firefox, LibreWolf, Waterfox and Zen profiles listed in their `profiles.ini`
 
-It needs `certutil` (Arch: `nss`); the copy shipped with adguard-cli is used as
-a fallback. Browsers read the store at startup, so restart them afterwards.
+It needs `certutil` (Arch: `nss`, Fedora: `nss-tools`, Debian/Ubuntu:
+`libnss3-tools`, openSUSE: `mozilla-nss-tools`); the copy shipped with
+adguard-cli is used as a fallback. Browsers read the store at startup, so
+restart them afterwards.
 
 This installs a certificate authority that lets AdGuard read those browsers'
 HTTPS traffic — the same trade-off HTTPS filtering always makes.
