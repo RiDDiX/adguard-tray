@@ -129,7 +129,7 @@ def icon_active() -> QIcon:
 
 
 def icon_inactive() -> QIcon:
-    return _make_icon("#9ca3af", "#6b7280", "x")
+    return _make_icon("#6b7280", "#4b5563", "x")
 
 
 def icon_error() -> QIcon:

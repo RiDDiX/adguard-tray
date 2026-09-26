@@ -53,16 +53,21 @@ jobs:
           from adguard_tray.notifications import notify
           from adguard_tray.worker import StatusWorker
           from adguard_tray.manager_window import ManagerWindow
+          from adguard_tray.theme import set_appearance
+          from adguard_tray.proxy_settings import ProxySettings
           from adguard_tray.overview_tab import OverviewTab
+          from adguard_tray.activity_tab import ActivityTab
           from adguard_tray.filters_tab import FiltersTab
           from adguard_tray.dns_filters_tab import DnsFiltersTab
           from adguard_tray.userscripts_tab import UserscriptsTab
           from adguard_tray.exceptions_tab import ExceptionsTab
-          from adguard_tray.config_tab import ConfigTab
+          from adguard_tray.https_tab import HttpsTab
+          from adguard_tray.stealth_tab import StealthTab
+          from adguard_tray.network_tab import NetworkTab
           from adguard_tray.diagnostics_tab import DiagnosticsTab
-          from adguard_tray.settings_dialog import SettingsDialog
-          from adguard_tray.proxy_config_dialog import ProxyConfigDialog
-          from adguard_tray.exceptions_dialog import ExceptionsDialog
+          from adguard_tray.preferences_tab import PreferencesTab
+          from adguard_tray.about_tab import AboutTab
+          from adguard_tray.tray import AdGuardTray
           print('All imports OK')
           "
 

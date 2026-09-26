@@ -22,7 +22,7 @@ makedepends=(
 )
 optdepends=(
     'adguard-cli-bin: AdGuard CLI via AUR (alternatively install upstream: curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/release/install.sh | sh -s -- -v)'
-    'qt6-svg: SVG icon theme support'
+    'qt6-svg: sidebar and toolbar icons in the Manager window'
     'nss: install the HTTPS certificate into browsers (certutil)'
 )
 source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")

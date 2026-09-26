@@ -2,12 +2,9 @@
 Main tray application.
 
 Menu structure (English default – translated at runtime via i18n):
-  ● Status: <text>
-  ─────────────────────────────────────
-  ↺  Toggle
-  ▶  Enable              (only when inactive)
-  ■  Disable             (only when active)
-  ↺  Restart             (only when active)
+  ● Status: <text>       (opens the Overview page)
+  Disable / Enable protection (whichever applies)
+  Restart AdGuard        (only when active)
   ─────────────────────────────────────
   ▸  Filters             ► (submenu, lazy-loaded)
        [✓] AdGuard Base filter
@@ -21,29 +18,25 @@ Menu structure (English default – translated at runtime via i18n):
        ─────────
        Manage userscripts…
   ─────────────────────────────────────
-  ⟳  Refresh status
-  ─────────────────────────────────────
-  Open Manager…          (tabbed GUI)
-Activity…              (Manager's Activity tab)
-  AdGuard Configuration… (proxy.yaml editor)
-  Website Exceptions…
-  ⚙  Settings…
-  [✓] Autostart on login
+  Open AdGuard Tray      (Manager window, Overview page)
+  Activity
+  Website exceptions
+  Settings
   ─────────────────────────────────────
   adguard-tray vX.Y.Z · CLI vA.B.C
-  ✕  Quit
+  Quit
 
-Left-click → immediate status refresh.
+Left-click opens the Manager; opening the menu re-polls the status.
 """
 
 import logging
 import time
-from pathlib import Path
 
-from PyQt6.QtCore import QObject, QRunnable, QThread, QThreadPool, QTimer, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QObject, QRunnable, Qt, QThread, QThreadPool, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
+from .autostart import autostart_enabled, set_autostart
 from .cli import (
     AdGuardCLI,
     AdGuardStatus,
@@ -54,30 +47,24 @@ from .cli import (
 from .config import Config
 from .i18n import _t
 from .icons import icon_active, icon_error, icon_inactive, icon_unknown
+from .manager_window import (
+    PAGE_ACTIVITY,
+    PAGE_EXCEPTIONS,
+    PAGE_FILTERS,
+    PAGE_OVERVIEW,
+    PAGE_SETTINGS,
+    PAGE_USERSCRIPTS,
+    ManagerWindow,
+)
 from .notifications import notify
 from .worker import StatusWorker, safe_call, safe_result
 
 logger = logging.getLogger(__name__)
 
-_AUTOSTART_FILE = Path.home() / ".config" / "autostart" / "adguard-tray.desktop"
-
 # How long a failed command stays in the menu line / tooltip when the service
 # state itself doesn't change (a cancelled polkit prompt, a rejected toggle).
 _ERROR_STICKY_S = 120.0
 
-
-def autostart_enabled() -> bool:
-    """True when the XDG autostart entry exists and isn't disabled in place.
-
-    KDE's and GNOME's autostart tools keep the file and set Hidden=true /
-    X-GNOME-Autostart-enabled=false instead of deleting it.
-    """
-    try:
-        text = _AUTOSTART_FILE.read_text(encoding="utf-8")
-    except (OSError, ValueError):
-        return False
-    lowered = text.lower()
-    return "hidden=true" not in lowered and "x-gnome-autostart-enabled=false" not in lowered
 
 _STATUS_LABELS: dict[AdGuardStatus, str] | None = None
 
@@ -190,6 +177,7 @@ class AdGuardTray(QSystemTrayIcon):
         # Coalesce rapid-fire restart triggers (e.g. user flips 4 filters in a
         # row → one pkexec prompt instead of four).
         self._restart_pending = False
+        self._quit_after_restart = False
         self._restart_debouncer = QTimer(self)
         self._restart_debouncer.setSingleShot(True)
         self._restart_debouncer.setInterval(500)
@@ -223,27 +211,18 @@ class AdGuardTray(QSystemTrayIcon):
     def _build_menu(self) -> None:
         menu = QMenu()
 
-        # Status label (non-clickable)
+        # Status line – clicking it opens the Overview, which has the details
         self._act_status = QAction(_t("Checking status…"))
-        self._act_status.setEnabled(False)
+        self._act_status.setIcon(self._icon_map[AdGuardStatus.UNKNOWN])
+        self._act_status.triggered.connect(lambda: self._show_manager(PAGE_OVERVIEW))
         menu.addAction(self._act_status)
 
-        menu.addSeparator()
+        # One protection action; its text follows the state
+        self._act_protection = QAction(_t("Enable protection"))
+        self._act_protection.triggered.connect(self._do_start_stop)
+        menu.addAction(self._act_protection)
 
-        # Protection controls
-        self._act_toggle = QAction(_t("Toggle"))
-        self._act_toggle.triggered.connect(self._do_toggle)
-        menu.addAction(self._act_toggle)
-
-        self._act_enable = QAction(_t("Enable"))
-        self._act_enable.triggered.connect(self._do_enable)
-        menu.addAction(self._act_enable)
-
-        self._act_disable = QAction(_t("Disable"))
-        self._act_disable.triggered.connect(self._do_disable)
-        menu.addAction(self._act_disable)
-
-        self._act_restart = QAction(_t("Restart"))
+        self._act_restart = QAction(_t("Restart AdGuard"))
         self._act_restart.triggered.connect(self._do_restart)
         menu.addAction(self._act_restart)
 
@@ -253,7 +232,7 @@ class AdGuardTray(QSystemTrayIcon):
         self._filter_menu = QMenu(_t("Filters"))
         self._filter_menu.aboutToShow.connect(self._load_filter_submenu)
         self._filter_tail = self._seed_submenu(
-            self._filter_menu, _t("Manage filters…"), self._show_filters_dialog
+            self._filter_menu, _t("Manage filters…"), lambda: self._show_manager(PAGE_FILTERS)
         )
         menu.addMenu(self._filter_menu)
 
@@ -261,38 +240,22 @@ class AdGuardTray(QSystemTrayIcon):
         self._us_menu = QMenu(_t("Userscripts"))
         self._us_menu.aboutToShow.connect(self._load_userscript_submenu)
         self._us_tail = self._seed_submenu(
-            self._us_menu, _t("Manage userscripts…"), self._show_userscripts_dialog
+            self._us_menu, _t("Manage userscripts…"), lambda: self._show_manager(PAGE_USERSCRIPTS)
         )
         menu.addMenu(self._us_menu)
 
         menu.addSeparator()
 
-        self._act_refresh = QAction(_t("Refresh status"))
-        self._act_refresh.triggered.connect(lambda: self.worker.refresh())
-        menu.addAction(self._act_refresh)
+        for text, page in (
+            (_t("Open AdGuard Tray"), PAGE_OVERVIEW),
+            (_t("Activity"), PAGE_ACTIVITY),
+            (_t("Website exceptions"), PAGE_EXCEPTIONS),
+            (_t("Settings"), PAGE_SETTINGS),
+        ):
+            act = menu.addAction(text)
+            act.triggered.connect(lambda _=False, p=page: self._show_manager(p))
 
-        menu.addSeparator()
-
-        self._act_manager = QAction(_t("Open Manager…"))
-        self._act_manager.triggered.connect(self._show_manager)
-        menu.addAction(self._act_manager)
-
-        self._act_activity = QAction(_t("Activity…"))
-        self._act_activity.triggered.connect(self._show_activity)
-        menu.addAction(self._act_activity)
-
-        self._act_proxy_config = QAction(_t("AdGuard Configuration…"))
-        self._act_proxy_config.triggered.connect(self._show_proxy_config)
-        menu.addAction(self._act_proxy_config)
-
-        self._act_exceptions = QAction(_t("Website Exceptions…"))
-        self._act_exceptions.triggered.connect(self._show_exceptions_dialog)
-        menu.addAction(self._act_exceptions)
-
-        self._act_settings = QAction(_t("Settings…"))
-        self._act_settings.triggered.connect(self._show_settings)
-        menu.addAction(self._act_settings)
-
+        # Also on the Settings page; both read the entry itself, so they agree.
         self._act_autostart = QAction(_t("Autostart on login"))
         self._act_autostart.setCheckable(True)
         self._act_autostart.setChecked(autostart_enabled())
@@ -307,11 +270,9 @@ class AdGuardTray(QSystemTrayIcon):
         menu.addAction(self._act_version)
 
         self._act_quit = QAction(_t("Quit"))
-        self._act_quit.triggered.connect(self.app.quit)
+        self._act_quit.triggered.connect(self._quit)
         menu.addAction(self._act_quit)
 
-        # Refresh the autostart checkbox each time the menu opens — picks up
-        # external changes (e.g. user removed the .desktop file by hand).
         menu.aboutToShow.connect(self._refresh_dynamic_menu_state)
 
         self.setContextMenu(menu)
@@ -363,25 +324,33 @@ class AdGuardTray(QSystemTrayIcon):
         return [separator, act_manage]
 
     def _refresh_dynamic_menu_state(self) -> None:
-        self._act_autostart.setChecked(autostart_enabled())
+        # Opening the menu is when a fresh status matters; the poll timer can
+        # be minutes away.
+        self.worker.refresh()
         # waybar's dbusmenu client never sends AboutToShow for a submenu (GTK
         # doesn't emit "activate" for items that have one), so the submenus
         # would stay empty forever on Hyprland. Refresh them from here, where
         # AboutToShow does arrive. No-op on KDE, which asks per submenu.
         self._load_filter_submenu()
         self._load_userscript_submenu()
+        # The Settings page or the desktop's own autostart tool may have changed it.
+        self._act_autostart.setChecked(autostart_enabled())
+
+    def _toggle_autostart(self, enable: bool) -> None:
+        ok, err = set_autostart(enable, self.exec_path)
+        if not ok:
+            self._act_autostart.setChecked(autostart_enabled())
+            self._report_error(_t("Could not change the autostart entry.") + " " + err)
+        page = self._page_if_showing(PAGE_SETTINGS)
+        if page is not None:
+            page.on_shown()     # it shows the same switch
 
     def _update_menu_state(self, status: AdGuardStatus | None) -> None:
         is_active = status == AdGuardStatus.ACTIVE
-        is_inactive = status in (AdGuardStatus.INACTIVE, AdGuardStatus.UNKNOWN, None)
-        not_installed = status == AdGuardStatus.NOT_INSTALLED
         not_busy = not self._busy
 
-        self._act_toggle.setEnabled(not_busy and not not_installed)
-        self._act_enable.setVisible(not is_active)
-        self._act_enable.setEnabled(not_busy and is_inactive)
-        self._act_disable.setVisible(is_active)
-        self._act_disable.setEnabled(not_busy)
+        self._act_protection.setText(_t("Disable protection") if is_active else _t("Enable protection"))
+        self._act_protection.setEnabled(not_busy and status != AdGuardStatus.NOT_INSTALLED)
         self._act_restart.setEnabled(not_busy and is_active)
 
     def _discard_thread(self, thread: QThread) -> None:
@@ -439,7 +408,7 @@ class AdGuardTray(QSystemTrayIcon):
             new_actions.append(none_act)
         else:
             for group_name, filters in result.groups.items():
-                grp_action = QAction(f"── {group_name} ──", self._filter_menu)
+                grp_action = QAction(f"── {_t(group_name)} ──", self._filter_menu)
                 grp_action.setEnabled(False)
                 font = grp_action.font()
                 font.setBold(True)
@@ -469,6 +438,7 @@ class AdGuardTray(QSystemTrayIcon):
     def _on_filter_toggle_done(self, ok: bool, msg: str, fid: int, new_enabled: bool) -> None:
         if ok:
             self._restart_cli_async()
+            self._reload_showing_page()
             return
         # Revert the checkbox in the submenu so it matches reality
         for act in self._filter_menu.actions():
@@ -543,6 +513,7 @@ class AdGuardTray(QSystemTrayIcon):
     def _on_userscript_toggle_done(self, ok: bool, msg: str, name: str, new_enabled: bool) -> None:
         if ok:
             self._restart_cli_async()
+            self._reload_showing_page()
             return
         for act in self._us_menu.actions():
             if act.data() == name:
@@ -563,11 +534,18 @@ class AdGuardTray(QSystemTrayIcon):
             # State moved on, or the failure had its time on screen.
             self._last_error = ""
 
-        self.setIcon(self._icon_map[result.status])
+        if old != result.status:
+            # setIcon always re-exports the icon over D-Bus, even an equal one.
+            self.setIcon(self._icon_map[result.status])
+            self._act_status.setIcon(self._icon_map[result.status])
+            if old is not None:
+                overview = self._page_if_showing(PAGE_OVERVIEW)
+                if overview is not None:
+                    overview.refresh()
 
         lines = [_status_label(result.status)]
         if result.proxy_port:
-            lines.append(f"HTTP Proxy: 127.0.0.1:{result.proxy_port}")
+            lines.append(_t("HTTP proxy: {}", f"127.0.0.1:{result.proxy_port}"))
         if result.status == AdGuardStatus.ACTIVE:
             state = _t("active") if result.filtering_enabled else _t("inactive")
             lines.append(_t("System-wide filtering: {}", state))
@@ -642,12 +620,13 @@ class AdGuardTray(QSystemTrayIcon):
         self._busy = busy
         self._update_menu_state(self._last_status)
 
-    def _do_toggle(self) -> None:
-        if self._busy: return
-        self._set_busy(True)
-        # cli.toggle() re-reads live status before deciding, so a stale
-        # _last_status doesn't push us in the wrong direction.
-        self._run_async(self.cli.toggle)
+    def _do_start_stop(self) -> None:
+        # Follows the label the user just read, which _update_menu_state keeps
+        # in step with _last_status.
+        if self._last_status == AdGuardStatus.ACTIVE:
+            self._do_disable()
+        else:
+            self._do_enable()
 
     def _do_enable(self) -> None:
         if self._busy: return
@@ -719,6 +698,8 @@ class AdGuardTray(QSystemTrayIcon):
             # still restart: dropping a config change is worse there.
             logger.info("Skipping queued restart, AdGuard is not running")
             self._restart_pending = False
+            if self._quit_after_restart:
+                self.app.quit()
             return
         if not self._restart_pending or self._busy:
             # If something else is in flight, push it out a bit instead of
@@ -740,48 +721,62 @@ class AdGuardTray(QSystemTrayIcon):
                 notify("AdGuard Tray", _t("AdGuard restarted."), tray=self)
         else:
             self._report_error(_t("Restart failed: {}", msg or _t("Unknown error")))
+        if self._quit_after_restart:
+            self.app.quit()
+            return
         self.worker.refresh()
         QTimer.singleShot(2000, self.worker.refresh)
-
-    # ── Autostart ──────────────────────────────────────────────────────────
-
-    def _toggle_autostart(self, enable: bool) -> None:
-        from .settings_dialog import _AUTOSTART_DIR, desktop_entry
-        if enable:
-            try:
-                _AUTOSTART_DIR.mkdir(parents=True, exist_ok=True)
-                _AUTOSTART_FILE.write_text(desktop_entry(self.exec_path), encoding="utf-8")
-                logger.info("Autostart enabled")
-            except OSError as exc:
-                logger.error("Autostart enable failed: %s", exc)
-                self._act_autostart.setChecked(False)
-        else:
-            try:
-                _AUTOSTART_FILE.unlink(missing_ok=True)
-                logger.info("Autostart disabled")
-            except OSError as exc:
-                logger.error("Autostart disable failed: %s", exc)
-                self._act_autostart.setChecked(True)
 
     # ── Manager window ────────────────────────────────────────────────────
 
     _manager_win = None
 
-    def _show_manager(self, initial_tab: int = 0) -> None:
-        from .manager_window import ManagerWindow
-        if self._manager_win is not None and self._manager_win.isVisible():
-            self._manager_win.set_current_tab(initial_tab)
-            self._manager_win.raise_()
-            self._manager_win.activateWindow()
+    def _show_manager(self, page: int = PAGE_OVERVIEW) -> None:
+        win = self._manager_win
+        if win is None:
+            # One window for the app's lifetime: closing only hides it, so no
+            # half-finished page is dropped mid-run.
+            self._manager_win = ManagerWindow(
+                self.cli, self.config, on_restart=self._restart_cli_async,
+                on_status_change=self._refresh_status_soon, initial_tab=page,
+                exec_path=self.exec_path, status=lambda: self._last_status,
+                on_config_change=self._on_config_changed,
+            )
+            self._manager_win.show()
             return
-        self._manager_win = ManagerWindow(
-            self.cli, self.config, on_restart=self._restart_cli_async,
-            on_status_change=self._refresh_status_soon,
-            initial_tab=initial_tab,
-        )
-        self._manager_win.show()
+        current = self._page_if_showing(page)
+        if current is not None:
+            # Selecting the current row again emits nothing, so the page
+            # would miss its reload.
+            shown = getattr(current, "on_shown", None)
+            if shown:
+                shown()
+        else:
+            win.set_current_tab(page)
+        win.show()
+        win.setWindowState(win.windowState() & ~Qt.WindowState.WindowMinimized)
+        win.raise_()
+        win.activateWindow()
 
-    # ── Dialogs ────────────────────────────────────────────────────────────
+    def _reload_showing_page(self) -> None:
+        """A tray toggle changed what the Manager may be showing (the list, or
+        the Overview's counts): reload the visible page."""
+        win = self._manager_win
+        page = win.current_page() if win is not None and win.isVisible() else None
+        shown = getattr(page, "on_shown", None)
+        if shown:
+            shown()
+
+    def _page_if_showing(self, page: int):
+        """The Manager's page widget if it is open on that page, else None."""
+        win = self._manager_win
+        if win is None or not win.isVisible() or win.stack.currentIndex() != page:
+            return None
+        return win.current_page()
+
+    def _on_config_changed(self, *_args) -> None:
+        """The Settings page saved config.json – pick up what the tray uses."""
+        self.worker.set_interval(self.config.refresh_interval)
 
     def _version_label(self) -> str:
         from . import __version__
@@ -789,50 +784,51 @@ class AdGuardTray(QSystemTrayIcon):
             return f"adguard-tray v{__version__} · CLI v{self._cli_version}"
         return f"adguard-tray v{__version__}"
 
-    def _show_proxy_config(self) -> None:
-        from .proxy_config_dialog import ProxyConfigDialog
-        dlg = ProxyConfigDialog()
-        if dlg.exec():
-            self._restart_cli_async()
-
-    def _show_settings(self) -> None:
-        from .settings_dialog import SettingsDialog
-        dlg = SettingsDialog(self.config, self.exec_path)
-        if dlg.exec():
-            self.worker.set_interval(self.config.refresh_interval)
-            # Sync autostart checkbox with whatever settings dialog did
-            self._act_autostart.setChecked(autostart_enabled())
-
-    def _show_filters_dialog(self) -> None:
-        # Route to the Manager's Filters tab. The legacy modal lacked
-        # add-by-id, --trusted/--title, set-trusted, set-title, and --all.
-        from .manager_window import TAB_FILTERS
-        self._show_manager(initial_tab=TAB_FILTERS)
-
-    def _show_activity(self) -> None:
-        from .manager_window import TAB_ACTIVITY
-        self._show_manager(initial_tab=TAB_ACTIVITY)
-
-    def _show_userscripts_dialog(self) -> None:
-        from .manager_window import TAB_USERSCRIPTS
-        self._show_manager(initial_tab=TAB_USERSCRIPTS)
-
-    def _show_exceptions_dialog(self) -> None:
-        from .exceptions_dialog import ExceptionsDialog
-        dlg = ExceptionsDialog(on_change=self._restart_cli_async, parent=None)
-        dlg.exec()
-
     # ── Tray click ─────────────────────────────────────────────────────────
 
     def _on_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
-            self.worker.refresh()
+            self._show_manager(PAGE_OVERVIEW)
 
     # ── Shutdown ───────────────────────────────────────────────────────────
+
+    def _quit(self) -> None:
+        win = self._manager_win
+        if QApplication.activeModalWidget() is not None:
+            # A question is still open; quitting now would delete the window
+            # under it and drop the answer.
+            if win is not None:
+                win.show()
+                win.raise_()
+                win.activateWindow()
+            return
+        if win is not None and win.isVisible():
+            # Unsaved AdGuard settings get their Apply/Discard question first;
+            # Cancel there keeps the app running.
+            win.ask_on_close = True
+            closed = win.close()
+            win.ask_on_close = False
+            if not closed:
+                return
+        if self._restart_pending:
+            # Settings were just applied: restart AdGuard before leaving,
+            # or the new proxy.yaml would wait for the next start.
+            self._restart_debouncer.stop()
+            self._quit_after_restart = True
+            # Quits from there: after the restart, when it is skipped because
+            # protection is off, or once a running action lets it through.
+            self._fire_pending_restart()
+            return
+        self.app.quit()
 
     def shutdown(self) -> None:
         """Stop the status timer and wait briefly for pending QThreads."""
         logger.debug("Shutting down tray")
+        win, self._manager_win = self._manager_win, None
+        if win is not None:
+            # Deleted while Qt is still whole: a window left for interpreter
+            # teardown crashed PyQt at exit (measured on 6.4 and 6.11).
+            win.dispose()
         try:
             self.worker.stop()
         except Exception:

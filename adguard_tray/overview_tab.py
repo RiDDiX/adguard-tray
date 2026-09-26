@@ -1,47 +1,84 @@
 """
-Overview tab for the Manager window.
+Overview page – is protection running, and which parts of it are on.
 
-Shows status, version, license info, and quick actions:
-  - Enable / Disable / Restart
-  - Check for CLI update
-  - Reset license (with confirmation)
-  - Generate HTTPS certificate
+Enable/Disable/Restart, the features as switches (applied through the
+window's Apply bar), a few counts that lead to their pages, and the licence.
+Versions, updates and the licence details live on About; the certificate
+tools on HTTPS.
 """
 
-import html
 import logging
-import re
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtWidgets import (
-    QComboBox,
-    QGroupBox,
-    QHBoxLayout,
-    QLabel,
-    QMessageBox,
-    QPushButton,
-    QVBoxLayout,
-    QWidget,
-)
+from PyQt6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
-from .cli import AdGuardCLI, AdGuardStatus, StatusResult
+from . import icons, ui
+from .cli import AdGuardStatus, StatusResult, mask_license
 from .i18n import _t
+from .manager_window import (
+    PAGE_ABOUT,
+    PAGE_ACTIVITY,
+    PAGE_DNS,
+    PAGE_EXCEPTIONS,
+    PAGE_FILTERS,
+    PAGE_HTTPS,
+    PAGE_SETTINGS,
+    PAGE_STEALTH,
+    PAGE_USERSCRIPTS,
+)
+from .proxy_settings import add_switch, gate, guard
+from .ui import Page
 
 logger = logging.getLogger(__name__)
 
+def _number(value: int) -> str:
+    """Thin spaces between thousands, as on the Activity page."""
+    return f"{value:,}".replace(",", " ")
 
-def _mask_license(raw: str) -> str:
-    """Mask email addresses and license keys in license output."""
-    def _mask_email(m: re.Match) -> str:
-        email = m.group(0)
-        local, domain = email.rsplit("@", 1)
-        return local[0] + "***@" + domain
 
-    # Mask emails: show first char + *** + @domain
-    out = re.sub(r"[\w.+-]+@[\w.-]+", _mask_email, raw)
-    # Mask license key: show first 4 chars + ****
-    out = re.sub(r"(?<=License key: )(\w{4})\w+", r"\1****", out)
-    return out
+def _blocked_24h() -> tuple[int, int, str]:
+    """(blocked, total, problem) for the last 24 hours, read like the Activity page does."""
+    from . import store
+    from .stats import read_activity
+    try:
+        result = store.ingest()
+        summary = store.summary(24)
+    except Exception:
+        # An unusable database is not a blank tile: the log itself still counts.
+        logger.exception("Reading the activity store failed")
+        activity = read_activity().window(24)
+        return activity.blocked, activity.total, activity.problem
+    problem = ""
+    if result.error:
+        # Typical when adguard-cli runs as a root service: the log is not readable,
+        # and a plain 0 would read as "nothing was blocked".
+        problem = (read_activity(max_lines=1).problem
+                   or _t("History is not being updated: {}", result.error))
+    return summary["blocked"], summary["total"], problem
+
+
+def _exception_count() -> int:
+    from ._allowlist import load_user_rules
+    return len(load_user_rules()[0])
+
+
+def _license_summary(masked: str) -> str:
+    """E.g. "Personal · Active · expires 2027-09-25"; else the first line as it is."""
+    fields = {}
+    for line in masked.splitlines():
+        key, sep, value = line.partition(":")
+        if sep and value.strip():
+            fields[key.strip().lower()] = value.strip()
+    kind = next((v for k, v in fields.items() if "type" in k), "")
+    state = fields.get("status", "")
+    expires = next((v for k, v in fields.items() if "expir" in k or "valid until" in k), "")
+    # Known values ("Personal", "Active") are translated, others stay as the CLI wrote them.
+    parts = [_t(p) for p in (kind, state) if p]
+    if expires:
+        parts.append(_t("expires {}", expires))
+    if parts:
+        return " · ".join(parts)
+    return next((line.strip() for line in masked.splitlines() if line.strip()), "")
 
 
 class _Worker(QThread):
@@ -59,67 +96,11 @@ class _Worker(QThread):
         self.done.emit(ok, msg)
 
 
-class _CertWorker(QThread):
-    """Imports the AdGuard CA into the browsers' certificate stores."""
-    done = pyqtSignal(bool, str, object)
-
-    def run(self):
-        from .certs import install_into_browsers
-        try:
-            ok, msg, targets = install_into_browsers()
-        except Exception as exc:  # never abort the app from a worker
-            logger.exception("Certificate install failed")
-            ok, msg, targets = False, str(exc), []
-        self.done.emit(ok, msg, targets)
-
-
-class _AppUpdateWorker(QThread):
-    """Asks GitHub for the newest adguard-tray release."""
-    done = pyqtSignal(object, bool, str)   # release, newer, error
-
-    def run(self):
-        from .updates import check
-        try:
-            release, newer, error = check()
-        except Exception as exc:
-            logger.exception("Update check failed")
-            release, newer, error = None, False, str(exc)
-        self.done.emit(release, newer, error)
-
-
-class _InstallKindWorker(QThread):
-    """detect_install() shells out to pacman – not on the GUI thread."""
-    done = pyqtSignal(object)
-
-    def run(self):
-        from .updates import detect_install
-        try:
-            self.done.emit(detect_install())
-        except Exception:
-            logger.exception("Install detection failed")
-            self.done.emit(None)
-
-
-class _SelfUpdateWorker(QThread):
-    """Downloads and installs a release into a ~/.local installation."""
-    done = pyqtSignal(bool, str)
-
-    def __init__(self, release):
-        super().__init__()
-        self._release = release
-
-    def run(self):
-        from .updates import self_update
-        try:
-            ok, msg = self_update(self._release)
-        except Exception as exc:
-            logger.exception("Self-update failed")
-            ok, msg = False, str(exc)
-        self.done.emit(ok, msg)
-
-
-class _RefreshWorker(QThread):
-    done = pyqtSignal(object)  # dict with status, version, license
+class _LoadWorker(QThread):
+    """Everything the page shows. The status goes out first so the hero does
+    not wait for the lists."""
+    status = pyqtSignal(object)    # StatusResult
+    done = pyqtSignal(object)      # {key: value, or the exception it raised}
 
     def __init__(self, cli):
         super().__init__()
@@ -127,470 +108,325 @@ class _RefreshWorker(QThread):
 
     def run(self):
         try:
-            data = {
-                "status": self.cli.get_status(),
-                "version": self.cli.get_version(),
-                "channel": self.cli.get_update_channel(),
-            }
-            ok, lic = self.cli.get_license()
+            result = self.cli.get_status()
         except Exception as exc:  # would otherwise abort the process (qFatal)
-            logger.exception("Overview refresh failed")
-            data = {"status": StatusResult(AdGuardStatus.ERROR, str(exc)), "version": "", "channel": ""}
-            ok, lic = False, str(exc)
-        data["license_ok"] = ok
-        data["license"] = lic
+            logger.exception("Status check failed")
+            result = StatusResult(AdGuardStatus.ERROR, str(exc))
+        self.status.emit(result)
+        data = {}
+        for key, fn in (
+            ("filters", self.cli.get_filters),
+            ("dns", self.cli.get_dns_filters),
+            ("userscripts", self.cli.get_userscripts),
+            ("exceptions", _exception_count),
+            ("blocked", _blocked_24h),
+            ("license", self.cli.get_license),
+        ):
+            try:
+                data[key] = fn()
+            except Exception as exc:
+                logger.exception("Overview: loading %s failed", key)
+                data[key] = exc
         self.done.emit(data)
 
 
-class OverviewTab(QWidget):
-    def __init__(self, cli: AdGuardCLI, on_status_change=None, parent=None) -> None:
-        super().__init__(parent)
-        self.cli = cli
-        # Enable/Disable/Restart here change the run state, not the config, so
-        # the tray only needs to re-poll – restarting would fight the user.
-        self._on_status_change = on_status_change
+class OverviewTab(Page):
+    def __init__(self, ctx, parent=None) -> None:
+        super().__init__(parent=parent)
+        self.ctx = ctx
+        self.cli = ctx.cli
+        # Start/Stop/Restart change the run state, not the config, so the
+        # tray only needs to re-poll – restarting would fight the user.
+        self._on_status_change = ctx.on_status_change
         self._workers: list[QThread] = []
         self._refreshing = False
+        self._reload_queued = False
+        # Start/Stop wait only for the status, not for the counts below it.
+        self._status_pending = True
         self._acting = False
-        self._app_busy = False
-        self._release = None
-        self._build_ui()
-        self._refresh()
+        self._load_message = ""
+        self._status: StatusResult | None = None
+        self._build_hero()
+        self._build_modules()
+        self._build_glance()
+        self._build_license()
+        self.finish()
+        self._show_status(None)
 
-    def _build_ui(self) -> None:
-        layout = QVBoxLayout(self)
-        layout.setSpacing(12)
+    # ── Layout ─────────────────────────────────────────────────────────────
 
-        # Status section
-        grp_status = QGroupBox(_t("Status"))
-        sl = QVBoxLayout(grp_status)
-        self.lbl_status = QLabel(_t("Checking status…"))
-        self.lbl_status.setWordWrap(True)
-        sl.addWidget(self.lbl_status)
-
-        btn_row = QHBoxLayout()
-        self.btn_enable = QPushButton(_t("Enable"))
-        self.btn_enable.clicked.connect(self._do_enable)
-        btn_row.addWidget(self.btn_enable)
-
-        self.btn_disable = QPushButton(_t("Disable"))
-        self.btn_disable.clicked.connect(self._do_disable)
-        btn_row.addWidget(self.btn_disable)
-
+    def _build_hero(self) -> None:
+        self.hero = ui.Card(tone="info", padding=20)
+        row = QHBoxLayout()
+        row.setSpacing(18)
+        self.shield = QLabel()
+        self.shield.setFixedSize(56, 56)
+        row.addWidget(self.shield, 0, Qt.AlignmentFlag.AlignTop)
+        text = QVBoxLayout()
+        text.setSpacing(6)
+        self.lbl_title = ui.heading("", 1.35)
+        text.addWidget(self.lbl_title)
+        self.lbl_caption = ui.Caption()
+        self.lbl_caption.setTextFormat(Qt.TextFormat.PlainText)
+        text.addWidget(self.lbl_caption)
+        actions = QHBoxLayout()
+        actions.setContentsMargins(0, 6, 0, 0)
+        actions.setSpacing(8)
+        self.btn_primary = QPushButton()
+        self.btn_primary.setDefault(True)
+        self.btn_primary.clicked.connect(self._do_primary)
+        actions.addWidget(self.btn_primary)
         self.btn_restart = QPushButton(_t("Restart"))
         self.btn_restart.clicked.connect(self._do_restart)
-        btn_row.addWidget(self.btn_restart)
+        actions.addWidget(self.btn_restart)
+        self.btn_path = ui.LinkButton(_t("Set the path in Settings"),
+                                      lambda: self.ctx.navigate(PAGE_SETTINGS))
+        actions.addWidget(self.btn_path)
+        self.spinner = ui.Spinner()
+        actions.addWidget(self.spinner)
+        self.lbl_busy = ui.Caption(_t("Waiting for authorization…"))
+        self.lbl_busy.setWordWrap(False)
+        self.lbl_busy.hide()
+        actions.addWidget(self.lbl_busy)
+        actions.addStretch(1)
+        text.addLayout(actions)
+        row.addLayout(text, 1)
+        self.hero.layout_.addLayout(row)
+        self.add(self.hero)
 
-        self.btn_refresh = QPushButton(_t("↺ Refresh"))
-        self.btn_refresh.clicked.connect(self._refresh)
-        btn_row.addWidget(self.btn_refresh)
+    def _build_modules(self) -> None:
+        s = self.ctx.settings
+        self.modules = self.section(
+            _t("Features"),
+            _t("Changes are collected in the bar at the bottom and applied together."))
+        rows = {}
+        for key, default, title, page in (
+            (("ad_blocking_enabled",), True, _t("Ad blocking"), PAGE_FILTERS),
+            (("dns_filtering", "enabled"), False, _t("DNS filtering"), PAGE_DNS),
+            (("https_filtering", "enabled"), True, _t("HTTPS filtering"), PAGE_HTTPS),
+            (("stealthmode", "enabled"), False, _t("Stealth mode"), PAGE_STEALTH),
+            (("safebrowsing", "enabled"), True, _t("Safe Browsing"), PAGE_HTTPS),
+            (("crlite", "enabled"), True, _t("CRLite"), PAGE_HTTPS),
+        ):
+            row = rows[key] = add_switch(self.modules, s, key, default, title)
+            link = ui.LinkButton(_t("Settings"), lambda _=False, p=page: self.ctx.navigate(p))
+            link.setAccessibleName(f"{title}: {_t('Settings')}")
+            row.controls.insertWidget(0, link, 0, Qt.AlignmentFlag.AlignVCenter)
+            QWidget.setTabOrder(link, row.switch)
+        # As on the HTTPS page: revocation checks only happen while HTTPS is filtered.
+        gate(rows[("https_filtering", "enabled")].switch, rows[("crlite", "enabled")])
+        # Only the switches: Start/Stop and the counts do not need proxy.yaml.
+        guard(self, s, self.modules)
 
-        btn_row.addStretch()
-        sl.addLayout(btn_row)
-        layout.addWidget(grp_status)
+    def _build_glance(self) -> None:
+        card = self.section(_t("At a glance"))
+        # Three per row: five in one row cut "127 of 140 on" off at the minimum width.
+        grid = QGridLayout()
+        grid.setContentsMargins(4, 4, 4, 4)
+        grid.setSpacing(0)
+        self.tiles = {}
+        for i, (key, caption, page, tone) in enumerate((
+            ("filters", _t("Filters"), PAGE_FILTERS, None),
+            ("dns", _t("DNS"), PAGE_DNS, None),
+            ("userscripts", _t("Userscripts"), PAGE_USERSCRIPTS, None),
+            ("exceptions", _t("Exceptions"), PAGE_EXCEPTIONS, None),
+            ("blocked", _t("Blocked (24 h)"), PAGE_ACTIVITY, "danger"),
+        )):
+            tile = ui.StatTile(caption, tone=tone)
+            tile.caption = caption
+            tile.set_link(lambda _=False, p=page: self.ctx.navigate(p))
+            grid.addWidget(tile, i // 3, i % 3)
+            self.tiles[key] = tile
+        for column in range(3):
+            grid.setColumnStretch(column, 1)
+        card.layout_.addLayout(grid)
 
-        # Version & License
-        grp_info = QGroupBox(_t("Version & License"))
-        il = QVBoxLayout(grp_info)
-        self.lbl_version = QLabel("")
-        self.lbl_version.setWordWrap(True)
-        self.lbl_version.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        il.addWidget(self.lbl_version)
-        self.lbl_license = QLabel("")
-        self.lbl_license.setWordWrap(True)
-        self.lbl_license.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        il.addWidget(self.lbl_license)
+    def _build_license(self) -> None:
+        self.license_card = self.section()
+        self.license_row = self.license_card.add_row(ui.Row(
+            _t("License"), "", ui.LinkButton(_t("Details"), lambda: self.ctx.navigate(PAGE_ABOUT))))
+        self.license_card.hide()
 
-        info_btns = QHBoxLayout()
-        self.btn_update = QPushButton(_t("Check for CLI update"))
-        self.btn_update.clicked.connect(self._do_update)
-        info_btns.addWidget(self.btn_update)
+    # ── Loading ────────────────────────────────────────────────────────────
 
-        self.btn_reset_license = QPushButton(_t("Reset license"))
-        self.btn_reset_license.clicked.connect(self._do_reset_license)
-        info_btns.addWidget(self.btn_reset_license)
+    def on_shown(self) -> None:
+        # Always: the tray, the CLI and the other pages change what this page
+        # shows, and the window is reused rather than rebuilt.
+        self.refresh()
 
-        info_btns.addStretch()
-        il.addLayout(info_btns)
-        layout.addWidget(grp_info)
-
-        # adguard-tray itself
-        grp_app = QGroupBox(_t("Application update"))
-        al = QVBoxLayout(grp_app)
-        self.lbl_app_version = QLabel("")
-        self.lbl_app_version.setWordWrap(True)
-        self.lbl_app_version.setTextFormat(Qt.TextFormat.RichText)
-        al.addWidget(self.lbl_app_version)
-
-        app_btns = QHBoxLayout()
-        self.btn_app_update = QPushButton(_t("Check for update"))
-        self.btn_app_update.clicked.connect(self._do_app_update_check)
-        app_btns.addWidget(self.btn_app_update)
-
-        self.btn_app_install = QPushButton(_t("Install update"))
-        self.btn_app_install.clicked.connect(self._do_app_install)
-        self.btn_app_install.setVisible(False)
-        app_btns.addWidget(self.btn_app_install)
-        app_btns.addStretch()
-        al.addLayout(app_btns)
-
-        self.lbl_app_result = QLabel("")
-        self.lbl_app_result.setWordWrap(True)
-        self.lbl_app_result.setTextFormat(Qt.TextFormat.RichText)
-        self.lbl_app_result.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        al.addWidget(self.lbl_app_result)
-        layout.addWidget(grp_app)
-        self._describe_install()
-
-        # Update channel
-        grp_channel = QGroupBox(_t("Update channel"))
-        chl = QVBoxLayout(grp_channel)
-        ch_hint = QLabel(_t(
-            "<small>Controls which AdGuard CLI build <i>Check for CLI update</i> "
-            "will pull. Changes take effect on the next update run.</small>"
-        ))
-        ch_hint.setTextFormat(Qt.TextFormat.RichText)
-        ch_hint.setWordWrap(True)
-        chl.addWidget(ch_hint)
-
-        ch_row = QHBoxLayout()
-        ch_row.addWidget(QLabel(_t("Channel:")))
-        self.combo_channel = QComboBox()
-        for ch in self.cli.UPDATE_CHANNELS:
-            self.combo_channel.addItem(ch)
-        self.combo_channel.setEnabled(False)  # enabled after first refresh
-        self._channel_loaded = False
-        self.combo_channel.currentTextChanged.connect(self._on_channel_changed)
-        ch_row.addWidget(self.combo_channel)
-        ch_row.addStretch()
-        chl.addLayout(ch_row)
-        layout.addWidget(grp_channel)
-
-        # HTTPS Certificate
-        grp_cert = QGroupBox(_t("HTTPS Certificate"))
-        cl = QVBoxLayout(grp_cert)
-        cert_info = QLabel("<small>" + _t(
-            "Generate a root CA certificate for HTTPS filtering. "
-            "The certificate must be installed and trusted on your system."
-        ) + "</small>")
-        cert_info.setTextFormat(Qt.TextFormat.RichText)
-        cert_info.setWordWrap(True)
-        cl.addWidget(cert_info)
-
-        from PyQt6.QtWidgets import QFormLayout, QLineEdit
-        cert_form = QFormLayout()
-        self.edit_firefox_profile = QLineEdit()
-        self.edit_firefox_profile.setPlaceholderText(_t("(optional) e.g. abcd1234.MyProfile"))
-        cert_form.addRow(_t("Firefox profile:"), self.edit_firefox_profile)
-        cl.addLayout(cert_form)
-
-        self.btn_cert = QPushButton(_t("Generate certificate"))
-        self.btn_cert.clicked.connect(self._do_gen_cert)
-        cl.addWidget(self.btn_cert)
-
-        browser_info = QLabel("<small>" + _t(
-            "Chromium-based browsers (Brave, Chrome, ungoogled-chromium, Vivaldi, …) "
-            "keep their own certificate store and ignore the system one. "
-            "This adds AdGuard's certificate to every browser profile found, "
-            "which lets AdGuard read those browsers' HTTPS traffic."
-        ) + "</small>")
-        browser_info.setTextFormat(Qt.TextFormat.RichText)
-        browser_info.setWordWrap(True)
-        cl.addWidget(browser_info)
-
-        self.btn_cert_browsers = QPushButton(_t("Install certificate in browsers…"))
-        self.btn_cert_browsers.clicked.connect(self._do_install_cert_browsers)
-        cl.addWidget(self.btn_cert_browsers)
-
-        self.lbl_cert_targets = QLabel("")
-        self.lbl_cert_targets.setTextFormat(Qt.TextFormat.RichText)
-        self.lbl_cert_targets.setWordWrap(True)
-        self.lbl_cert_targets.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.lbl_cert_targets.hide()
-        cl.addWidget(self.lbl_cert_targets)
-        layout.addWidget(grp_cert)
-
-        # Result label
-        self.lbl_result = QLabel("")
-        self.lbl_result.setWordWrap(True)
-        self.lbl_result.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        layout.addWidget(self.lbl_result)
-
-        layout.addStretch()
-
-    def _refresh(self) -> None:
+    def refresh(self) -> None:
+        if self._refreshing and not self._status_pending:
+            # The running load has already read the status; this call may be
+            # about a newer one (e.g. the tray saw it change).
+            self._reload_queued = True
         if self._refreshing or self._acting:
             return
-        self._refreshing = True
-        self._set_busy(True)
-        self.lbl_status.setText(_t("Checking status…"))
-        w = _RefreshWorker(self.cli)
-        w.done.connect(self._on_refresh_done)
+        self._refreshing = self._status_pending = True
+        self._set_busy()
+        w = _LoadWorker(self.cli)
+        w.status.connect(self._show_status)
+        w.done.connect(self._on_loaded)
+        self._start(w)
+
+    def _start(self, w: QThread) -> None:
         w.finished.connect(lambda: self._workers.remove(w) if w in self._workers else None)
         self._workers.append(w)
         w.start()
 
-    def _on_refresh_done(self, data: dict) -> None:
+    def _on_loaded(self, data: dict) -> None:
         self._refreshing = False
-        self._set_busy(False)
+        failed = []
 
-        # Status
-        result = data["status"]
-        status_map = {
-            AdGuardStatus.ACTIVE: _t("Active – Protection running"),
-            AdGuardStatus.INACTIVE: _t("Inactive – Protection stopped"),
-            AdGuardStatus.ERROR: _t("Error retrieving status"),
-            AdGuardStatus.NOT_INSTALLED: _t("adguard-cli not found"),
-            AdGuardStatus.UNKNOWN: _t("Unknown status"),
-        }
-        self.lbl_status.setText(status_map.get(result.status, _t("Unknown status")))
-        is_active = result.status == AdGuardStatus.ACTIVE
-        self.btn_enable.setEnabled(not is_active)
-        self.btn_disable.setEnabled(is_active)
-        self.btn_restart.setEnabled(is_active)
+        def lists(key, items, on):
+            value = data.get(key)
+            error = value if isinstance(value, Exception) else getattr(value, "error", "")
+            if error:
+                self.tiles[key].set_value("–", str(error))
+                failed.append((key, str(error)))
+            else:
+                entries = items(value)
+                self.tiles[key].set_value(
+                    _t("{} of {} on", sum(1 for e in entries if on(e)), len(entries)))
 
-        # Version
-        from . import __version__
-        cli_ver = data["version"]
-        ver_text = f"adguard-tray v{__version__}"
-        if cli_ver:
-            ver_text += f" · AdGuard CLI v{cli_ver}"
-        self.lbl_version.setText(ver_text)
+        lists("filters", lambda r: [f for f in r.all_filters if f.is_added], lambda f: f.enabled)
+        lists("dns", lambda r: [f for f in r.all_filters if f.is_added], lambda f: f.enabled)
+        lists("userscripts", lambda r: r.scripts, lambda s: s.enabled)
 
-        # License (mask sensitive fields)
-        if data["license_ok"]:
-            self.lbl_license.setText(_mask_license(data["license"]))
+        exceptions = data.get("exceptions")
+        if isinstance(exceptions, int):
+            self.tiles["exceptions"].set_value(_number(exceptions))
         else:
-            self.lbl_license.setText(_t("License: {}",
-                                        data["license"] or _t("Could not retrieve")))
+            self.tiles["exceptions"].set_value("–", str(exceptions))
+            failed.append(("exceptions", str(exceptions)))
 
-        # Update channel – load without firing currentTextChanged
-        channel = data.get("channel") or ""
-        self.combo_channel.blockSignals(True)
-        self._channel_loaded = bool(channel) and self.combo_channel.findText(channel) >= 0
-        if self._channel_loaded:
-            self.combo_channel.setCurrentText(channel)
-        # Unknown or unreadable channel keeps the combo disabled.
-        self.combo_channel.setEnabled(self._channel_loaded)
-        self.combo_channel.blockSignals(False)
+        blocked = data.get("blocked")
+        note = ""
+        if isinstance(blocked, tuple):
+            count, total, note = blocked
+            hint = _t("of {} requests in the last 24 hours", _number(total))
+            self.tiles["blocked"].set_value("–" if note and not total else _number(count), hint)
+        else:
+            self.tiles["blocked"].set_value("–", str(blocked))
+            failed.append(("blocked", str(blocked)))
 
-    def _run_action(self, fn) -> None:
+        if self._status is not None and self._status.status == AdGuardStatus.NOT_INSTALLED:
+            # The hero already says why the CLI's lists are missing.
+            failed = [f for f in failed if f[0] in ("exceptions", "blocked")]
+        if failed:
+            details = "\n".join(f"{self.tiles[k].caption}: {e}" for k, e in failed)
+            self._report("\n".join(filter(None, (_t("Some counts could not be loaded."), note))),
+                         "danger", details)
+        else:
+            self._report(note, "warning")
+
+        # About shows the licence and its error; here only a readable one.
+        lic = data.get("license")
+        summary = ""
+        if isinstance(lic, tuple) and lic[0]:
+            summary = _license_summary(mask_license(lic[1]))
+        self.license_row.set_subtitle(summary)
+        self.license_card.setVisible(bool(summary))
+        if self._reload_queued:
+            self._reload_queued = False
+            self.refresh()
+
+    def _report(self, text: str, tone: str, details: str = "") -> None:
+        """Say what the last load could not show, without covering the result of
+        an action or nagging again about a message the user closed."""
+        if text == self._load_message:
+            return
+        ours = (bool(self._load_message) and not self.banner.isHidden()
+                and self.banner.text.text() == self._load_message)
+        if not text:
+            if ours:
+                self.banner.hide()
+            self._load_message = ""
+        elif ours or self.banner.isHidden():
+            self.banner.show_message(text, tone, details)
+            self._load_message = text
+
+    # ── Status ─────────────────────────────────────────────────────────────
+
+    def _show_status(self, result: StatusResult | None) -> None:
+        self._status = result
+        self._status_pending = result is None
+        status = result.status if result is not None else None
+        message = (result.message if result is not None else "").strip()
+        if status == AdGuardStatus.ACTIVE:
+            icon, tone, title = icons.icon_active(), "success", _t("Active – Protection running")
+            caption = _t("AdGuard is filtering this computer's traffic.")
+        elif status == AdGuardStatus.INACTIVE:
+            icon, tone, title = icons.icon_inactive(), "warning", _t("Inactive – Protection stopped")
+            caption = _t("Ads and trackers are not blocked until you enable protection.")
+        elif status == AdGuardStatus.NOT_INSTALLED:
+            icon, tone, title = icons.icon_error(), "danger", _t("adguard-cli not found")
+            # The CLI's message starts with what the title already says.
+            caption = message.split("\n", 1)[-1]
+        elif status == AdGuardStatus.ERROR:
+            icon, tone, title = icons.icon_error(), "danger", _t("Error retrieving status")
+            caption = message.splitlines()[0][:300] if message else ""
+        elif status == AdGuardStatus.UNKNOWN:
+            icon, tone, title = icons.icon_unknown(), "info", _t("Unknown status")
+            caption = _t("AdGuard's reply did not say whether it is running.")
+        else:
+            icon, tone, title = icons.icon_unknown(), "info", _t("Checking status…")
+            caption = ""
+        self.hero.set_tone(tone)
+        self.shield.setPixmap(icon.pixmap(56))
+        self.lbl_title.setText(title)
+        self.lbl_caption.setText(caption)
+        self.lbl_caption.setVisible(bool(caption))
+        active = status == AdGuardStatus.ACTIVE
+        self.btn_primary.setText(_t("Disable protection") if active else _t("Enable protection"))
+        self.btn_primary.setVisible(status not in (None, AdGuardStatus.NOT_INSTALLED))
+        self.btn_restart.setVisible(active)
+        self.btn_path.setVisible(status == AdGuardStatus.NOT_INSTALLED)
+        self._set_busy()
+
+    def _set_busy(self) -> None:
+        busy = self._status_pending or self._acting
+        for btn in (self.btn_primary, self.btn_restart):
+            btn.setEnabled(not busy)
+        self.spinner.set_busy(busy)
+        self.lbl_busy.setVisible(self._acting)
+
+    # ── Actions ────────────────────────────────────────────────────────────
+
+    def _do_primary(self) -> None:
+        if self._status is not None and self._status.status == AdGuardStatus.ACTIVE:
+            self._run_action(self.cli.stop, _t("Protection stopped."), _t("Could not stop protection."))
+        else:
+            self._run_action(self.cli.start, _t("Protection started."), _t("Could not start protection."))
+
+    def _do_restart(self) -> None:
+        self._run_action(self.cli.restart, _t("AdGuard restarted."), _t("Could not restart AdGuard."))
+
+    def _run_action(self, fn, success: str, failure: str) -> None:
+        if self._acting or self._status_pending:
+            return
         self._acting = True
-        self._set_busy(True)
+        self._set_busy()
         w = _Worker(fn)
 
         def _done(ok, msg):
             self._acting = False
-            self._set_busy(False)
-            self.lbl_result.setText(msg)
-            if ok and self._on_status_change:
-                self._on_status_change()
-            self._refresh()
+            # The hero shows the state from before the action until the reload.
+            self._status_pending = True
+            self._set_busy()
+            msg = msg.strip()
+            if ok:
+                self.banner.show_message(success, "success", timeout_ms=5000)
+                if self._on_status_change:
+                    self._on_status_change()
+            elif msg == _t("Authentication cancelled"):
+                self.banner.show_message(msg, "info", timeout_ms=5000)
+            elif msg and "\n" not in msg and len(msg) <= 160:
+                self.banner.show_message(f"{failure}\n{msg}", "danger")
+            else:
+                self.banner.show_message(failure, "danger", details=msg)
+            if self._refreshing:
+                self._reload_queued = True
+            self.refresh()
 
         w.done.connect(_done)
-        w.finished.connect(lambda: self._workers.remove(w) if w in self._workers else None)
-        self._workers.append(w)
-        w.start()
-
-    def _set_busy(self, busy: bool) -> None:
-        busy = busy or self._acting
-        for btn in (self.btn_enable, self.btn_disable, self.btn_restart,
-                    self.btn_refresh, self.btn_cert_browsers,
-                    self.btn_update, self.btn_reset_license, self.btn_cert):
-            btn.setEnabled(not busy)
-        # An update check or install runs on its own; a finishing CLI action
-        # must not hand those buttons back mid-flight.
-        for btn in (self.btn_app_update, self.btn_app_install):
-            btn.setEnabled(not busy and not self._app_busy)
-        # Only (re)enable the channel combo when we actually loaded a value
-        self.combo_channel.setEnabled(not busy and self._channel_loaded)
-
-    def _do_enable(self) -> None:
-        self._run_action(self.cli.start)
-
-    def _do_disable(self) -> None:
-        self._run_action(self.cli.stop)
-
-    def _do_restart(self) -> None:
-        self._run_action(self.cli.restart)
-
-    # ── adguard-tray's own version ─────────────────────────────────────────
-
-    def _describe_install(self) -> None:
-        """Show the version at once, fill in the install kind when it is known."""
-        from . import __version__
-        from .updates import Install
-
-        self._install = Install()
-        self.lbl_app_version.setText(f"<b>adguard-tray {__version__}</b>")
-        worker = _InstallKindWorker()
-        worker.done.connect(self._on_install_detected)
-        worker.finished.connect(
-            lambda: self._workers.remove(worker) if worker in self._workers else None)
-        self._workers.append(worker)
-        worker.start()
-
-    def _on_install_detected(self, install) -> None:
-        from . import __version__
-        from .updates import Install
-
-        self._install = install or Install()
-        where = {
-            "pacman": lambda: _t("Installed with the AUR package {}",
-                                 self._install.package or "adguard-tray"),
-            "local": lambda: _t("Installed in {}", str(self._install.root or "")),
-            "source": lambda: _t("Running from a source checkout"),
-        }.get(self._install.kind, lambda: _t("Installation not recognised"))()
-        self.lbl_app_version.setText(
-            f"<b>adguard-tray {__version__}</b><br><small>{where}</small>")
-
-    def _do_app_update_check(self) -> None:
-        self._app_busy = True
-        self.btn_app_update.setEnabled(False)
-        self.btn_app_install.setVisible(False)
-        self.lbl_app_result.setText(_t("Checking for updates…"))
-        worker = _AppUpdateWorker()
-        worker.done.connect(self._on_app_update_checked)
-        worker.finished.connect(
-            lambda: self._workers.remove(worker) if worker in self._workers else None)
-        self._workers.append(worker)
-        worker.start()
-
-    def _on_app_update_checked(self, release, newer: bool, error: str) -> None:
-        from . import __version__
-        from .updates import update_command
-
-        self._app_busy = False
-        self.btn_app_update.setEnabled(not self._acting)
-        self._release = release
-        if error or release is None:
-            self.lbl_app_result.setText(error or _t("Could not check for updates."))
-            return
-        if not newer:
-            self.lbl_app_result.setText(
-                _t("You are running the latest version ({}).", __version__))
-            return
-
-        message = _t("Version {} is available (you have {}).", release.version, __version__)
-        command = update_command(self._install)
-        if self._install.can_self_update:
-            self.btn_app_install.setVisible(True)
-        elif command:
-            message += "<br><small>" + _t("Update with: {}", f"<code>{command}</code>") + "</small>"
-        else:
-            message += f'<br><small><a href="{release.url}">{release.url}</a></small>'
-            self.lbl_app_result.setOpenExternalLinks(True)
-        self.lbl_app_result.setText(message)
-
-    def _do_app_install(self) -> None:
-        if not getattr(self, "_release", None):
-            return
-        self._app_busy = True
-        self.btn_app_install.setEnabled(False)
-        self.btn_app_update.setEnabled(False)
-        self.lbl_app_result.setText(_t("Installing update…"))
-        worker = _SelfUpdateWorker(self._release)
-        worker.done.connect(self._on_app_installed)
-        worker.finished.connect(
-            lambda: self._workers.remove(worker) if worker in self._workers else None)
-        self._workers.append(worker)
-        worker.start()
-
-    def _on_app_installed(self, ok: bool, msg: str) -> None:
-        self._app_busy = False
-        self.btn_app_update.setEnabled(not self._acting)
-        self.btn_app_install.setEnabled(not self._acting)
-        self.lbl_app_result.setText(msg)
-        if not ok:
-            return
-        self.btn_app_install.setVisible(False)
-        # The running process still holds the old modules; anything imported
-        # lazily from here on would mix versions.
-        box = QMessageBox(self)
-        box.setWindowTitle(_t("Application update"))
-        box.setText(msg)
-        restart = box.addButton(_t("Restart now"), QMessageBox.ButtonRole.AcceptRole)
-        box.addButton(_t("Later"), QMessageBox.ButtonRole.RejectRole)
-        box.exec()
-        if box.clickedButton() is restart:
-            self._restart_app()
-
-    @staticmethod
-    def _restart_app() -> None:
-        from PyQt6.QtCore import QProcess
-        from PyQt6.QtWidgets import QApplication
-
-        from .main import _resolve_exec
-
-        argv = _resolve_exec()
-        if argv:
-            QProcess.startDetached(argv[0], argv[1:])
-        QApplication.quit()
-
-    def _do_update(self) -> None:
-        self.lbl_result.setText(_t("Checking for updates…"))
-        self._run_action(self.cli.check_cli_update)
-
-    def _do_reset_license(self) -> None:
-        reply = QMessageBox.question(
-            self,
-            _t("Reset license"),
-            _t("Are you sure you want to reset the AdGuard license?"),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-        self._run_action(self.cli.reset_license)
-
-    def _do_gen_cert(self) -> None:
-        self.lbl_result.setText(_t("Generating certificate…"))
-        profile = self.edit_firefox_profile.text().strip()
-        self._run_action(lambda: self.cli.generate_cert(firefox_profile=profile))
-
-    def _do_install_cert_browsers(self) -> None:
-        reply = QMessageBox.question(
-            self,
-            _t("Install certificate in browsers"),
-            _t("AdGuard's certificate will be added to every browser profile found "
-               "on this system.\n\nThis allows AdGuard to inspect HTTPS traffic in "
-               "those browsers. Close your browsers first – they read the "
-               "certificate store at startup.\n\nContinue?"),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-        self.lbl_cert_targets.hide()
-        self.lbl_result.setText(_t("Installing certificate in browsers…"))
-        self._acting = True
-        self._set_busy(True)
-        w = _CertWorker()
-        w.done.connect(self._on_cert_browsers_done)
-        w.finished.connect(lambda: self._workers.remove(w) if w in self._workers else None)
-        self._workers.append(w)
-        w.start()
-
-    def _on_cert_browsers_done(self, ok: bool, msg: str, targets: object) -> None:
-        self._acting = False
-        self._set_busy(False)
-        self.lbl_result.setText(msg)
-        rows = []
-        for target in targets or []:
-            mark = "✓" if target.ok else "✗"
-            # Names and paths come from the filesystem, the label is rich text.
-            name = html.escape(str(target.name))
-            path = html.escape(str(target.path))
-            detail = "" if target.ok else f" – {html.escape(str(target.error))}"
-            rows.append(f"{mark} {name} <code>{path}</code>{detail}")
-        if rows:
-            hint = _t("Restart your browsers for the certificate to take effect.")
-            self.lbl_cert_targets.setText(
-                "<small>" + "<br>".join(rows) + (f"<br><br>{hint}" if ok else "") + "</small>"
-            )
-            self.lbl_cert_targets.show()
-
-    def _on_channel_changed(self, channel: str) -> None:
-        if not self._channel_loaded or not channel:
-            return
-        self.lbl_result.setText(_t("Switching update channel to {}…", channel))
-        self._run_action(lambda c=channel: self.cli.set_update_channel(c))
+        self._start(w)

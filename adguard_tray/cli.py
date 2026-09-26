@@ -74,6 +74,16 @@ def _valid_url(url: str) -> bool:
     return url.lower().startswith(("http://", "https://"))
 
 
+def mask_license(raw: str) -> str:
+    """`adguard-cli license` output with the e-mail and licence key masked."""
+    def _mask_email(m: re.Match) -> str:
+        local, domain = m.group(0).rsplit("@", 1)
+        return local[0] + "***@" + domain
+
+    out = re.sub(r"[\w.+-]+@[\w.-]+", _mask_email, raw)
+    return re.sub(r"(?<=License key: )(\w{4})\w+", r"\1****", out)
+
+
 class AdGuardStatus(Enum):
     ACTIVE = "active"
     INACTIVE = "inactive"

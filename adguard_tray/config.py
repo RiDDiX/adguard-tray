@@ -23,6 +23,7 @@ class Config:
     log_level: str = "INFO"             # DEBUG | INFO | WARNING | ERROR
     adguard_cli_path: str = ""          # empty = auto-detect via PATH
     language: str = ""                  # empty = auto-detect, else language code (e.g., "zh", "de")
+    appearance: str = ""                # empty = follow the system, else "light" or "dark"
 
 
 def load_config() -> Config:

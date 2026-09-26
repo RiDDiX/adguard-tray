@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .i18n import _t
-from .proxy_config_dialog import _load_yaml
+from .proxy_settings import load_yaml as _load_yaml
 
 logger = logging.getLogger(__name__)
 
@@ -243,14 +243,15 @@ def status(running: bool | None = None) -> QuicStatus:
             _t("HTTP/3 is filtered by AdGuard.") if http3_filtering
             else _t("HTTP/3 is blocked by AdGuard; browsers fall back to filtered HTTP/2.")
         )
-        result.details.append(_t("Proxy mode: auto – UDP port 443 is redirected to AdGuard."))
+        result.details.append(_t("Proxy mode: {} – UDP port 443 is redirected to AdGuard.", _t("Automatic")))
     elif https_on:
         result.headline = _t(
             "Browsers can bypass AdGuard over HTTP/3 (UDP 443)."
         )
         result.details.append(
             _t("Proxy mode: {} – only traffic sent through the proxy is filtered, "
-               "and browsers do not send QUIC through it.", mode or _t("unknown"))
+               "and browsers do not send QUIC through it.",
+               _t("Manual") if mode == "manual" else mode or _t("unknown"))
         )
     else:
         result.headline = _t("HTTPS filtering is off – nothing is filtered.")

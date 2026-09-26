@@ -1,32 +1,19 @@
-"""
-Diagnostics tab for the Manager window.
+"""Maintenance page: export and import AdGuard's settings, logs, benchmark."""
 
-Features:
-  - Export logs (adguard-cli export-logs)
-  - Export settings (adguard-cli export-settings)
-  - Import settings (adguard-cli import-settings)
-  - Run speed benchmark (adguard-cli speed --json)
-  - View application log file
-"""
-
+import json
 import logging
+import zipfile
+from pathlib import Path
 
-from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal
-from PyQt6.QtWidgets import (
-    QFileDialog,
-    QGroupBox,
-    QHBoxLayout,
-    QLabel,
-    QMessageBox,
-    QPlainTextEdit,
-    QPushButton,
-    QVBoxLayout,
-    QWidget,
-)
+from PyQt6.QtCore import QThread, QTimer, pyqtSignal
+from PyQt6.QtGui import QFontDatabase
+from PyQt6.QtWidgets import QFileDialog, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget
 
-from .cli import AdGuardCLI
+from . import ui
 from .i18n import _t
 from .main import LOG_FILE
+from .network_tab import open_folder
+from .ui import Page, Row, Spinner
 
 logger = logging.getLogger(__name__)
 
@@ -46,239 +33,123 @@ class _Worker(QThread):
         self.done.emit(ok, msg)
 
 
-class _QuicWorker(QThread):
-    """Reads proxy.yaml, browser policies and profiles – all off the GUI thread."""
-    done = pyqtSignal(object)
-
-    def __init__(self, cli):
-        super().__init__()
-        self.cli = cli
-
-    def run(self):
-        from .cli import AdGuardStatus
-        from .quic import status
-        try:
-            running = self.cli.get_status().status == AdGuardStatus.ACTIVE
-            self.done.emit(status(running=running))
-        except Exception:
-            logger.exception("QUIC check failed")
-            self.done.emit(None)
+def _pretty(text: str) -> str:
+    try:
+        return json.dumps(json.loads(text), indent=2, ensure_ascii=False)
+    except ValueError:
+        return text      # not JSON, or cut short by the CLI wrapper
 
 
-class DiagnosticsTab(QWidget):
-    def __init__(self, cli: AdGuardCLI, on_restart=None, parent=None) -> None:
-        super().__init__(parent)
-        self.cli = cli
-        self._on_restart = on_restart
+def _button(label: str, about: str, slot) -> QPushButton:
+    button = QPushButton(label)
+    button.setAccessibleName(label)          # a Row would name it after its title
+    button.setAccessibleDescription(about)
+    button.clicked.connect(slot)
+    return button
+
+
+class DiagnosticsTab(Page):
+    def __init__(self, ctx, parent=None) -> None:
+        super().__init__(parent=parent)
+        self.ctx = ctx
+        self.cli = ctx.cli
         self._workers: list[QThread] = []
-        self._quic_state = None
-        self._build_ui()
-        QTimer.singleShot(0, self._check_quic)
+        self._actions: list[QPushButton] = []
 
-    def _build_ui(self) -> None:
-        layout = QVBoxLayout(self)
-        layout.setSpacing(12)
+        io = self.section(_t("Export and import"))
+        self.btn_export_settings, self.btn_import_settings, self.spin_settings = self._action_row(
+            io, _t("AdGuard settings"),
+            _t("Save filters, rules and configuration to a zip file, or load them from one."),
+            (_t("Export…"), self._export_settings), (_t("Import…"), self._import_settings))
+        self.btn_export_settings.setAccessibleName(_t("Export settings…"))
+        self.btn_import_settings.setAccessibleName(_t("Import settings…"))
 
-        # Export / Import
-        grp_export = QGroupBox(_t("Export & Import"))
-        el = QVBoxLayout(grp_export)
+        logs = self.section(_t("Logs"))
+        self.btn_export_logs, self.spin_export_logs = self._action_row(
+            logs, _t("AdGuard CLI logs"), _t("Export AdGuard CLI logs to a zip file"),
+            (_t("Export…"), self._export_logs))
+        self.btn_export_logs.setAccessibleName(_t("Export logs…"))
+        tray_log = _t("AdGuard Tray log")
+        log_row = logs.add_row(Row(tray_log, str(LOG_FILE)))
+        log_row.add_control(_button(_t("Show recent entries"), tray_log, self._view_log))
+        log_row.add_control(_button(_t("Open folder"), tray_log, lambda: open_folder(self, LOG_FILE.parent)))
+        self.log_view = self._viewer(logs, tray_log)
 
-        btn_row1 = QHBoxLayout()
-        self.btn_export_logs = QPushButton(_t("Export logs…"))
-        self.btn_export_logs.setToolTip(_t("Export AdGuard CLI logs to a zip file"))
-        self.btn_export_logs.clicked.connect(self._export_logs)
-        btn_row1.addWidget(self.btn_export_logs)
+        perf = self.section(_t("Performance"))
+        self.btn_benchmark, self.spin_benchmark = self._action_row(
+            perf, _t("Benchmark"), _t("Run a cryptographic and HTTPS filtering benchmark."),
+            (_t("Run benchmark"), self._run_benchmark))
+        self.output = self._viewer(perf, _t("Benchmark"))
 
-        self.btn_export_settings = QPushButton(_t("Export settings…"))
-        self.btn_export_settings.setToolTip(_t("Export all AdGuard CLI settings to a zip file"))
-        self.btn_export_settings.clicked.connect(self._export_settings)
-        btn_row1.addWidget(self.btn_export_settings)
+        self.finish()
 
-        self.btn_import_settings = QPushButton(_t("Import settings…"))
-        self.btn_import_settings.setToolTip(_t("Import settings from a previously exported zip file"))
-        self.btn_import_settings.clicked.connect(self._import_settings)
-        btn_row1.addWidget(self.btn_import_settings)
+    def _action_row(self, card, title: str, subtitle: str, *actions):
+        """A row with a spinner and one button per (label, slot); returns the buttons, then the spinner."""
+        row = card.add_row(Row(title, subtitle))
+        spinner = row.add_control(Spinner())
+        buttons = [row.add_control(_button(label, title, slot)) for label, slot in actions]
+        self._actions += buttons
+        return (*buttons, spinner)
 
-        btn_row1.addStretch()
-        el.addLayout(btn_row1)
-        layout.addWidget(grp_export)
+    @staticmethod
+    def _viewer(card, name: str) -> QPlainTextEdit:
+        """A read-only text box under the card's last row, hidden until filled."""
+        view = QPlainTextEdit()
+        view.setReadOnly(True)
+        view.setAccessibleName(name)
+        view.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
+        view.setMinimumHeight(160)
+        view.setMaximumHeight(260)
+        box = QWidget()
+        lay = QVBoxLayout(box)
+        lay.setContentsMargins(14, 0, 12, 12)
+        lay.addWidget(view)
+        box.hide()
+        card.add(box)
+        view.box = box
+        return view
 
-        # HTTP/3 (QUIC)
-        grp_quic = QGroupBox(_t("HTTP/3 (QUIC)"))
-        ql = QVBoxLayout(grp_quic)
-        quic_info = QLabel("<small>" + _t(
-            "Browsers prefer HTTP/3 over UDP port 443. AdGuard only sees that "
-            "traffic in <i>auto</i> proxy mode; otherwise those requests reach "
-            "the site directly and are not filtered."
-        ) + "</small>")
-        quic_info.setTextFormat(Qt.TextFormat.RichText)
-        quic_info.setWordWrap(True)
-        ql.addWidget(quic_info)
+    def _reveal(self, view: QPlainTextEdit) -> None:
+        view.box.show()
+        # After the layout has placed it.
+        QTimer.singleShot(0, lambda: self.ensureWidgetVisible(view.box, 0, 0))
 
-        self.lbl_quic = QLabel(_t("Checking…"))
-        self.lbl_quic.setTextFormat(Qt.TextFormat.RichText)
-        self.lbl_quic.setWordWrap(True)
-        ql.addWidget(self.lbl_quic)
-
-        quic_row = QHBoxLayout()
-        self.btn_quic_check = QPushButton(_t("↺ Re-check"))
-        self.btn_quic_check.clicked.connect(self._check_quic)
-        quic_row.addWidget(self.btn_quic_check)
-
-        self.btn_quic_firefox = QPushButton(_t("Disable HTTP/3 in Firefox profiles"))
-        self.btn_quic_firefox.clicked.connect(self._toggle_firefox_http3)
-        self.btn_quic_firefox.hide()
-        quic_row.addWidget(self.btn_quic_firefox)
-        quic_row.addStretch()
-        ql.addLayout(quic_row)
-        layout.addWidget(grp_quic)
-
-        # Benchmark
-        grp_bench = QGroupBox(_t("Performance Benchmark"))
-        bl = QVBoxLayout(grp_bench)
-        bench_info = QLabel("<small>" + _t(
-            "Run a cryptographic and HTTPS filtering benchmark."
-        ) + "</small>")
-        bench_info.setTextFormat(Qt.TextFormat.RichText)
-        bench_info.setWordWrap(True)
-        bl.addWidget(bench_info)
-
-        self.btn_benchmark = QPushButton(_t("Run benchmark"))
-        self.btn_benchmark.clicked.connect(self._run_benchmark)
-        bl.addWidget(self.btn_benchmark)
-        layout.addWidget(grp_bench)
-
-        # Result area
-        self.lbl_status = QLabel("")
-        self.lbl_status.setWordWrap(True)
-        layout.addWidget(self.lbl_status)
-
-        self.output = QPlainTextEdit()
-        self.output.setReadOnly(True)
-        self.output.setMaximumHeight(200)
-        self.output.hide()
-        layout.addWidget(self.output)
-
-        # App log viewer
-        grp_log = QGroupBox(_t("Application Log"))
-        ll = QVBoxLayout(grp_log)
-
-        log_path_lbl = QLabel(f"<small><code>{LOG_FILE}</code></small>")
-        log_path_lbl.setTextFormat(Qt.TextFormat.RichText)
-        log_path_lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        ll.addWidget(log_path_lbl)
-
-        self.btn_view_log = QPushButton(_t("View recent log entries"))
-        self.btn_view_log.clicked.connect(self._view_log)
-        ll.addWidget(self.btn_view_log)
-
-        self.log_view = QPlainTextEdit()
-        self.log_view.setReadOnly(True)
-        self.log_view.setMaximumHeight(200)
-        self.log_view.hide()
-        ll.addWidget(self.log_view)
-        layout.addWidget(grp_log)
-
-        layout.addStretch()
+    # ── Running CLI calls ─────────────────────────────────────────────────
 
     def _set_busy(self, busy: bool) -> None:
-        for btn in (self.btn_export_logs, self.btn_export_settings,
-                    self.btn_import_settings, self.btn_benchmark,
-                    self.btn_quic_check, self.btn_quic_firefox):
+        for btn in self._actions:
             btn.setEnabled(not busy)
 
-    # ── HTTP/3 (QUIC) ─────────────────────────────────────────────────────
-
-    def _check_quic(self) -> None:
-        self.lbl_quic.setText(_t("Checking…"))
-        w = _QuicWorker(self.cli)
-        w.done.connect(self._on_quic_checked)
-        w.finished.connect(lambda: self._workers.remove(w) if w in self._workers else None)
-        self._workers.append(w)
-        w.start()
-
-    def _on_quic_checked(self, state: object) -> None:
-        if state is None:
-            self.lbl_quic.setText(_t("Error: {}", _t("HTTP/3 state unknown")))
-            return
-        self._quic_state = state
-        mark = "✅" if state.filtered else "⚠️"
-        lines = [f"{mark} <b>{state.headline}</b>", *state.details]
-        self.lbl_quic.setText("<small>" + "<br>".join(lines) + "</small>")
-
-        if state.firefox_profiles:
-            all_off = state.firefox_disabled == len(state.firefox_profiles)
-            self.btn_quic_firefox.setText(
-                _t("Re-enable HTTP/3 in Firefox profiles") if all_off
-                else _t("Disable HTTP/3 in Firefox profiles")
-            )
-            self.btn_quic_firefox.show()
-        else:
-            self.btn_quic_firefox.hide()
-
-    def _toggle_firefox_http3(self) -> None:
-        from .quic import set_firefox_http3
-        state = getattr(self, "_quic_state", None)
-        if not state or not state.firefox_profiles:
-            return
-        enable = state.firefox_disabled == len(state.firefox_profiles)
-        if not enable:
-            reply = QMessageBox.question(
-                self, _t("HTTP/3 (QUIC)"),
-                _t("Switch HTTP/3 off in {} Firefox-family profile(s)?\n\n"
-                   "Their traffic then uses HTTP/2, which AdGuard can filter. "
-                   "Restart the browser afterwards.", len(state.firefox_profiles)),
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            )
-            if reply != QMessageBox.StandardButton.Yes:
-                return
-        failed = []
-        for profile in state.firefox_profiles:
-            ok, err = set_firefox_http3(profile, enable)
-            if not ok:
-                failed.append(f"{profile.name}: {err}")
-        if failed:
-            self.lbl_status.setText(_t("Error: {}", "; ".join(failed)[:200]))
-        else:
-            self.lbl_status.setText(
-                _t("HTTP/3 re-enabled in Firefox profiles – restart the browser.") if enable
-                else _t("HTTP/3 switched off in Firefox profiles – restart the browser.")
-            )
-        self._check_quic()
-
-    def _run_action(self, fn, show_output: bool = False, on_done=None) -> None:
+    def _run_action(self, fn, spinner: Spinner, on_done) -> None:
         self._set_busy(True)
-        self.output.hide()
+        spinner.set_busy(True)      # the row's spinner is the progress message
+        self.banner.hide()
         w = _Worker(fn)
 
         def _done(ok, msg):
             self._set_busy(False)
-            self.lbl_status.setText(msg if not show_output else (_t("Done.") if ok else _t("Failed.")))
-            if show_output and msg:
-                self.output.setPlainText(msg)
-                self.output.show()
-            if on_done:
-                on_done(ok, msg)
+            spinner.set_busy(False)
+            on_done(ok, msg)
 
         w.done.connect(_done)
         w.finished.connect(lambda: self._workers.remove(w) if w in self._workers else None)
         self._workers.append(w)
         w.start()
 
-    def _export_logs(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, _t("Export logs to…"))
-        if not path:
-            return
-        self.lbl_status.setText(_t("Exporting logs…"))
-        self._run_action(lambda: self.cli.export_logs(path))
+    def _report(self, ok: bool, msg: str, failed: str) -> None:
+        if ok:
+            self.banner.show_message(msg, "success", timeout_ms=5000)
+        else:
+            self.banner.show_message(failed, "danger", details="" if msg == failed else msg)
+
+    # ── Export and import ─────────────────────────────────────────────────
 
     def _export_settings(self) -> None:
         path = QFileDialog.getExistingDirectory(self, _t("Export settings to…"))
         if not path:
             return
-        self.lbl_status.setText(_t("Exporting settings…"))
-        self._run_action(lambda: self.cli.export_settings(path))
+        self._run_action(lambda: self.cli.export_settings(path), self.spin_settings,
+                         lambda ok, msg: self._report(ok, msg, _t("Could not export the settings.")))
 
     def _import_settings(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -286,36 +157,70 @@ class DiagnosticsTab(QWidget):
         )
         if not path:
             return
-        self.lbl_status.setText(_t("Importing settings…"))
+        try:
+            with zipfile.ZipFile(path) as archive:
+                names = archive.namelist()
+        except (zipfile.BadZipFile, OSError) as exc:
+            self.banner.show_message(_t("Could not read {}", path), "danger", details=str(exc))
+            return
+        # A logs export has the same file name and imports "successfully" too,
+        # leaving a partial install behind.
+        if not any(name.rsplit("/", 1)[-1] == "filters.yaml" for name in names):
+            self.banner.show_message(_t("{} is not a settings export. Choose a file saved with "
+                                        "Export under AdGuard settings.", Path(path).name), "warning")
+            return
+        if not ui.confirm(self, _t("Import settings"),
+                          _t("Replace the current AdGuard settings with the ones in {}?\n\n"
+                             "AdGuard restarts to apply them.", path),
+                          _t("Import settings")):
+            return
 
-        def _do():
-            ok, msg = self.cli.import_settings(path)
-            return ok, msg
+        def _done(ok, msg):
+            if ok:
+                # The import rewrote proxy.yaml: show it and drop edits made to the old one.
+                self.ctx.settings.load()
+                self.banner.show_message(self.ctx.restart_adguard(), "success", timeout_ms=5000)
+            else:
+                self._report(ok, msg, _t("Could not import the settings."))
 
-        def _on_import_done(ok, msg):
-            if ok and self._on_restart:
-                self._on_restart()
+        self._run_action(lambda: self.cli.import_settings(path), self.spin_settings, _done)
 
-        self._run_action(_do, on_done=_on_import_done)
+    # ── Logs ──────────────────────────────────────────────────────────────
 
-    def _run_benchmark(self) -> None:
-        self.lbl_status.setText(_t("Running benchmark…"))
-        self._run_action(self.cli.run_speed_benchmark, show_output=True)
+    def _export_logs(self) -> None:
+        path = QFileDialog.getExistingDirectory(self, _t("Export logs to…"))
+        if not path:
+            return
+        self._run_action(lambda: self.cli.export_logs(path), self.spin_export_logs,
+                         lambda ok, msg: self._report(ok, msg, _t("Could not export the logs.")))
 
     def _view_log(self) -> None:
         try:
-            if LOG_FILE.exists():
-                text = LOG_FILE.read_text(encoding="utf-8", errors="replace")
-                # Show last 100 lines
-                lines = text.splitlines()
-                tail = "\n".join(lines[-100:])
-                self.log_view.setPlainText(tail)
-                self.log_view.show()
-                # Scroll to bottom
-                cursor = self.log_view.textCursor()
-                cursor.movePosition(cursor.MoveOperation.End)
-                self.log_view.setTextCursor(cursor)
-            else:
-                self.lbl_status.setText(_t("Log file not found."))
+            if not LOG_FILE.exists():
+                self.log_view.box.hide()
+                self.banner.show_message(_t("Log file not found."), "warning")
+                return
+            text = LOG_FILE.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
-            self.lbl_status.setText(_t("Error: {}", str(exc)))
+            self.banner.show_message(_t("Could not read {}", str(LOG_FILE)), "danger", details=str(exc))
+            return
+        self.log_view.setPlainText("\n".join(text.splitlines()[-100:]))
+        self._reveal(self.log_view)
+        cursor = self.log_view.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        self.log_view.setTextCursor(cursor)
+
+    # ── Benchmark ─────────────────────────────────────────────────────────
+
+    def _run_benchmark(self) -> None:
+        self.output.box.hide()
+
+        def _done(ok, msg):
+            if ok:
+                self.banner.show_message(_t("Done."), "success", timeout_ms=5000)
+                self.output.setPlainText(_pretty(msg))
+                self._reveal(self.output)
+            else:
+                self._report(ok, msg, _t("Could not run the benchmark."))
+
+        self._run_action(self.cli.run_speed_benchmark, self.spin_benchmark, _done)

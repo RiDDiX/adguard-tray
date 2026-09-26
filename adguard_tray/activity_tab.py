@@ -1,53 +1,54 @@
-"""Activity tab – what AdGuard actually did, read from its access log.
+"""Activity page – what AdGuard actually did, read from its access log.
 
 The access log is the only per-request record adguard-cli keeps, and it is
 rotated away at 10 MiB, so the numbers live in a small database that ingests
 the log forward (see store.py). The layout follows AdGuard's own activity
-screens: counters at the top, a chart over time, the "most blocked" / "most
-active" lists beside each other, and the request list underneath. Clicking a
-domain drills into it.
+screens: counters and a chart over time at the top, the request list with the
+"most blocked" / "most active" lists beside it underneath. Clicking a domain
+drills into it.
 
-If the database cannot be used at all, the tab falls back to reading the tail
+If the database cannot be used at all, the page falls back to reading the tail
 of the log directly – fewer numbers, but not an empty screen.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from PyQt6.QtCore import QRectF, Qt, QThread, QTimer, pyqtSignal
-from PyQt6.QtGui import QColor, QPainter, QPalette
+from PyQt6.QtCore import QEvent, QLocale, QPointF, QRectF, QSize, Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QFont, QFontMetrics, QPainter, QPalette, QPen
 from PyQt6.QtWidgets import (
     QAbstractItemView,
-    QCheckBox,
     QComboBox,
-    QFrame,
     QHBoxLayout,
     QHeaderView,
-    QLabel,
     QLineEdit,
-    QMessageBox,
+    QMenu,
     QPushButton,
     QSizePolicy,
+    QSplitter,
+    QStackedWidget,
+    QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
-    QTabWidget,
-    QVBoxLayout,
+    QToolTip,
     QWidget,
 )
 
+from . import i18n, theme, ui
 from .i18n import _t
+from .manager_window import PAGE_EXCEPTIONS
+from .ui import Page
 
 logger = logging.getLogger(__name__)
 
 COL_TIME, COL_DOMAIN, COL_RESULT, COL_RULE, COL_SIZE, COL_MS = range(6)
 MAX_ROWS = 500          # what the table shows; the counters use every line read
 TOP_N = 10
-
-# Same palette as the tray icon, so blocked/allowed read the same everywhere.
-BLOCKED_COLOR = "#dc2626"
-ALLOWED_COLOR = "#16a34a"
-MODIFIED_COLOR = "#d97706"
-TOTAL_LEGEND = "#7fa8d0"        # matches the translucent highlight the chart paints
+TONE_ROLE = Qt.ItemDataRole.UserRole + 1
+HOUR_FORMAT = "%Y-%m-%d %H:%M"   # ISO, as the other pages show dates
+DOMAIN_MAX = 200        # the domain column never takes more than this
+DOMAIN_MIN = 110        # below these the columns elide no further; size and
+RULE_MIN = 80           # duration leave the view instead (the tooltip has them)
 
 # (label, hours of history, hours of chart)
 RANGES = (
@@ -59,7 +60,7 @@ RANGES = (
 
 
 class _ActivityWorker(QThread):
-    """Ingests new log lines and answers every query the tab needs."""
+    """Ingests new log lines and answers every query the page needs."""
     done = pyqtSignal(object)
 
     def __init__(self, hours, chart_hours, host="", generation=0):
@@ -90,12 +91,30 @@ class _ActivityWorker(QThread):
                 return
             if result.error:
                 # Stored data still renders, but the history stopped updating.
-                data["problem"] = _t("History is not being updated: {}", result.error)
+                # A missing or unreadable log gets its own explanation, not errno.
+                from .stats import read_activity
+                data["problem"] = (read_activity(max_lines=1).problem
+                                   or _t("History is not being updated: {}", result.error))
         except Exception as exc:
             logger.exception("Activity refresh failed")
             data["problem"] = str(exc)
             data["fallback"] = _tail_fallback()
         self.done.emit(data)
+
+
+class _ResetWorker(QThread):
+    """Deletes the stored history. It waits for any ingest that holds the
+    store's lock (the Overview reads the log too), so not on the GUI thread."""
+    done = pyqtSignal(bool, str)
+
+    def run(self):
+        from . import store
+        try:
+            ok, error = store.reset()
+        except Exception as exc:
+            logger.exception("Resetting the history failed")
+            ok, error = False, str(exc)
+        self.done.emit(ok, error)
 
 
 def _describe_problem(error: str) -> str:
@@ -114,186 +133,238 @@ def _tail_fallback():
         return None
 
 
-class _Card(QFrame):
-    """One big number with a caption."""
+class _ToneDelegate(QStyledItemDelegate):
+    """Text in the status colour of the palette in use at paint time, so a
+    light/dark switch recolours the list without reloading it."""
 
-    def __init__(self, caption: str, color: str = "", parent=None) -> None:
-        super().__init__(parent)
-        self.setFrameShape(QFrame.Shape.StyledPanel)
-        # Without this the row of cards eats the height the tables need.
-        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        box = QVBoxLayout(self)
-        box.setContentsMargins(12, 8, 12, 8)
-        box.setSpacing(0)
+    def initStyleOption(self, option, index) -> None:
+        super().initStyleOption(option, index)
+        tone = index.data(TONE_ROLE)
+        if tone:
+            palette = QPalette(option.palette)
+            palette.setColor(QPalette.ColorRole.Text, theme.tokens().tone_text[tone])
+            option.palette = palette
 
-        self.value = QLabel("–")
-        font = self.value.font()
-        font.setPointSizeF(font.pointSizeF() * 1.9)
-        font.setBold(True)
-        self.value.setFont(font)
-        if color:
-            self.value.setStyleSheet(f"color: {color};")
-        box.addWidget(self.value)
 
-        self.caption = QLabel(caption)
-        self.caption.setEnabled(False)          # muted, palette-aware
-        box.addWidget(self.caption)
-
-    def set_value(self, text: str, hint: str = "") -> None:
-        self.value.setText(text)
-        self.setToolTip(hint)
+def _column(painter: QPainter, rect: QRectF, color, rounded: bool = True) -> None:
+    """A bar segment: rounded at its top end, square at the bottom."""
+    painter.setBrush(color)
+    radius = min(4.0, rect.width() / 2, rect.height() / 2) if rounded else 0.0
+    if radius >= 1:
+        painter.drawRoundedRect(rect, radius, radius)
+        painter.drawRect(rect.adjusted(0, radius, 0, 0))
+    else:
+        painter.drawRect(rect)
 
 
 class _BarChart(QWidget):
-    """Requests per hour: total bars with the blocked share drawn over them."""
+    """Requests over time: blocked at the baseline, the allowed rest on top.
+
+    Hours are grouped into longer bars once they would get too thin to see or
+    to point at (30 days are 720 hours).
+    """
+
+    STEPS = (1, 2, 3, 4, 6, 8, 12, 24)
+    PITCH = 6           # narrowest bar plus gap, in pixels
+    GAP = 2.0
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._data: list = []
-        self.setMinimumHeight(96)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setMouseTracking(True)
 
     def set_data(self, data: list) -> None:
         self._data = list(data)
-        self.setToolTip("")
         self.update()
 
-    def _plot_rect(self) -> QRectF:
-        return QRectF(self.rect().adjusted(0, 4, -1, -16))
+    def _font(self) -> QFont:
+        return ui.scaled_font(self, 0.92)
 
-    def _bar_width(self, plot: QRectF) -> tuple[float, float]:
+    def sizeHint(self) -> QSize:
+        return QSize(400, 104 + QFontMetrics(self._font()).height())
+
+    def _plot(self) -> QRectF:
+        label = QFontMetrics(self._font()).height()
+        return QRectF(self.rect()).adjusted(12, 6, -12, -(label + 8))
+
+    def _bars(self, plot: QRectF) -> tuple[list, float]:
+        """(first hour, last hour, total, blocked) per bar, and the bar pitch."""
         count = len(self._data)
-        gap = 2.0 if count <= 48 else 1.0
-        width = max(1.0, (plot.width() - gap * (count - 1)) / count)
-        return width, gap
+        step = next((s for s in self.STEPS if -(-count // s) * self.PITCH <= plot.width()),
+                    self.STEPS[-1])
+        bars = []
+        for end in range(count, 0, -step):      # from the end: the newest bar is whole
+            chunk = self._data[max(0, end - step):end]
+            bars.append((chunk[0][0], chunk[-1][0],
+                         sum(c[1] for c in chunk), sum(c[2] for c in chunk)))
+        bars.reverse()
+        return bars, plot.width() / len(bars)
 
-    def paintEvent(self, event) -> None:
+    def paintEvent(self, _event) -> None:
         if not self._data:
             return
-        painter = QPainter(self)
-        plot = self._plot_rect()
-        peak = max(total for _, total, _ in self._data) or 1
-        width, gap = self._bar_width(plot)
-        base = plot.bottom()
-        total_color = self.palette().color(QPalette.ColorRole.Highlight)
-        total_color.setAlpha(150)
-        blocked_color = QColor(BLOCKED_COLOR)
+        tok = theme.tokens()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(Qt.PenStyle.NoPen)
+        plot = self._plot()
+        bars, pitch = self._bars(plot)
+        peak = max(bar[2] for bar in bars) or 1
+        width = max(1.0, min(24.0, pitch - self.GAP))
+        base = round(plot.bottom())
+        for index, (_first, _last, total, blocked) in enumerate(bars):
+            if not total:
+                continue
+            left = plot.left() + index * pitch + (pitch - width) / 2
+            height = max(2.0, total / peak * plot.height())
+            low = min(height, max(2.0, blocked / peak * plot.height())) if blocked else 0.0
+            high = height - low - (self.GAP if low else 0.0)
+            if high >= 1:
+                _column(p, QRectF(left, base - height, width, high), tok.chart_allowed)
+            if low:
+                _column(p, QRectF(left, base - low, width, low), tok.chart_blocked, rounded=high < 1)
 
-        for index, (_hour, total, blocked) in enumerate(self._data):
-            left = plot.left() + index * (width + gap)
-            if total:
-                height = max(2.0, total / peak * plot.height())
-                painter.fillRect(QRectF(left, base - height, width, height), total_color)
-            if blocked:
-                height = max(2.0, blocked / peak * plot.height())
-                painter.fillRect(QRectF(left, base - height, width, height), blocked_color)
+        p.setPen(QPen(tok.border, 1))
+        p.drawLine(QPointF(plot.left(), base + 0.5), QPointF(plot.right(), base + 0.5))
 
-        painter.setPen(self.palette().color(QPalette.ColorRole.Mid))
-        painter.drawLine(int(plot.left()), int(base), int(plot.right()), int(base))
-
-        painter.setPen(self.palette().color(QPalette.ColorRole.PlaceholderText))
-        font = painter.font()
-        font.setPointSizeF(max(7.0, font.pointSizeF() - 1.5))
-        painter.setFont(font)
-        bottom = self.height() - 3
-        painter.drawText(int(plot.left()), bottom, self._data[0][0].strftime("%d.%m. %H:%M"))
-        last = self._data[-1][0].strftime("%d.%m. %H:%M")
-        painter.drawText(int(plot.right() - painter.fontMetrics().horizontalAdvance(last)),
-                         bottom, last)
+        p.setFont(self._font())
+        fm = p.fontMetrics()
+        row = QRectF(plot.left(), base + 5, plot.width(), fm.height())
+        left_aligned = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        p.setPen(tok.secondary)
+        p.drawText(row, left_aligned, self._data[0][0].strftime(HOUR_FORMAT))
+        p.drawText(row, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+                   self._data[-1][0].strftime(HOUR_FORMAT))
+        legend = ((tok.chart_allowed, _t("Allowed")), (tok.chart_blocked, _t("Blocked")))
+        widths = [13 + fm.horizontalAdvance(text) for _color, text in legend]
+        x = row.center().x() - (sum(widths) + 16) / 2
+        for (color, text), item_width in zip(legend, widths, strict=True):
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(color)
+            p.drawRoundedRect(QRectF(x, row.center().y() - 4, 8, 8), 2, 2)
+            p.setPen(tok.secondary)
+            p.drawText(QRectF(x + 13, row.top(), item_width, row.height()), left_aligned, text)
+            x += item_width + 16
 
     def mouseMoveEvent(self, event) -> None:
         if not self._data:
             return
-        plot = self._plot_rect()
-        width, gap = self._bar_width(plot)
-        index = int((event.position().x() - plot.left()) // (width + gap))
-        if 0 <= index < len(self._data):
-            hour, total, blocked = self._data[index]
-            self.setToolTip(f"{hour.strftime('%d.%m. %H:%M')}\n"
-                            f"{total} · {blocked} " + _t("Blocked"))
-        else:
-            self.setToolTip("")
+        plot = self._plot()
+        bars, pitch = self._bars(plot)
+        index = int((event.position().x() - plot.left()) // pitch)
+        if not 0 <= index < len(bars):
+            QToolTip.hideText()
+            return
+        first, last, total, blocked = bars[index]
+        when = first.strftime(HOUR_FORMAT)
+        if last != first:
+            when += " – " + (last + timedelta(hours=1)).strftime(HOUR_FORMAT)
+        QToolTip.showText(event.globalPosition().toPoint(),
+                          f"{when}\n{_number(total)} {_t('Requests')} · "
+                          f"{_number(blocked)} {_t('Blocked')}", self)
 
 
-class ActivityTab(QWidget):
-    def __init__(self, on_change=None, parent=None) -> None:
-        super().__init__(parent)
-        self._on_change = on_change
+class ActivityTab(Page):
+    def __init__(self, ctx, parent=None) -> None:
+        super().__init__(wide=True, parent=parent)
+        self.ctx = ctx
         self._workers: list[QThread] = []
         self._data = {}
         self._host = ""
+        self._domain = ""           # what Allow / Block act on
         self._generation = 0
+        self._busy = False
+        self._again = False         # asked for while a load was running
+        self._loaded_at = None      # when the data on screen was read
+        self._load_message = False  # the banner shows a problem from loading
+        self._natural = {}          # column -> width of its content
+        self._shown = (0, "")       # range index and domain of the data on screen
         self._build_ui()
-        QTimer.singleShot(0, self.refresh)
 
     # ── UI ─────────────────────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
-        layout = QVBoxLayout(self)
-        layout.setSpacing(10)
-
-        cards = QHBoxLayout()
-        cards.setSpacing(8)
-        self.card_total = _Card(_t("Requests"))
-        self.card_blocked = _Card(_t("Blocked"), BLOCKED_COLOR)
-        self.card_allowed = _Card(_t("Allowed"), ALLOWED_COLOR)
-        self.card_modified = _Card(_t("Modified"), MODIFIED_COLOR)
-        self.card_traffic = _Card(_t("Traffic"))
-        for card in (self.card_total, self.card_blocked, self.card_allowed,
-                     self.card_modified, self.card_traffic):
-            cards.addWidget(card)
-
+        # What the whole page shows: the time range and, drilled in, one domain.
+        # The request list has its own toolbar further down; one row for both
+        # does not fit a narrow window.
+        bar = QHBoxLayout()
+        bar.setSpacing(8)
         self.combo_range = QComboBox()
+        self.combo_range.setAccessibleName(_t("Time range"))
         for label, hours, chart_hours in RANGES:
             self.combo_range.addItem(label(), (hours, chart_hours))
         self.combo_range.currentIndexChanged.connect(self.refresh)
-        # Aligned, not padded with a stretch – a greedy stretch here would
-        # steal the height the tables need.
-        cards.addWidget(self.combo_range, 0, Qt.AlignmentFlag.AlignBottom)
-        layout.addLayout(cards)
-
-        self.chart = _BarChart()
-        layout.addWidget(self.chart)
-        self.lbl_chart = QLabel("")
-        self.lbl_chart.setTextFormat(Qt.TextFormat.RichText)
-        self.lbl_chart.setVisible(False)
-        layout.addWidget(self.lbl_chart)
-
-        self.lbl_problem = QLabel("")
-        self.lbl_problem.setWordWrap(True)
-        self.lbl_problem.setVisible(False)
-        layout.addWidget(self.lbl_problem)
-
-        row = QHBoxLayout()
-        self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText(_t("Filter by domain or rule…"))
-        self.search_box.textChanged.connect(self._apply_filter)
-        row.addWidget(self.search_box)
-
-        self.chk_blocked = QCheckBox(_t("Blocked only"))
-        self.chk_blocked.stateChanged.connect(self._apply_filter)
-        row.addWidget(self.chk_blocked)
-
+        bar.addWidget(self.combo_range)
+        self.spinner = ui.Spinner()         # next to the range it locks
+        bar.addWidget(self.spinner)
         self.btn_clear_host = QPushButton("")
         self.btn_clear_host.setVisible(False)
         self.btn_clear_host.clicked.connect(lambda: self.drill_into(""))
-        row.addWidget(self.btn_clear_host)
+        bar.addWidget(self.btn_clear_host)
+        bar.addStretch(1)
+        self.body.addLayout(bar)
+        self.body.addSpacing(4)
 
-        self.btn_refresh = QPushButton(_t("Refresh"))
-        self.btn_refresh.clicked.connect(self.refresh)
-        row.addWidget(self.btn_refresh)
+        summary = ui.Card(padding=6)
+        tiles = QHBoxLayout()
+        tiles.setSpacing(2)
+        self.card_total = ui.StatTile(_t("Requests"))
+        self.card_blocked = ui.StatTile(_t("Blocked"), tone="danger")
+        self.card_allowed = ui.StatTile(_t("Allowed"), tone="allowed")
+        self.card_modified = ui.StatTile(_t("Modified"), tone="warning")
+        self.card_traffic = ui.StatTile(_t("Traffic"))
+        for card in self._cards():
+            tiles.addWidget(card)
+        summary.layout_.addLayout(tiles)
+        self.chart = _BarChart()
+        self.chart.setVisible(False)
+        summary.add(self.chart)
+        self.add(summary)
+        self.body.addSpacing(4)
 
-        self.btn_reset = QPushButton(_t("Reset history"))
-        self.btn_reset.setToolTip(_t("Delete the stored history and read the log again."))
-        self.btn_reset.clicked.connect(self._reset_history)
-        row.addWidget(self.btn_reset)
-        layout.addLayout(row)
+        tools = QHBoxLayout()
+        tools.setSpacing(8)
+        self.search_box = QLineEdit()
+        self.search_box.setClearButtonEnabled(True)
+        self.search_box.setPlaceholderText(_t("Search domains or rules…"))
+        self.search_box.setAccessibleName(_t("Search domains or rules…").rstrip("…."))
+        self.search_box.textChanged.connect(self._apply_filter)
+        tools.addWidget(self.search_box, 1)
 
-        body = QHBoxLayout()
+        self.btn_blocked = QPushButton(_t("Blocked only"))
+        self.btn_blocked.setCheckable(True)
+        self.btn_blocked.toggled.connect(self._apply_filter)
+        tools.addWidget(self.btn_blocked)
+
+        # Short labels: the domain they act on is the selected row (or the one
+        # drilled into), and the tooltip names it.
+        self.btn_allow = QPushButton(_t("Allow"))
+        self.btn_allow.clicked.connect(lambda: self._add_rule(allow=True))
+        tools.addWidget(self.btn_allow)
+        self.btn_block = QPushButton(_t("Block"))
+        self.btn_block.clicked.connect(lambda: self._add_rule(allow=False))
+        tools.addWidget(self.btn_block)
+
+        # A push button with a menu: Fusion squeezes a tool button's menu
+        # arrow into its corner.
+        self.btn_more = QPushButton(_t("More"))
+        menu = QMenu(self.btn_more)
+        menu.setToolTipsVisible(True)
+        self.act_reset = menu.addAction(_t("Reset history…"))
+        self.act_reset.setToolTip(_t("Delete the stored history and read the log again."))
+        self.act_reset.triggered.connect(self._reset_history)
+        menu.addSeparator()
+        self.act_source = menu.addAction("")
+        self.act_source.setEnabled(False)
+        self.btn_more.setMenu(menu)
+        tools.addWidget(self.btn_more)
+        self.body.addLayout(tools)
+        self.body.addSpacing(4)
+
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels([
-            _t("Time"), _t("Domain"), _t("Result"), _t("Rule"), _t("Size"), _t("Time (ms)"),
+            _t("Time"), _t("Domain"), _t("Result"), _t("Rule"), _t("Size"), _t("Duration"),
         ])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -301,55 +372,126 @@ class ActivityTab(QWidget):
         self.table.setAlternatingRowColors(True)
         self.table.setWordWrap(False)          # one line per request, elided
         self.table.verticalHeader().setVisible(False)
-        self.table.verticalHeader().setDefaultSectionSize(24)
-        self.table.horizontalHeader().setSectionResizeMode(COL_RULE, QHeaderView.ResizeMode.Stretch)
-        body.addWidget(self.table, 3)
+        ui.style_table(self.table)
+        self.table.viewport().installEventFilter(self)
+        self.table.setItemDelegateForColumn(COL_RESULT, _ToneDelegate(self.table))
+        self.table.currentCellChanged.connect(self._on_request_selected)
 
-        self.side = QTabWidget()
-        self.top_table = self._make_top_table(_t("Most blocked domains"))
-        self.active_table = self._make_top_table(_t("Most active domains"))
-        self.traffic_table = self._make_top_table(_t("Most traffic"))
-        self.rules_table = self._make_top_table(_t("Top rules"))
+        self.empty = ui.EmptyState(self.table)
+        requests = ui.Card(padding=4)
+        requests.add(self.table)
+
+        # A picker, not tabs: four tab labels would set the pane's width, and
+        # that width is what the request list needs. QComboBox clips rather
+        # than elides, hence the one-word labels.
+        self.side_pick = QComboBox()
+        self.side_pick.setAccessibleName(_t("Top lists"))
+        self.side = QStackedWidget()
+        # Short headers too: the header view clips a long title, it does not elide.
+        self.top_table = self._make_top_table(_t("Domain"))
+        self.active_table = self._make_top_table(_t("Domain"))
+        self.traffic_table = self._make_top_table(_t("Domain"), _t("Traffic"))
+        self.rules_table = self._make_top_table(_t("Rule"))
         for table, title in ((self.top_table, _t("Blocked")),
                              (self.active_table, _t("Requests")),
                              (self.traffic_table, _t("Traffic")),
                              (self.rules_table, _t("Rules"))):
-            self.side.addTab(table, title)
+            self.side_pick.addItem(title)
+            self.side.addWidget(table)
+        self.side_pick.currentIndexChanged.connect(self.side.setCurrentIndex)
+        self.side.currentChanged.connect(self.side_pick.setCurrentIndex)
         for table in (self.top_table, self.active_table, self.traffic_table):
             table.itemSelectionChanged.connect(self._drill_from_side)
-        body.addWidget(self.side, 2)
-        layout.addLayout(body)
+        tops = ui.Card(padding=4)
+        tops.layout_.addWidget(self.side_pick, 0, Qt.AlignmentFlag.AlignLeft)
+        tops.add(self.side)
 
-        actions = QHBoxLayout()
-        self.lbl_summary = QLabel("")
-        self.lbl_summary.setTextFormat(Qt.TextFormat.RichText)
-        self.lbl_summary.setWordWrap(True)
-        actions.addWidget(self.lbl_summary, 1)
-        self.btn_allow = QPushButton(_t("Allow selected domain"))
-        self.btn_allow.clicked.connect(lambda: self._add_rule(allow=True))
-        actions.addWidget(self.btn_allow)
-        self.btn_block = QPushButton(_t("Block selected domain"))
-        self.btn_block.clicked.connect(lambda: self._add_rule(allow=False))
-        actions.addWidget(self.btn_block)
-        layout.addLayout(actions)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter.setChildrenCollapsible(False)
+        self.splitter.setHandleWidth(10)
+        self.splitter.addWidget(requests)
+        self.splitter.addWidget(tops)
+        # Both panes scale with the window, the request list three times as much.
+        self.splitter.setStretchFactor(0, 1)
+        self.splitter.setStretchFactor(1, 1)
+        self.splitter.setSizes([3000, 1000])
+        self.add(self.splitter, 1)
 
-    def _make_top_table(self, title: str) -> QTableWidget:
+        self._fit_rows()
+        self._measure_columns()
+        self._set_domain("")
+
+    def _make_top_table(self, title: str, count: str = "") -> QTableWidget:
         table = QTableWidget(0, 2)
-        table.setHorizontalHeaderLabels([title, _t("Count")])
+        table.setHorizontalHeaderLabels([title, count or _t("Count")])
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.setAlternatingRowColors(True)
         table.setWordWrap(False)
         table.verticalHeader().setVisible(False)
-        table.verticalHeader().setDefaultSectionSize(22)
+        ui.style_table(table)
         table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         return table
 
+    def _tables(self):
+        return (self.table, self.top_table, self.active_table, self.traffic_table, self.rules_table)
+
+    def _fit_rows(self) -> None:
+        height = self.fontMetrics().height() + 10
+        for table in self._tables():
+            table.verticalHeader().setDefaultSectionSize(height)
+
+    def _fit_columns(self) -> None:
+        # Domain and rule share what the other columns leave and elide. Only
+        # when even that is too tight do duration, then size, leave the view:
+        # a horizontal scroll bar would hide them just the same. Tighter
+        # still, the list does scroll.
+        if not self._natural:
+            return
+        width = self._natural
+        domain_min = min(width[COL_DOMAIN], DOMAIN_MIN)
+        rule_min = min(width[COL_RULE], RULE_MIN)
+        free = self.table.viewport().width() - sum(
+            width[col] for col in (COL_TIME, COL_RESULT, COL_SIZE, COL_MS))
+        for col in (COL_MS, COL_SIZE):
+            hide = free < domain_min + rule_min
+            self.table.setColumnHidden(col, hide)
+            if hide:
+                free += width[col]
+        domain = min(width[COL_DOMAIN], max(domain_min, free - rule_min))
+        header = self.table.horizontalHeader()
+        header.resizeSection(COL_DOMAIN, domain)
+        header.resizeSection(COL_RULE, max(rule_min, free - domain))
+
+    def eventFilter(self, obj, event) -> bool:
+        # The scroll area filters its own events through here from the start.
+        table = getattr(self, "table", None)
+        if table is not None and obj is table.viewport() and event.type() == QEvent.Type.Resize:
+            self._fit_columns()
+        return super().eventFilter(obj, event)
+
+    def changeEvent(self, event) -> None:
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.FontChange:
+            self._fit_rows()
+
+    def focus_search(self) -> None:
+        self.search_box.setFocus(Qt.FocusReason.ShortcutFocusReason)
+        self.search_box.selectAll()
+
+    def on_shown(self) -> None:
+        self.refresh()
+
     # ── Loading ────────────────────────────────────────────────────────────
 
     def refresh(self) -> None:
-        self.btn_refresh.setEnabled(False)
+        if self._busy:
+            # One read at a time; the newest request runs once this one is in.
+            self._again = True
+            return
+        self._set_busy(True)
+        self._again = False
         hours, chart_hours = self.combo_range.currentData() or (24, 24)
         self._generation += 1
         worker = _ActivityWorker(hours, chart_hours, self._host, self._generation)
@@ -357,19 +499,38 @@ class ActivityTab(QWidget):
         self._workers.append(worker)
         worker.start()
 
+    def _set_busy(self, busy: bool) -> None:
+        self._busy = busy
+        self.combo_range.setEnabled(not busy)
+        self.act_reset.setEnabled(not busy)
+        self.spinner.set_busy(busy)
+
     def drill_into(self, host: str) -> None:
         """Show only this domain in the request list, or all of them again."""
+        self._set_domain(host)
+        self._show_host(host)
+        if not host:
+            self._mark_host()
+        self.refresh()
+
+    def _show_host(self, host: str) -> None:
         self._host = host
         self.btn_clear_host.setVisible(bool(host))
-        self.btn_clear_host.setText(_t("Showing {} – show all", host) if host else "")
-        if not host:
-            for table in (self.top_table, self.active_table, self.traffic_table):
-                # Clearing fires itemSelectionChanged, which would drill back in.
-                table.blockSignals(True)
-                table.clearSelection()
-                table.setCurrentCell(-1, -1)
-                table.blockSignals(False)
-        self.refresh()
+        short = self.btn_clear_host.fontMetrics().elidedText(host, Qt.TextElideMode.ElideMiddle, 260)
+        self.btn_clear_host.setText(_t("Showing {} – show all", short) if host else "")
+        self.btn_clear_host.setToolTip(ui.plain_tip(host))
+
+    def _mark_host(self) -> None:
+        """Select the drilled-into domain in the top lists, or nothing."""
+        for table in (self.top_table, self.active_table, self.traffic_table):
+            # Selecting fires itemSelectionChanged, which would drill in again.
+            table.blockSignals(True)
+            table.clearSelection()
+            table.setCurrentCell(-1, -1)
+            for row in range(table.rowCount()):
+                if self._host and table.item(row, 0).text() == self._host:
+                    table.selectRow(row)
+            table.blockSignals(False)
 
     def _drill_from_side(self) -> None:
         table = self.side.currentWidget()
@@ -388,59 +549,89 @@ class ActivityTab(QWidget):
             worker.deleteLater()
         if isinstance(data, dict) and data.get("generation", 0) < self._generation:
             return          # a slower older refresh; the newer one owns the view
-        self.btn_refresh.setEnabled(True)
+        self._busy = False
+        if self._again:
+            self.refresh()  # the range or the domain changed meanwhile
+            return
+        self._set_busy(False)
         if not isinstance(data, dict):
-            self.lbl_problem.setVisible(True)
-            self.lbl_problem.setText(_t("Could not read the access log."))
+            data = {"problem": _t("Could not read the access log."), "fallback": None}
+        problem = data.get("problem", "")
+        if data.get("fallback") is None and "summary" not in data:
+            self._show_failure(problem)
             return
         self._data = data
-        problem = data.get("problem", "")
-        self.lbl_problem.setVisible(bool(problem))
-        self.lbl_problem.setText(problem)
+        self._loaded_at = datetime.now()
+        self._shown = (self.combo_range.currentIndex(), self._host)
+        self.act_source.setText(self._source_line(data))
+        if problem:
+            self.banner.show_message(problem, "warning")
+            self._load_message = True
+        elif self._load_message:
+            self.banner.hide()
+            self._load_message = False
         if data.get("fallback") is not None:
             hours = (self.combo_range.currentData() or (24, 24))[0]
             self._render_fallback(data["fallback"], hours)
             return
-        if "summary" not in data:
-            self._clear()
-            return
         self._render(data)
 
+    def _show_failure(self, problem: str) -> None:
+        """Nothing came back: keep what is on screen, but say how old it is."""
+        if self._loaded_at is None:
+            self._clear()
+            text = _t("Could not read the access log.")
+        else:
+            # Put the range and the domain back to what the old data shows.
+            index, host = self._shown
+            self.combo_range.blockSignals(True)
+            self.combo_range.setCurrentIndex(index)
+            self.combo_range.blockSignals(False)
+            if host != self._host:
+                self._show_host(host)
+                self._mark_host()
+            text = _t("Could not refresh. Showing data from {}.", self._loaded_at.strftime("%H:%M"))
+        self.banner.show_message(text, "danger", details=problem)
+        self._load_message = True
+
     def _clear(self) -> None:
+        # Caption first: set_value() puts it into the accessible name.
+        self.card_blocked.set_caption(_t("Blocked"))
         for card in self._cards():
             card.set_value("–")
-        self.table.setRowCount(0)
         for table in (self.top_table, self.active_table, self.traffic_table, self.rules_table):
             table.setRowCount(0)
-        self.chart.set_data([])
-        self.lbl_chart.setVisible(False)
-        self.lbl_summary.setText(_t("No activity to show."))
+        self._fill_chart([])
+        self._fill_table([])
 
     def _cards(self):
         return (self.card_total, self.card_blocked, self.card_allowed,
                 self.card_modified, self.card_traffic)
+
+    def _show_share(self, total: int, blocked: int) -> None:
+        # The share leads, so a narrow tile elides the word and not the number.
+        caption = _t("{}% blocked", f"{blocked * 100 / total:.0f}")
+        self.card_blocked.set_caption(caption)
+        self.card_blocked.set_value(_number(blocked), caption)
 
     def _render(self, data: dict) -> None:
         summary = data["summary"]
         total, blocked = summary["total"], summary["blocked"]
         if not total:
             self._clear()
-            self.lbl_summary.setText(self._source_line(data))
             return
 
-        share = f"{blocked * 100 / total:.0f} %" if total else ""
         self.card_total.set_value(_number(total))
-        self.card_blocked.set_value(_number(blocked), share)
+        self._show_share(total, blocked)
         self.card_allowed.set_value(_number(total - blocked))
         self.card_modified.set_value(_number(summary["modified"]))
         self.card_traffic.set_value(_format_size(summary["bytes"]))
 
-        self.lbl_summary.setText(self._source_line(data))
         self._fill_chart(data["hours"])
-        self._fill_counts(self.top_table, data["blocked"], BLOCKED_COLOR)
-        self._fill_counts(self.active_table, data["active"], "")
-        self._fill_counts(self.traffic_table, data["traffic"], "", as_size=True)
-        self._fill_counts(self.rules_table, data["rules"], BLOCKED_COLOR)
+        self._fill_counts(self.top_table, data["blocked"])
+        self._fill_counts(self.active_table, data["active"])
+        self._fill_counts(self.traffic_table, data["traffic"], as_size=True)
+        self._fill_counts(self.rules_table, data["rules"])
         self._fill_table(data["recent"])
 
     def _source_line(self, data: dict) -> str:
@@ -451,7 +642,7 @@ class ActivityTab(QWidget):
             parts.append(_t("{} lines not understood", ingest.unparsed))
         if data.get("db_bytes"):
             parts.append(_t("history {}", _format_size(data["db_bytes"])))
-        return "<small>" + " · ".join(parts) + "</small>"
+        return " · ".join(parts)
 
     def _render_fallback(self, activity, hours) -> None:
         """Show what the log alone can give when the database is unusable."""
@@ -460,61 +651,70 @@ class ActivityTab(QWidget):
         if activity is None or not activity.total:
             self._clear()
             return
-        share = f"{activity.blocked * 100 / activity.total:.0f} %"
         self.card_total.set_value(_number(activity.total))
-        self.card_blocked.set_value(_number(activity.blocked), share)
+        self._show_share(activity.total, activity.blocked)
         self.card_allowed.set_value(_number(activity.allowed))
         self.card_modified.set_value("–")
         self.card_traffic.set_value(_format_size(activity.bytes_total))
         self._fill_chart(activity.per_hour(limit=24))
-        self._fill_counts(self.top_table, activity.top_hosts(TOP_N, blocked_only=True), BLOCKED_COLOR)
-        self._fill_counts(self.active_table, activity.top_hosts(TOP_N), "")
-        self._fill_counts(self.traffic_table, [], "")
-        self._fill_counts(self.rules_table, activity.top_rules(TOP_N), BLOCKED_COLOR)
+        self._fill_counts(self.top_table, activity.top_hosts(TOP_N, blocked_only=True))
+        self._fill_counts(self.active_table, activity.top_hosts(TOP_N))
+        self._fill_counts(self.traffic_table, [])
+        self._fill_counts(self.rules_table, activity.top_rules(TOP_N))
         self._fill_table([_row_of(r) for r in reversed(activity.requests[-MAX_ROWS:])])
 
     def _fill_chart(self, hours) -> None:
         self.chart.set_data(hours)
-        self.lbl_chart.setVisible(bool(hours))
-        if not hours:
-            return
-        legend = (f"<span style='color:{TOTAL_LEGEND}'>&#9632;</span> " + _t("Requests")
-                  + f" &nbsp;<span style='color:{BLOCKED_COLOR}'>&#9632;</span> " + _t("Blocked"))
-        self.lbl_chart.setText("<small>" + legend + " &nbsp;·&nbsp; " + _t(
+        self.chart.setVisible(bool(hours))
+        self.chart.setAccessibleName(_t(
             "Requests per hour, {} to {} · busiest hour: {}",
-            hours[0][0].strftime("%d.%m. %H:%M"), hours[-1][0].strftime("%d.%m. %H:%M"),
-            max(total for _, total, _ in hours)) + "</small>")
+            hours[0][0].strftime(HOUR_FORMAT), hours[-1][0].strftime(HOUR_FORMAT),
+            max(total for _, total, _ in hours)) if hours else "")
 
-    @staticmethod
-    def _fill_counts(table: QTableWidget, rows, color: str, as_size: bool = False) -> None:
+    def _fill_counts(self, table: QTableWidget, rows, as_size: bool = False) -> None:
         table.blockSignals(True)
+        table.clearSelection()
         table.setRowCount(len(rows))
         for row, (name, count) in enumerate(rows):
             table.setItem(row, 0, QTableWidgetItem(name))
             item = QTableWidgetItem(_format_size(count) if as_size else _number(count))
             item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            if color:
-                item.setForeground(QColor(color))
             table.setItem(row, 1, item)
+            if name == self._host:
+                table.selectRow(row)        # keep the drilled-into domain marked
         table.blockSignals(False)
 
     def _fill_table(self, rows) -> None:
+        # Drop the current row first, or it would silently move to another request.
+        self.table.setCurrentCell(-1, -1)
         self.table.setRowCount(len(rows))
+        today = datetime.now().date()
+        numbers = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         for row, request in enumerate(rows):
-            when = datetime.fromtimestamp(request["ts"]).strftime("%d.%m. %H:%M:%S")
+            stamp = datetime.fromtimestamp(request["ts"])
+            # The time of day is enough for today; the tooltip has the date.
+            when = stamp.strftime("%H:%M:%S" if stamp.date() == today else HOUR_FORMAT)
+            size = _format_size(request["size"])
+            duration = f"{request['duration']} ms" if request["duration"] >= 0 else ""
             blocked = bool(request["blocked"])
             if blocked:
-                result, color = _t("Blocked"), BLOCKED_COLOR
+                result, tone = _t("Blocked"), "danger"
             elif request["modified"]:
-                result, color = _t("Modified"), MODIFIED_COLOR
+                result, tone = _t("Modified"), "warning"
             else:
-                result, color = _t("Allowed"), ALLOWED_COLOR
-            tooltip = request["url"] or request["host"]
+                # Plain text: the green of "success" would clash with the
+                # blue that stands for allowed in the chart and the tiles.
+                result, tone = _t("Allowed"), None
+            tooltip = stamp.strftime("%Y-%m-%d %H:%M:%S") + "\n" + (request["url"] or request["host"])
+            if request["rule"]:
+                tooltip += f"\n{_t('Rule')}: {request['rule']}"
             if request["filter_id"] >= 0:
                 tooltip += "\n" + _t("Filter list ID: {}", request["filter_id"])
             for extra, value in ((_t("App"), request["app"]),
                                  (_t("Protocol"), request["protocol"]),
-                                 (_t("Type"), request["content_type"])):
+                                 (_t("Type"), request["content_type"]),
+                                 (_t("Size"), size),
+                                 (_t("Duration"), duration)):
                 if value:
                     tooltip += f"\n{extra}: {value}"
             for col, text in (
@@ -522,22 +722,35 @@ class ActivityTab(QWidget):
                 (COL_DOMAIN, request["host"]),
                 (COL_RESULT, result),
                 (COL_RULE, request["rule"]),
-                (COL_SIZE, _format_size(request["size"])),
-                (COL_MS, str(request["duration"]) if request["duration"] >= 0 else ""),
+                (COL_SIZE, size),
+                (COL_MS, duration),
             ):
                 item = QTableWidgetItem(text)
-                item.setToolTip(tooltip)
+                item.setToolTip(ui.plain_tip(tooltip))
                 item.setData(Qt.ItemDataRole.UserRole, blocked)
                 if col == COL_RESULT:
-                    item.setForeground(QColor(color))
+                    item.setData(TONE_ROLE, tone)
+                elif col in (COL_SIZE, COL_MS):
+                    item.setTextAlignment(numbers)
                 self.table.setItem(row, col, item)
-        self.table.resizeColumnsToContents()
-        self.table.horizontalHeader().setSectionResizeMode(COL_RULE, QHeaderView.ResizeMode.Stretch)
+        self._measure_columns()
+        self._set_domain(self._host)
         self._apply_filter()
+
+    def _measure_columns(self) -> None:
+        # With no rows this measures the header, so an empty list shows it whole.
+        for col in (COL_SIZE, COL_MS):
+            self.table.setColumnHidden(col, False)      # hidden ones measure 0
+        self.table.resizeColumnsToContents()
+        header = self.table.horizontalHeader()
+        self._natural = {col: header.sectionSize(col) for col in range(header.count())}
+        self._natural[COL_DOMAIN] = min(self._natural[COL_DOMAIN], DOMAIN_MAX)
+        self._fit_columns()
 
     def _apply_filter(self) -> None:
         needle = self.search_box.text().strip().lower()
-        blocked_only = self.chk_blocked.isChecked()
+        blocked_only = self.btn_blocked.isChecked()
+        shown = 0
         for row in range(self.table.rowCount()):
             domain = self.table.item(row, COL_DOMAIN)
             rule = self.table.item(row, COL_RULE)
@@ -546,38 +759,53 @@ class ActivityTab(QWidget):
             if blocked_only and not (domain and domain.data(Qt.ItemDataRole.UserRole)):
                 hide = True
             self.table.setRowHidden(row, hide)
+            shown += not hide
+        if shown:
+            self.empty.set("")
+        elif self.table.rowCount():
+            self.empty.set(_t("Nothing matches your search."))
+        else:
+            self.empty.set(_t("No requests yet – AdGuard logs requests while protection is on."))
 
     def _reset_history(self) -> None:
-        from . import store
-
-        confirm = QMessageBox.question(
-            self, _t("Activity"),
-            _t("Delete the stored history? Only what the log still holds can be read back."),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No)
-        if confirm != QMessageBox.StandardButton.Yes:
+        if not ui.confirm(self, _t("Reset history"),
+                          _t("Delete the stored history? Only what the log still holds can be read back."),
+                          _t("Reset history")):
             return
-        ok, error = store.reset()
+        self._set_busy(True)
+        self._again = False
+        worker = _ResetWorker()
+        worker.done.connect(self._on_reset)
+        self._workers.append(worker)
+        worker.start()
+
+    def _on_reset(self, ok: bool, error: str) -> None:
+        self._set_busy(False)
         if not ok:
-            QMessageBox.critical(self, _t("Activity"), error)
+            self.banner.show_message(_t("Could not reset the history."), "danger", details=error)
+            self._load_message = False
+            if self._again:
+                self.refresh()
             return
         self.drill_into("")
 
     # ── Actions ────────────────────────────────────────────────────────────
 
-    def _selected_domain(self) -> str:
-        tables = [(self.table, COL_DOMAIN), (self.top_table, 0),
-                  (self.active_table, 0), (self.traffic_table, 0)]
-        # Whichever list the user is working in wins; the request list is the default.
-        focused = [entry for entry in tables if entry[0].hasFocus()]
-        for table, column in focused + [(self.table, COL_DOMAIN)]:
-            row = table.currentRow()
-            if row < 0 or table.isRowHidden(row):
-                continue
-            item = table.item(row, column)
-            if item and item.text():
-                return item.text()
-        return self._host
+    def _on_request_selected(self, row: int, _col: int, _previous_row: int, _previous_col: int) -> None:
+        # Tracked here, not looked up on click: pressing the button moves the
+        # focus away from the list.
+        item = self.table.item(row, COL_DOMAIN) if row >= 0 else None
+        if item and item.text():
+            self._set_domain(item.text())
+
+    def _set_domain(self, domain: str) -> None:
+        self._domain = domain
+        allow = _t("Allow {}", domain) if domain else _t("Allow selected domain")
+        block = _t("Block {}", domain) if domain else _t("Block selected domain")
+        for button, text in ((self.btn_allow, allow), (self.btn_block, block)):
+            button.setEnabled(bool(domain))
+            button.setToolTip(text)
+            button.setAccessibleName(text)
 
     def _add_rule(self, allow: bool) -> None:
         from ._allowlist import (
@@ -588,19 +816,19 @@ class ActivityTab(QWidget):
             save_user_rules,
         )
 
-        domain = self._selected_domain()
+        domain = self._domain
         if not domain:
-            QMessageBox.information(self, _t("Activity"), _t("Select a request first."))
             return
+        self._load_message = False
         if not is_valid_domain(domain):
-            QMessageBox.warning(self, _t("Activity"), _t("Not a valid domain: {}", domain))
+            self.banner.show_message(_t("Not a valid domain: {}", domain), "warning")
             return
 
         if allow:
             try:
                 domains, other = load_user_rules()
             except (OSError, ValueError) as exc:
-                QMessageBox.critical(self, _t("Activity"), str(exc))
+                self.banner.show_message(_t("Could not add the rule."), "danger", details=str(exc))
                 return
             if domain in domains:
                 ok, err = True, ""
@@ -612,18 +840,20 @@ class ActivityTab(QWidget):
             ok, err = add_rule_line(rule)
 
         if not ok:
-            QMessageBox.critical(self, _t("Activity"), err)
+            self.banner.show_message(_t("Could not add the rule."), "danger", details=err)
             return
-        QMessageBox.information(
-            self, _t("Activity"),
-            _t("Added rule: {}", rule) + "\n\n" + _t("Restart AdGuard to apply changes."))
-        if self._on_change:
-            self._on_change()
+        text = _t("Added rule: {}", rule) + "\n" + self.ctx.restart_adguard()
+        if allow:
+            self.banner.show_message(text, "success", action=_t("Open exceptions"),
+                                     callback=lambda: self.ctx.navigate(PAGE_EXCEPTIONS),
+                                     timeout_ms=5000)
+        else:
+            self.banner.show_message(text, "success", timeout_ms=5000)
 
 
 def _number(value: int) -> str:
     """Thin spaces between thousands – easier to read at a glance."""
-    return f"{value:,}".replace(",", "\u2009")
+    return f"{value:,}".replace(",", " ")
 
 
 def _row_of(request) -> dict:
@@ -643,8 +873,10 @@ def _format_size(size: int) -> str:
         return ""
     if size < 1024:
         return f"{size} B"
-    if size < 1024 * 1024:
-        return f"{size / 1024:.1f} KB"
-    if size < 1024 * 1024 * 1024:
-        return f"{size / (1024 * 1024):.1f} MB"
-    return f"{size / (1024 * 1024 * 1024):.1f} GB"
+    # Decimal comma or point as the language of the UI writes it.
+    locale = QLocale(i18n._LANG)
+    locale.setNumberOptions(QLocale.NumberOption.OmitGroupSeparator)    # not "1.023,9 KB"
+    for unit, scale in (("KB", 1024), ("MB", 1024 ** 2)):
+        if size < scale * 1024:
+            return f"{locale.toString(size / scale, 'f', 1)} {unit}"
+    return f"{locale.toString(size / 1024 ** 3, 'f', 1)} GB"

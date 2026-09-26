@@ -53,6 +53,10 @@ check_deps() {
     if "$PYTHON" -c 'import PyQt6.QtWidgets' &>/dev/null; then info "PyQt6 ✓"; else yellow "  PyQt6 missing"; ok=1; fi
     if "$PYTHON" -c 'import yaml' &>/dev/null; then info "PyYAML ✓"; else yellow "  PyYAML missing"; ok=1; fi
     if "$PYTHON" -c 'import sqlite3' &>/dev/null; then info "sqlite3 ✓"; else yellow "  Python sqlite3 module missing"; ok=1; fi
+    # Without Qt's SVG image plugin the Manager's sidebar has no icons.
+    if "$PYTHON" -c 'import sys; from PyQt6.QtGui import QImageReader
+sys.exit(b"svg" not in [bytes(f) for f in QImageReader.supportedImageFormats()])' &>/dev/null; then
+        info "Qt SVG plugin ✓"; else yellow "  Qt SVG image plugin missing"; ok=1; fi
     if command -v pkexec &>/dev/null; then info "pkexec ✓"; else yellow "  pkexec (polkit) missing"; ok=1; fi
     if command -v notify-send &>/dev/null; then info "notify-send ✓"; else yellow "  notify-send (libnotify) missing"; ok=1; fi
     return "$ok"
@@ -86,13 +90,13 @@ distro_family() {
 
 FAMILY="$(distro_family)"
 case "$FAMILY" in
-    arch)   PKGS=(python-pyqt6 python-yaml polkit libnotify)
+    arch)   PKGS=(python-pyqt6 qt6-svg python-yaml polkit libnotify)
             INSTALL=(pacman -S --needed --noconfirm) ;;
-    fedora) PKGS=(python3 python3-pyqt6-base python3-pyyaml polkit libnotify)
+    fedora) PKGS=(python3 python3-pyqt6-base qt6-qtsvg python3-pyyaml polkit libnotify)
             INSTALL=(dnf install -y) ;;
-    debian) PKGS=(python3 python3-pyqt6 python3-yaml pkexec libnotify-bin)
+    debian) PKGS=(python3 python3-pyqt6 libqt6svg6 python3-yaml pkexec libnotify-bin)
             INSTALL=(apt-get install -y) ;;
-    suse)   PKGS=(python3 python3-PyQt6 python3-PyYAML pkexec libnotify-tools)
+    suse)   PKGS=(python3 python3-PyQt6 libQt6Svg6 python3-PyYAML pkexec libnotify-tools)
             INSTALL=(zypper --non-interactive install) ;;
     *)      PKGS=(); INSTALL=() ;;
 esac
@@ -116,7 +120,7 @@ manual_hint() {
         red "    ${prefix}${INSTALL[*]} ${PKGS[*]}"
         [[ ${EUID} -ne 0 ]] && ! command -v sudo &>/dev/null && red "  (as root – sudo is not installed)"
     else
-        red "    Python 3.11 or newer with its sqlite3 module, PyQt6 and PyYAML,"
+        red "    Python 3.11 or newer with its sqlite3 module, PyQt6 (with Qt's SVG plugin) and PyYAML,"
         red "    polkit (pkexec) and libnotify (notify-send)"
     fi
     return 0

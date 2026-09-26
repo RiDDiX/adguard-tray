@@ -105,6 +105,9 @@ def main() -> None:
     # window rules); without it Wayland falls back to "python3".
     app.setDesktopFileName("adguard-tray")
     app.setWindowIcon(icon_active())
+    # Follow the desktop's light/dark setting, or the one picked in Settings.
+    from .theme import set_appearance
+    set_appearance(config.appearance)
     # Stay alive when all windows are closed (tray-only app)
     app.setQuitOnLastWindowClosed(False)
 

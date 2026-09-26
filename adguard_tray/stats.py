@@ -212,7 +212,7 @@ def access_log_path() -> Path:
     """
     name = "access.log"
     try:
-        from .proxy_config_dialog import _load_yaml
+        from .proxy_settings import load_yaml as _load_yaml
         configured = _load_yaml().get("access_log_file")
         if isinstance(configured, str) and configured.strip():
             name = configured.strip()

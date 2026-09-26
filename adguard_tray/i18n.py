@@ -54,12 +54,7 @@ _LANG = _detect_language()
 _DE: dict[str, str] = {
     # ── General ─────────────────────────────────────────────────────
     "Language":                          "Sprache",
-    "Auto (system locale)":              "Automatisch (Systemsprache)",
     "English":                           "Englisch",
-    "Simplified Chinese":                "Chinesisch (Vereinfacht)",
-    "German":                            "Deutsch",
-    "Requires application restart to take effect.":
-        "Erfordert einen Neustart der Anwendung.",
 
     # ── tray.py – status labels ───────────────────────────────────────────
     "Active – Protection running":          "Aktiv – Schutz läuft",
@@ -70,18 +65,12 @@ _DE: dict[str, str] = {
     "Checking status…":                     "Status wird abgefragt…",
 
     # ── tray.py – menu items ──────────────────────────────────────────────
-    "Toggle":                               "Umschalten",
-    "Enable":                               "Aktivieren",
-    "Disable":                              "Deaktivieren",
     "Restart":                              "Neu starten",
     "Filters":                              "Filter",
     "Loading…":                             "Wird geladen…",
     "Manage filters…":                      "Filter verwalten…",
     "No userscripts installed":             "Keine Userscripts installiert",
     "Manage userscripts…":                  "Userscripts verwalten…",
-    "Refresh status":                       "Status aktualisieren",
-    "Settings…":                            "Einstellungen…",
-    "Autostart on login":                   "Autostart beim Login",
     "Quit":                                 "Beenden",
 
     # ── tray.py – tooltips & notifications ────────────────────────────────
@@ -99,33 +88,15 @@ _DE: dict[str, str] = {
     "Command failed":                       "Befehl fehlgeschlagen",
 
     # ── settings_dialog.py ────────────────────────────────────────────────
-    "AdGuard Tray – Settings":              "AdGuard Tray – Einstellungen",
-    "Status Refresh":                       "Status-Aktualisierung",
     " seconds":                             " Sekunden",
     "How often adguard-cli status is checked automatically.":
         "Wie häufig der Status von adguard-cli automatisch abgefragt wird.",
-    "Interval:":                            "Intervall:",
     "Log level:":                           "Log-Level:",
     "adguard-cli path:":                    "adguard-cli-Pfad:",
     "auto-detect via PATH":                 "automatisch via PATH",
     "Browse…":                              "Durchsuchen…",
     "Select adguard-cli binary":            "adguard-cli-Binary auswählen",
     "Notifications":                        "Benachrichtigungen",
-    "Desktop notification on status change":
-        "Desktop-Benachrichtigung bei Statusänderung",
-    "<small>Requires <i>libnotify</i> / <i>notify-send</i> or an "
-    "active notification service (dunst, mako, KDE).</small>":
-        "<small>Benötigt <i>libnotify</i> / <i>notify-send</i> oder einen "
-        "aktiven Benachrichtigungsdienst (dunst, mako, KDE).</small>",
-    "Autostart":                            "Autostart",
-    "Start automatically on desktop login (XDG Autostart)":
-        "Beim Desktop-Login automatisch starten (XDG Autostart)",
-    "<small>Creates <i>~/.config/autostart/adguard-tray.desktop</i>.<br>"
-    "Works on KDE Plasma, GNOME, Hyprland (with xdg-autostart-impl) "
-    "and other XDG-compliant environments.</small>":
-        "<small>Erstellt <i>~/.config/autostart/adguard-tray.desktop</i>.<br>"
-        "Funktioniert auf KDE Plasma, GNOME, Hyprland (mit xdg-autostart-impl) "
-        "und anderen XDG-konformen Umgebungen.</small>",
 
     # ── filters_dialog.py ─────────────────────────────────────────────────
     "Update filters":                       "Filter aktualisieren",
@@ -133,52 +104,25 @@ _DE: dict[str, str] = {
     "SafebrowsingV2, CRLite and checks for app updates.":
         "Aktualisiert alle Filter, DNS-Filter, Userscripts,\n"
         "SafebrowsingV2, CRLite und prüft auf App-Updates.",
-    "Add custom filter…":                   "Eigenen Filter hinzufügen…",
-    "Install custom filter by URL":         "Custom-Filter per URL installieren",
-    "↺ Reload":                             "↺ Neu laden",
-    "Loading filters…":                     "Filter werden geladen…",
     "No filters found.":                    "Keine Filter gefunden.",
-    "{} of {} filters active":              "{} von {} Filtern aktiv",
-    "Filter":                               "Filter",
-    "ID":                                   "ID",
-    "Last updated":                         "Zuletzt aktualisiert",
-    "Enabling filter {}…":                  "Filter {} wird aktiviert…",
-    "Disabling filter {}…":                 "Filter {} wird deaktiviert…",
-    "Updating filters…":                    "Filter werden aktualisiert…",
     "Updating filters… (can take up to 2 minutes)":
         "Filter werden aktualisiert… (kann bis zu 2 Minuten dauern)",
     "Update completed.":                    "Aktualisierung abgeschlossen.",
     "Update failed.":                       "Aktualisierung fehlgeschlagen.",
-    "Add Custom Filter":                    "Eigenen Filter hinzufügen",
     "Installing: {}":                       "Installiere: {}",
     "Filter installed.":                    "Filter installiert.",
     "Remove":                               "Entfernen",
     "Remove filter":                        "Filter entfernen",
-    'Really remove filter "{}"?':           'Filter «{}» wirklich entfernen?',
-    "Removing filter {}…":                  "Filter {} wird entfernt…",
     "Filter {} removed.":                   "Filter {} entfernt.",
 
     # ── userscripts_dialog.py ─────────────────────────────────────────────
-    "Install (URL)…":                       "Installieren (URL)…",
     "Install userscript from a direct .js URL":
         "Userscript von einer direkten .js-URL installieren",
-    "Userscript":                           "Userscript",
-    "ID / Name":                            "ID / Name",
-    "<small>Right-click a userscript to remove it.<br>"
-    "Userscripts are automatically updated when running "
-    "<i>Update filters</i>.</small>":
-        "<small>Rechtsklick auf ein Userscript zum Entfernen.<br>"
-        "Userscripts werden bei <i>Filter aktualisieren</i> "
-        "automatisch mit aktualisiert.</small>",
-    "Loading userscripts…":                 "Userscripts werden geladen…",
     "No userscripts installed.":            "Keine Userscripts installiert.",
-    "{} of {} userscripts active":          "{} von {} Userscripts aktiv",
-    "Install Userscript":                   "Userscript installieren",
     "Userscript URL (direct .js URL):":     "Userscript-URL (direkte .js-URL):",
     "Userscript installed.":                "Userscript installiert.",
     'Remove "{}"':                          '«{}» entfernen',
     "Remove userscript":                    "Userscript entfernen",
-    'Really remove userscript "{}"?':       'Userscript «{}» wirklich entfernen?',
     "'{}' removed.":                        "'{}' entfernt.",
 
     # ── cli.py ────────────────────────────────────────────────────────────
@@ -229,31 +173,14 @@ _DE: dict[str, str] = {
     "Search userscripts…":              "Userscripts durchsuchen…",
 
     # ── proxy_config_dialog.py ───────────────────────────────────────────
-    "AdGuard CLI – Configuration":      "AdGuard CLI – Konfiguration",
     "Could not load proxy.yaml.\nPath: {}":
         "proxy.yaml konnte nicht geladen werden.\nPfad: {}",
-    "Proxy":                            "Proxy",
     "HTTPS":                            "HTTPS",
     "DNS":                              "DNS",
-    "Stealth Mode":                     "Tarnmodus",
-    "Apps":                             "Apps",
-    "Security":                         "Sicherheit",
-    "<small><b>Note:</b> Changes require an AdGuard CLI restart to take effect.</small>":
-        "<small><b>Hinweis:</b> Änderungen erfordern einen Neustart von AdGuard CLI.</small>",
-    "Proxy Mode":                       "Proxy-Modus",
+    "Apps":
+        "Apps",
     "Mode:":                            "Modus:",
-    "auto: AdGuard redirects app traffic into itself via iptables\n"
-    "manual: Only listens on the configured proxy ports (SOCKS5/HTTP)":
-        "auto: AdGuard leitet App-Traffic via iptables um\n"
-        "manual: Lauscht nur auf den konfigurierten Proxy-Ports (SOCKS5/HTTP)",
     "Filtered ports:":                  "Gefilterte Ports:",
-    "Port ranges intercepted in auto mode.\n"
-    "Format: 80:5221,5300:49151 (range) or 80,443,8080 (individual)\n"
-    "Only applies when proxy mode is 'auto'.":
-        "Port-Bereiche die im Auto-Modus abgefangen werden.\n"
-        "Format: 80:5221,5300:49151 (Bereich) oder 80,443,8080 (einzeln)\n"
-        "Gilt nur im Proxy-Modus 'auto'.",
-    "Manual Proxy Ports":               "Manuelle Proxy-Ports",
     "SOCKS5 port:":                     "SOCKS5-Port:",
     "SOCKS5 proxy port for manual mode.\nSet to -1 to disable.":
         "SOCKS5-Proxy-Port für den manuellen Modus.\n-1 zum Deaktivieren.",
@@ -267,14 +194,8 @@ _DE: dict[str, str] = {
         "127.0.0.1 = nur lokal. 0.0.0.0 = alle Interfaces (erfordert Authentifizierung).",
     "Worker threads:":                  "Worker-Threads:",
     "Number of proxy worker threads.":  "Anzahl der Proxy-Worker-Threads.",
-    "HTTPS Filtering":                  "HTTPS-Filterung",
-    "Enable HTTPS filtering":           "HTTPS-Filterung aktivieren",
-    "Decrypt and filter HTTPS traffic.\n"
-    "Needed to block ads on https sites.\n"
-    "Requires a trusted root certificate installed on the system.":
-        "HTTPS-Traffic entschlüsseln und filtern.\n"
-        "Nötig, um Werbung auf https-Seiten zu blockieren.\n"
-        "Benötigt ein installiertes Root-Zertifikat auf dem System.",
+    "Decrypt and filter HTTPS traffic.\nNeeded to block ads on https sites.\nRequires a trusted root certificate installed on the system.":
+        "HTTPS-Datenverkehr entschlüsseln und filtern.\nNötig, um Werbung auf https-Seiten zu blockieren.\nBenötigt ein installiertes Root-Zertifikat auf dem System.",
     "Enable TLS 1.3":                   "TLS 1.3 aktivieren",
     "Enable TLS 1.3 support for filtered connections.":
         "TLS 1.3 für gefilterte Verbindungen aktivieren.",
@@ -290,20 +211,11 @@ _DE: dict[str, str] = {
     "Encrypted Client Hello (ECH)":     "Encrypted Client Hello (ECH)",
     "Enable ECH for better privacy.\nRequires DNS filtering to be enabled.":
         "ECH für besseren Datenschutz aktivieren.\nErfordert aktivierte DNS-Filterung.",
-    "Secure DNS Filtering":             "Sichere DNS-Filterung",
-    "DNS Filtering":                    "DNS-Filterung",
-    "Enable DNS filtering":             "DNS-Filterung aktivieren",
     "Filter DNS queries to block ads and trackers at the DNS level.\n"
     "Uses a local DNS proxy with configurable upstreams.":
         "DNS-Anfragen filtern um Werbung und Tracker auf DNS-Ebene zu blockieren.\n"
         "Nutzt einen lokalen DNS-Proxy mit konfigurierbaren Upstreams.",
     "Upstream:":                        "Upstream:",
-    "DNS upstream server.\n'default' = system DNS\n"
-    "Examples: 1.1.1.1, https://dns.google/dns-query,\n"
-    "tls://dns.adguard.com, quic://dns.adguard.com":
-        "DNS-Upstream-Server.\n'default' = System-DNS\n"
-        "Beispiele: 1.1.1.1, https://dns.google/dns-query,\n"
-        "tls://dns.adguard.com, quic://dns.adguard.com",
     "Fallbacks:":                       "Fallbacks:",
     "Fallback DNS servers (used when primary upstream fails).\n"
     "'default' = system DNS. Space-separated list.\n"
@@ -318,14 +230,10 @@ _DE: dict[str, str] = {
         "Bootstrap-DNS zum Auflösen von Upstream-Hostnamen.\n"
         "'default' = System-DNS-IPs. Nur IP-Adressen erlaubt.\n"
         "Beispiel: default 8.8.8.8 tls://1.1.1.1",
-    "Block ECH in DNS":                 "ECH in DNS blockieren",
     "Remove ECH parameter from SVCB/HTTPS DNS records.\n"
     "Enable only for browsers that don't auto-detect HTTPS filtering.":
         "ECH-Parameter aus SVCB/HTTPS-DNS-Einträgen entfernen.\n"
         "Nur aktivieren für Browser, die HTTPS-Filterung nicht automatisch erkennen.",
-    "Stealth Mode (Tracking Protection)":
-        "Tarnmodus (Tracking-Schutz)",
-    "Enable Stealth Mode":              "Tarnmodus aktivieren",
     "Master switch for all tracking protection features below.":
         "Hauptschalter für alle folgenden Tracking-Schutz-Funktionen.",
     "Cookies":                          "Cookies",
@@ -350,14 +258,14 @@ _DE: dict[str, str] = {
         "Hilft gegen Fingerprinting.",
     "Hide search queries in referrer":  "Suchanfragen im Referrer verstecken",
     "Hides your search terms when clicking from a search engine to a website.":
-        "Versteckt deine Suchbegriffe beim Klick von einer Suchmaschine auf eine Webseite.",
+        "Versteckt deine Suchbegriffe beim Klick von einer Suchmaschine auf eine Website.",
     "Remove referrer from third-party requests":
         "Referrer aus Drittanbieter-Anfragen entfernen",
     "Prevents third-party sites from knowing which page you came from.":
-        "Verhindert, dass Drittanbieter-Seiten sehen, von welcher Seite du kommst.",
+        "Verhindert, dass Drittanbieter-Websites sehen, von welcher Seite du kommst.",
     "Send Do-Not-Track signal":         "Do-Not-Track-Signal senden",
     "Sends DNT header with requests.\nNote: Most sites ignore this, but some respect it.":
-        "Sendet DNT-Header mit Anfragen.\nHinweis: Die meisten Seiten ignorieren dies.",
+        "Sendet DNT-Header mit Anfragen.\nHinweis: Die meisten Websites ignorieren das, manche beachten es.",
     "Disable third-party ETag cache":   "Drittanbieter-ETag-Cache deaktivieren",
     "Prevents tracking via ETag caching in third-party content.":
         "Verhindert Tracking über ETag-Caching bei Drittanbieter-Inhalten.",
@@ -367,17 +275,16 @@ _DE: dict[str, str] = {
         "Blockiert den Authorization-Header bei Drittanbieter-Anfragen.",
     "Remove X-Client-Data header":      "X-Client-Data-Header entfernen",
     "Removes the X-Client-Data header sent by Chrome to Google services.":
-        "Entfernt den X-Client-Data-Header den Chrome an Google-Dienste sendet.",
-    "Browser API Blocking":             "Browser-API-Blockierung",
+        "Entfernt den X-Client-Data-Header, den Chrome an Google-Dienste sendet.",
     "Block WebRTC":                     "WebRTC blockieren",
     "Prevents IP leaks via WebRTC.\nMay break video calls and some web apps.":
         "Verhindert IP-Leaks über WebRTC.\nKann Videoanrufe und Web-Apps stören.",
     "Block Push API":                   "Push-API blockieren",
     "Blocks browser push notifications from websites.":
-        "Blockiert Browser-Push-Benachrichtigungen von Webseiten.",
+        "Blockiert Browser-Push-Benachrichtigungen von Websites.",
     "Block Location API":               "Standort-API blockieren",
     "Prevents websites from accessing your GPS location.":
-        "Verhindert den Zugriff von Webseiten auf deinen GPS-Standort.",
+        "Verhindert den Zugriff von Websites auf deinen GPS-Standort.",
     "Block Flash":                      "Flash blockieren",
     "Blocks the Flash plugin.":
         "Blockiert das Flash-Plugin.",
@@ -386,94 +293,37 @@ _DE: dict[str, str] = {
         "Deaktiviert Java-Plugins. JavaScript bleibt aktiviert.",
     "Anti-DPI":                         "Anti-DPI",
     "Enable Anti-DPI":                  "Anti-DPI aktivieren",
-    "Alters outgoing packet data to bypass Deep Packet Inspection.\n"
-    "Useful in countries with internet censorship.":
-        "Verändert ausgehende Paketdaten um Deep Packet Inspection zu umgehen.\n"
-        "Nützlich in Ländern mit Internet-Zensur.",
-    "App pattern":                      "App-Muster",
-    "Action":                           "Aktion",
+    "Alters outgoing packet data to bypass Deep Packet Inspection.\nUseful in countries with internet censorship.":
+        "Verändert ausgehende Paketdaten, um Deep Packet Inspection zu umgehen.\nNützlich in Ländern mit Internet-Zensur.",
+    "App pattern":
+        "App-Muster",
     "Skip outbound proxy":              "Ausgehenden Proxy umgehen",
-    "default: Filter fully\n"
-    "bypass_https: Skip HTTPS filtering\n"
-    "bypass: Skip all filtering (games, anti-cheat)":
-        "default: Vollständig filtern\n"
-        "bypass_https: HTTPS-Filterung überspringen\n"
-        "bypass: Gesamte Filterung überspringen (Spiele, Anti-Cheat)",
     "Don't route this app's traffic through outbound proxy":
         "Traffic dieser App nicht über den ausgehenden Proxy leiten",
     "Browser list included from {}":    "Browser-Liste eingebunden aus {}",
-    "+ Add rule":                        "+ Regel hinzufügen",
-    "Add a new app filter rule":        "Neue App-Filterregel hinzufügen",
-    "− Remove selected":                "− Ausgewählte entfernen",
-    "Remove the selected rule":         "Ausgewählte Regel entfernen",
-    "↑ Move up":                        "↑ Nach oben",
-    "↓ Move down":                      "↓ Nach unten",
-    "Cannot remove":                    "Kann nicht entfernt werden",
     "The browser include-list and wildcard (*) rule cannot be removed.":
         "Die Browser-Include-Liste und die Wildcard-Regel (*) können nicht entfernt werden.",
-    "Browsing Security":                "Browser-Sicherheit",
-    "Enable Safe Browsing":             "Safe Browsing aktivieren",
-    "Warns about malicious and phishing websites.\n"
-    "Uses AdGuard's Safe Browsing database.":
-        "Warnt vor bösartigen und Phishing-Webseiten.\n"
-        "Nutzt die Safe-Browsing-Datenbank von AdGuard.",
+    "Warns about malicious and phishing websites.\nUses AdGuard's Safe Browsing database.":
+        "Warnt vor bösartigen und Phishing-Websites.\nNutzt die Safe-Browsing-Datenbank von AdGuard.",
     "Send anonymous statistics":        "Anonyme Statistiken senden",
     "Send anonymous lookups to AdGuard.":
         "Anonyme Abfragen an AdGuard schicken.",
-    "CRLite":                           "CRLite",
-    "Enable CRLite":                    "CRLite aktivieren",
-    "Certificate revocation checking using Mozilla's CRLite.\n"
-    "Faster and more reliable than traditional CRL/OCSP checks.":
-        "Zertifikatswiderrufsprüfung mit Mozillas CRLite.\n"
-        "Schneller und zuverlässiger als herkömmliche CRL/OCSP-Prüfungen.",
-    "Content Filtering":                "Inhaltsfilterung",
-    "Enable ad blocking":               "Werbeblocker aktivieren",
+    "Certificate revocation checking using Mozilla's CRLite.\nFaster and more reliable than traditional CRL/OCSP checks.":
+        "Prüfung auf widerrufene Zertifikate mit Mozillas CRLite.\nSchneller und zuverlässiger als herkömmliche CRL/OCSP-Prüfungen.",
     "Apply ad-blocking filter rules to HTTP/HTTPS requests.":
         "Werbeblockierungsregeln auf HTTP/HTTPS-Anfragen anwenden.",
     "Save failed":                      "Speichern fehlgeschlagen",
     "Could not save proxy.yaml:\n{}":   "proxy.yaml konnte nicht gespeichert werden:\n{}",
-    "Configuration saved. Restart AdGuard to apply changes.":
-        "Konfiguration gespeichert. AdGuard neu starten um Änderungen anzuwenden.",
     "Restarting AdGuard…":              "AdGuard wird neu gestartet…",
     "AdGuard restarted.":               "AdGuard neu gestartet.",
     "Restart failed: {}":               "Neustart fehlgeschlagen: {}",
     "Unknown error":                    "Unbekannter Fehler",
-    "AdGuard Configuration…":           "AdGuard-Konfiguration…",
-    "<b>App filter rules</b> (auto mode only)<br>"
-    "<small>"
-    "<b>default</b> – filter this app fully<br>"
-    "<b>bypass_https</b> – no HTTPS filtering for this app<br>"
-    "<b>bypass</b> – no filtering at all (use for games with anti-cheat)<br><br>"
-    "Wildcard patterns supported (e.g. <code>*steam*</code>, <code>*EasyAntiCheat*</code>).<br>"
-    "Rules are evaluated top to bottom – first match wins.<br>"
-    "The wildcard <code>*</code> rule should always be last."
-    "</small>":
-        "<b>App-Filterregeln</b> (nur im Auto-Modus)<br>"
-        "<small>"
-        "<b>default</b> – App vollständig filtern<br>"
-        "<b>bypass_https</b> – keine HTTPS-Filterung für diese App<br>"
-        "<b>bypass</b> – keine Filterung (für Spiele mit Anti-Cheat)<br><br>"
-        "Wildcard-Muster möglich (z.B. <code>*steam*</code>, <code>*EasyAntiCheat*</code>).<br>"
-        "Regeln werden von oben nach unten ausgewertet – erster Treffer gewinnt.<br>"
-        "Die Wildcard-Regel <code>*</code> sollte immer am Ende stehen."
-        "</small>",
 
     # ── exceptions_dialog.py ────────────────────────────────────────────
-    "Website Exceptions…":              "Website-Ausnahmen…",
-    "AdGuard Tray – Website Exceptions":
-        "AdGuard Tray – Website-Ausnahmen",
-    "<small>Websites listed here will not have ads or trackers blocked.<br>"
-    "Enter a domain (e.g. <code>example.com</code>) without <code>https://</code>.</small>":
-        "<small>Für hier gelistete Websites werden keine Werbung oder Tracker blockiert.<br>"
-        "Domain eingeben (z.B. <code>example.com</code>) ohne <code>https://</code>.</small>",
-    "example.com":                      "beispiel.de",
     "Add":                              "Hinzufügen",
     "Search exceptions…":               "Ausnahmen durchsuchen…",
-    "Remove selected":                  "Ausgewählte entfernen",
     "1 exception":                      "1 Ausnahme",
     "{} exceptions":                    "{} Ausnahmen",
-    "Invalid domain":                   "Ungültige Domain",
-    "Invalid URL":                      "Ungültige URL",
     "'{}' is not a valid domain or IP address.":
         "'{}' ist keine gültige Domain oder IP-Adresse.",
     "'{}' is already in the list.":     "'{}' ist bereits in der Liste.",
@@ -481,120 +331,59 @@ _DE: dict[str, str] = {
         "Ausnahmen konnten nicht gespeichert werden:\n{}",
 
     # ── manager_window.py ──────────────────────────────────────────────────
-    "AdGuard Tray – Manager":           "AdGuard Tray – Manager",
     "Overview":                         "Übersicht",
-    "DNS Filters":                      "DNS-Filter",
     "Userscripts":                      "Userscripts",
     "Exceptions":                       "Ausnahmen",
-    "Configuration":                    "Konfiguration",
-    "Diagnostics":                      "Diagnose",
 
     # ── overview_tab.py ──────────────────────────────────────────────────
-    "Status":                           "Status",
-    "↺ Refresh":                        "↺ Aktualisieren",
-    "Version & License":                "Version & Lizenz",
-    "Check for CLI update":             "Auf CLI-Update prüfen",
     "Reset license":                    "Lizenz zurücksetzen",
-    "HTTPS Certificate":                "HTTPS-Zertifikat",
     "Generate a root CA certificate for HTTPS filtering. "
     "The certificate must be installed and trusted on your system.":
         "Root-CA-Zertifikat für HTTPS-Filterung generieren. "
         "Das Zertifikat muss auf dem System installiert und als vertrauenswürdig eingestuft werden.",
-    "Generate certificate":             "Zertifikat generieren",
     "Checking for updates…":            "Suche nach Updates…",
-    "Are you sure you want to reset the AdGuard license?":
-        "Möchtest du die AdGuard-Lizenz wirklich zurücksetzen?",
-    "Generating certificate…":          "Zertifikat wird generiert…",
     "Firefox profile:":                 "Firefox-Profil:",
     "(optional) e.g. abcd1234.MyProfile":
         "(optional) z.B. abcd1234.MeinProfil",
-    "License: {}":                      "Lizenz: {}",
-    "Could not retrieve":               "Konnte nicht abgerufen werden",
 
     # ── filters_tab.py ───────────────────────────────────────────────────
-    "Add by ID…":                       "Nach ID hinzufügen…",
-    "Add internal filter by ID or name":
-        "Internen Filter nach ID oder Name hinzufügen",
-    "Show all available":               "Alle verfügbaren anzeigen",
-    "Show all available filters, not just installed ones":
-        "Alle verfügbaren Filter anzeigen, nicht nur installierte",
-    "Add Filter by ID":                 "Filter nach ID hinzufügen",
     "Enter filter ID or name:":         "Filter-ID oder Name eingeben:",
-    "Adding filter: {}":                "Filter wird hinzugefügt: {}",
     "Filter added.":                    "Filter hinzugefügt.",
     "Rename…":                          "Umbenennen…",
-    "Set trusted":                      "Als vertrauenswürdig markieren",
-    "Set untrusted":                    "Als nicht vertrauenswürdig markieren",
     "Rename filter":                    "Filter umbenennen",
     "New title:":                       "Neuer Titel:",
-    "Renaming filter {}…":              "Filter {} wird umbenannt…",
     "Filter renamed.":                  "Filter umbenannt.",
-    "trusted":                          "vertrauenswürdig",
-    "untrusted":                        "nicht vertrauenswürdig",
-    "Setting filter {} as {}…":         "Filter {} wird als {} gesetzt…",
     "Filter trust updated.":            "Filtervertrauen aktualisiert.",
     "Filter URL:":                      "Filter-URL:",
     "Title:":                           "Titel:",
     "(optional)":                       "(optional)",
     "Trusted filter":                   "Vertrauenswürdiger Filter",
-    "Trusted filters can use advanced rules (JS scriptlets, etc.)":
-        "Vertrauenswürdige Filter können erweiterte Regeln verwenden (JS-Scriptlets, etc.)",
 
     # ── dns_filters_tab.py ───────────────────────────────────────────────
-    "Add custom DNS filter…":           "Eigenen DNS-Filter hinzufügen…",
     "Search DNS filters…":              "DNS-Filter durchsuchen…",
-    "DNS filters block domains at the DNS level. "
-    "Requires DNS filtering to be enabled in Configuration → DNS.":
-        "DNS-Filter blockieren Domains auf DNS-Ebene. "
-        "Erfordert aktivierte DNS-Filterung in Konfiguration → DNS.",
-    "Loading DNS filters…":             "DNS-Filter werden geladen…",
     "No DNS filters found.":            "Keine DNS-Filter gefunden.",
-    "{} of {} DNS filters active":      "{} von {} DNS-Filtern aktiv",
     "DNS filter installed.":            "DNS-Filter installiert.",
-    "Add DNS Filter by ID":             "DNS-Filter nach ID hinzufügen",
-    "Adding DNS filter: {}":            "DNS-Filter wird hinzugefügt: {}",
     "DNS filter added.":                "DNS-Filter hinzugefügt.",
     "Remove DNS filter":                "DNS-Filter entfernen",
-    'Really remove DNS filter "{}"?':   'DNS-Filter «{}» wirklich entfernen?',
     "DNS filter {} removed.":           "DNS-Filter {} entfernt.",
     "Rename DNS filter":                "DNS-Filter umbenennen",
     "DNS filter renamed.":              "DNS-Filter umbenannt.",
-    "Add Custom DNS Filter":            "Eigenen DNS-Filter hinzufügen",
 
     # ── config_tab.py ────────────────────────────────────────────────────
-    "Could not load proxy.yaml.":       "proxy.yaml konnte nicht geladen werden.",
-    "Edit the full AdGuard CLI configuration (proxy.yaml).":
-        "Die vollständige AdGuard-CLI-Konfiguration (proxy.yaml) bearbeiten.",
-    "Open Configuration Editor…":       "Konfigurations-Editor öffnen…",
 
     # ── diagnostics_tab.py ───────────────────────────────────────────────
-    "Export & Import":                  "Export & Import",
     "Export logs…":                     "Logs exportieren…",
     "Export AdGuard CLI logs to a zip file":
         "AdGuard-CLI-Logs in eine ZIP-Datei exportieren",
     "Export settings…":                 "Einstellungen exportieren…",
-    "Export all AdGuard CLI settings to a zip file":
-        "Alle AdGuard-CLI-Einstellungen in eine ZIP-Datei exportieren",
-    "Import settings…":                 "Einstellungen importieren…",
-    "Import settings from a previously exported zip file":
-        "Einstellungen aus einer zuvor exportierten ZIP-Datei importieren",
-    "Performance Benchmark":            "Leistungs-Benchmark",
     "Run a cryptographic and HTTPS filtering benchmark.":
         "Einen kryptografischen und HTTPS-Filterungs-Benchmark ausführen.",
     "Run benchmark":                    "Benchmark starten",
-    "Running benchmark…":               "Benchmark wird ausgeführt…",
     "Done.":                            "Fertig.",
-    "Failed.":                          "Fehlgeschlagen.",
     "Export logs to…":                  "Logs exportieren nach…",
-    "Exporting logs…":                  "Logs werden exportiert…",
     "Export settings to…":              "Einstellungen exportieren nach…",
-    "Exporting settings…":              "Einstellungen werden exportiert…",
-    "Import settings from…":            "Einstellungen importieren aus…",
     "Zip files (*.zip);;All files (*)":
         "ZIP-Dateien (*.zip);;Alle Dateien (*)",
-    "Importing settings…":              "Einstellungen werden importiert…",
-    "Application Log":                  "Anwendungs-Log",
-    "View recent log entries":          "Letzte Log-Einträge anzeigen",
     "Log file not found.":              "Log-Datei nicht gefunden.",
 
     # ── cli.py (new methods) ─────────────────────────────────────────────
@@ -631,7 +420,6 @@ _DE: dict[str, str] = {
     "Update check completed":           "Update-Prüfung abgeschlossen",
     "Update check failed":              "Update-Prüfung fehlgeschlagen",
     "Benchmark failed":                 "Benchmark fehlgeschlagen",
-    "Open Manager…":                    "Manager öffnen…",
     "AdGuard stopped (forced)":         "AdGuard gestoppt (erzwungen)",
     "Could not stop AdGuard – process may still be running":
         "AdGuard konnte nicht gestoppt werden – Prozess läuft möglicherweise noch.",
@@ -656,22 +444,14 @@ _DE: dict[str, str] = {
         "Es kann nur eine Instanz gleichzeitig laufen. Schau in den System-Tray.",
     "Authentication cancelled":         "Authentifizierung abgebrochen",
     "Authorization failed":             "Autorisierung fehlgeschlagen",
-    "Also turns off OCSP revocation checks, Certificate Transparency\nand secure DNS filtering. Revoked or mis-issued certificates then\ngo unnoticed, and browsers can resolve past AdGuard's DNS filter.":
-        "Schaltet zusätzlich OCSP-Sperrprüfung, Certificate Transparency\nund Secure-DNS-Filterung ab. Widerrufene oder falsch ausgestellte\nZertifikate fallen dann nicht mehr auf, und Browser können an\nAdGuards DNS-Filter vorbei auflösen.",
     "Check whether a site's certificate was revoked (OCSP).\nAdGuard checks asynchronously and lets the connection through if\nthe check is slow, so this rarely breaks a site – leave it on\nunless you have narrowed a problem down to it.":
         "Prüft, ob das Zertifikat einer Seite widerrufen wurde (OCSP).\nAdGuard prüft asynchron und lässt die Verbindung durch, wenn die\nPrüfung langsam ist – bricht also selten eine Seite. Nur ausschalten,\nwenn ein Problem konkret darauf eingegrenzt wurde.",
     "Enforce Certificate Transparency checks (Chrome's CT policy).\nSites whose own certificate is not CT-compliant stop being filtered\nand the browser may refuse them. Large sites are compliant, so try\nthis only for a site that reports a certificate error.":
         "Certificate-Transparency-Prüfung erzwingen (Chromes CT-Richtlinie).\nSeiten, deren eigenes Zertifikat nicht CT-konform ist, werden nicht\nmehr gefiltert und vom Browser evtl. abgelehnt. Große Seiten sind\nkonform – nur bei gemeldetem Zertifikatsfehler probieren.",
     "Sites that don't load":
         "Seiten, die nicht laden",
-    "Start with HTTP/3: AdGuard's HTTP/3 filtering is experimental and Chromium-based browsers reject it through a user-installed certificate, so it is the usual culprit. Change one setting at a time and save in between – the other three above weaken security for every site, so only turn them off if HTTP/3 wasn't it.":
-        "Fang mit HTTP/3 an: AdGuards HTTP/3-Filterung ist experimentell, und Chromium-basierte Browser lehnen sie über ein selbst installiertes Zertifikat ab – das ist der übliche Übeltäter. Ändere immer nur eine Einstellung und speichere dazwischen; die anderen drei oben senken die Sicherheit für alle Seiten und sollten nur dran glauben, wenn es nicht an HTTP/3 lag.",
     "Turn off HTTP/3 filtering":
-        "HTTP/3-Filterung abschalten",
-    "Turn off all strict checks (weakens security)":
-        "Alle strengen Prüfungen abschalten (senkt die Sicherheit)",
-    "off: No secure DNS filtering\ntransparent: Filter DoH/DoT inline without changing destination\nredirect: Redirect all secure DNS to the local DNS proxy\nOnly affects browsers that use DoH/DoT. 'off' lets them resolve\npast AdGuard's DNS filtering, so try it only if name resolution\nitself is broken.":
-        "off: Keine Secure-DNS-Filterung\ntransparent: DoH/DoT direkt filtern, ohne das Ziel zu ändern\nredirect: Alle Secure-DNS-Anfragen zum lokalen DNS-Proxy umleiten\nBetrifft nur Browser, die DoH/DoT nutzen. Mit „off“ lösen sie an\nAdGuards DNS-Filter vorbei auf – also nur probieren, wenn die\nNamensauflösung selbst kaputt ist.",
+        "HTTP/3-Filterung ausschalten",
     "No filters installed":
         "Keine Filter installiert",
     "HTTP/3 is blocked by a firewall rule; browsers use HTTP/2.":
@@ -690,60 +470,34 @@ _DE: dict[str, str] = {
         "Browser-Richtlinie deaktiviert QUIC: {}",
     "Browsers can bypass AdGuard over HTTP/3 (UDP 443).":
         "Browser können AdGuard über HTTP/3 (UDP 443) umgehen.",
-    "Browsers prefer HTTP/3 over UDP port 443. AdGuard only sees that traffic in <i>auto</i> proxy mode; otherwise those requests reach the site directly and are not filtered.":
-        "Browser bevorzugen HTTP/3 über UDP-Port 443. AdGuard sieht diesen Verkehr nur im Proxy-Modus <i>auto</i>; sonst gehen die Anfragen direkt zur Website und werden nicht gefiltert.",
     "Checking…":
         "Wird geprüft…",
     "Could not read proxy.yaml – HTTP/3 state unknown.":
         "proxy.yaml konnte nicht gelesen werden – HTTP/3-Status unbekannt.",
-    "Disable HTTP/3 in Firefox profiles":
-        "HTTP/3 in Firefox-Profilen deaktivieren",
     "Firefox-family profiles with HTTP/3 switched off: {} of {}":
-        "Firefox-Profile mit deaktiviertem HTTP/3: {} von {}",
+        "Firefox-Profile mit ausgeschaltetem HTTP/3: {} von {}",
     "HTTP/3 (QUIC)":
         "HTTP/3 (QUIC)",
     "HTTP/3 is blocked by AdGuard; browsers fall back to filtered HTTP/2.":
         "AdGuard blockiert HTTP/3; Browser weichen auf gefiltertes HTTP/2 aus.",
     "HTTP/3 is filtered by AdGuard.":
         "HTTP/3 wird von AdGuard gefiltert.",
-    "HTTP/3 re-enabled in Firefox profiles – restart the browser.":
-        "HTTP/3 in den Firefox-Profilen wieder aktiviert – Browser neu starten.",
     "HTTP/3 switched off in Firefox profiles – restart the browser.":
-        "HTTP/3 in den Firefox-Profilen deaktiviert – Browser neu starten.",
+        "HTTP/3 in den Firefox-Profilen ausgeschaltet – Browser neu starten.",
     "HTTPS filtering is off – nothing is filtered.":
         "HTTPS-Filterung ist aus – es wird nichts gefiltert.",
-    "On: AdGuard filters HTTP/3 (QUIC) itself – experimental, and some\nbrowsers refuse HTTP/3 through a user-installed certificate anyway.\nOff: AdGuard blocks QUIC instead, so browsers fall back to HTTP/2,\nwhich is filtered reliably.\nEither way this only applies in 'auto' proxy mode – in manual mode\nHTTP/3 traffic never reaches AdGuard.":
-        "An: AdGuard filtert HTTP/3 (QUIC) selbst – experimentell, und manche\nBrowser lehnen HTTP/3 über ein selbst installiertes Zertifikat ohnehin ab.\nAus: AdGuard blockiert QUIC stattdessen, Browser weichen auf HTTP/2 aus,\ndas zuverlässig gefiltert wird.\nBeides gilt nur im Proxy-Modus „auto“ – im Modus „manual“ erreicht\nHTTP/3-Verkehr AdGuard gar nicht.",
-    "Proxy mode: auto – UDP port 443 is redirected to AdGuard.":
-        "Proxy-Modus: auto – UDP-Port 443 wird zu AdGuard umgeleitet.",
     "Proxy mode: {} – only traffic sent through the proxy is filtered, and browsers do not send QUIC through it.":
         "Proxy-Modus: {} – gefiltert wird nur, was über den Proxy läuft, und QUIC schicken Browser nicht darüber.",
-    "Re-enable HTTP/3 in Firefox profiles":
-        "HTTP/3 in Firefox-Profilen wieder aktivieren",
-    "Switch HTTP/3 off in {} Firefox-family profile(s)?\n\nTheir traffic then uses HTTP/2, which AdGuard can filter. Restart the browser afterwards.":
-        "HTTP/3 in {} Firefox-Profil(en) deaktivieren?\n\nDeren Verkehr läuft dann über HTTP/2, das AdGuard filtern kann. Browser danach neu starten.",
     "unknown":
         "unbekannt",
-    "↺ Re-check":
-        "↺ Erneut prüfen",
     "AdGuard's certificate was not found. Generate it first.":
         "AdGuards Zertifikat wurde nicht gefunden. Erzeuge es zuerst.",
-    "AdGuard's certificate will be added to every browser profile found on this system.\n\nThis allows AdGuard to inspect HTTPS traffic in those browsers. Close your browsers first – they read the certificate store at startup.\n\nContinue?":
-        "AdGuards Zertifikat wird in jedes gefundene Browser-Profil auf diesem System eingetragen.\n\nDamit kann AdGuard den HTTPS-Verkehr dieser Browser mitlesen. Schließe die Browser vorher – sie lesen den Zertifikatsspeicher beim Start.\n\nFortfahren?",
     "Certificate could not be installed in any browser.":
         "Zertifikat konnte in keinem Browser installiert werden.",
     "Certificate installed for {} of {} stores.":
         "Zertifikat in {} von {} Speichern installiert.",
     "Chromium-based browsers":
         "Chromium-basierte Browser",
-    "Chromium-based browsers (Brave, Chrome, ungoogled-chromium, Vivaldi, …) keep their own certificate store and ignore the system one. This adds AdGuard's certificate to every browser profile found, which lets AdGuard read those browsers' HTTPS traffic.":
-        "Chromium-basierte Browser (Brave, Chrome, ungoogled-chromium, Vivaldi, …) haben einen eigenen Zertifikatsspeicher und ignorieren den des Systems. Das trägt AdGuards Zertifikat in jedes gefundene Browser-Profil ein und erlaubt AdGuard, den HTTPS-Verkehr dieser Browser mitzulesen.",
-    "Install certificate in browsers":
-        "Zertifikat in Browsern installieren",
-    "Install certificate in browsers…":
-        "Zertifikat in Browsern installieren…",
-    "Installing certificate in browsers…":
-        "Zertifikat wird in Browsern installiert…",
     "No browser certificate stores found.":
         "Keine Browser-Zertifikatsspeicher gefunden.",
     "Restart your browsers for the certificate to take effect.":
@@ -756,26 +510,17 @@ _DE: dict[str, str] = {
         "certutil nicht gefunden – Paket „nss“ installieren",
     "not found":
         "nicht vorhanden",
-    "Could not save the settings:\n{}":
-        "Einstellungen konnten nicht gespeichert werden:\n{}",
     "Could not read the filter list (unexpected CLI output).":
         "Filterliste konnte nicht gelesen werden (unerwartete CLI-Ausgabe).",
     "No system tray found. AdGuard Tray is running without an icon — enable a tray/AppIndicator in your panel.":
         "Kein System-Tray gefunden. AdGuard Tray läuft ohne Symbol – aktiviere ein Tray/AppIndicator in deiner Leiste.",
     "URL must start with http:// or https://":
         "URL muss mit http:// oder https:// beginnen",
-    "Log level and CLI path changes apply after a restart.":
-        "Log-Level und CLI-Pfad werden nach einem Neustart wirksam.",
     "adguard-cli path does not exist or is not executable.":
         "adguard-cli-Pfad existiert nicht oder ist nicht ausführbar.",
     "That binary does not identify as adguard-cli. Save anyway?":
         "Diese Datei meldet sich nicht als adguard-cli. Trotzdem speichern?",
     "Update channel":                   "Update-Channel",
-    "Channel:":                         "Channel:",
-    "<small>Controls which AdGuard CLI build <i>Check for CLI update</i> "
-    "will pull. Changes take effect on the next update run.</small>":
-        "<small>Legt fest, welchen AdGuard-CLI-Build <i>Check for CLI update</i> "
-        "holt. Änderungen greifen beim nächsten Update-Lauf.</small>",
     "Switching update channel to {}…":  "Wechsle Update-Channel auf {}…",
     "Update channel set to {}":         "Update-Channel auf {} gesetzt",
     "Could not set update channel":     "Update-Channel konnte nicht gesetzt werden",
@@ -788,12 +533,10 @@ _DE: dict[str, str] = {
         'Zugriffsprotokoll ({}) nicht lesbar: {}',
     'Blocked':
         'Blockiert',
-    'Filter by domain or rule…':
-        'Nach Domain oder Regel filtern…',
     'Blocked only':
         'Nur blockierte',
-    'Refresh':
-        'Aktualisieren',
+    "Refresh":
+        "Neu laden",
     'Allow selected domain':
         'Ausgewählte Domain erlauben',
     'Block selected domain':
@@ -810,30 +553,20 @@ _DE: dict[str, str] = {
         'Regel',
     'Size':
         'Größe',
-    'Time (ms)':
-        'Dauer (ms)',
     'Count':
         'Anzahl',
     'Could not read the access log.':
         'Zugriffsprotokoll konnte nicht gelesen werden.',
-    'No activity to show.':
-        'Keine Aktivität vorhanden.',
     '{} lines not understood':
         '{} Zeilen nicht verstanden',
-    'Select a request first.':
-        'Zuerst eine Anfrage auswählen.',
     'Not a valid domain: {}':
         'Keine gültige Domain: {}',
-    'Restart AdGuard to apply changes.':
-        'AdGuard neu starten, um die Änderungen zu übernehmen.',
     'Source: {}':
         'Quelle: {}',
     'Allowed':
         'Erlaubt',
     'Added rule: {}':
         'Regel hinzugefügt: {}',
-    'Activity…':
-        'Aktivität…',
     'Requests per hour, {} to {} · busiest hour: {}':
         'Anfragen pro Stunde, {} bis {} · stärkste Stunde: {}',
     'Last 24 hours':
@@ -844,10 +577,6 @@ _DE: dict[str, str] = {
         'Anfragen',
     'Traffic':
         'Datenmenge',
-    'Most blocked domains':
-        'Häufigste blockierte Domains',
-    'Most active domains':
-        'Aktivste Domains',
 
     # ── Application update ────────────────────────────────────────────────
     'Version {} is available (you have {}).':
@@ -914,10 +643,6 @@ _DE: dict[str, str] = {
         'Gesamter Zeitraum',
     'Modified':
         'Verändert',
-    'Most traffic':
-        'Größte Datenmenge',
-    'Top rules':
-        'Häufigste Regeln',
     'Rules':
         'Regeln',
     'Showing {} – show all':
@@ -940,6 +665,532 @@ _DE: dict[str, str] = {
         'Gespeicherten Verlauf löschen? Zurückgelesen werden kann nur, was noch im Protokoll steht.',
     'History is not being updated: {}':
         'Verlauf wird nicht aktualisiert: {}',
+
+    # ── Manager redesign: pages, sidebar, apply bar ────────────────
+    "1 unsaved change to AdGuard's settings":
+        "1 nicht gespeicherte Änderung an den AdGuard-Einstellungen",
+    "A trusted filter can run scripts in the pages you visit. Only trust lists from sources you know.":
+        "Ein vertrauenswürdiger Filter kann Skripte in den Seiten ausführen, die du besuchst. Vertraue nur Listen aus Quellen, die du kennst.",
+    "About":
+        "Über",
+    "Actions for the selected filter":
+        "Aktionen für den ausgewählten Filter",
+    "Ad blocking":
+        "Werbeblocker",
+    "Ad blocking is off, so the filter lists below have no effect.":
+        "Der Werbeblocker ist aus, die Filterlisten unten wirken daher nicht.",
+    "AdGuard CLI":
+        "AdGuard CLI",
+    "AdGuard CLI downloads and installs its newest build.":
+        "AdGuard CLI lädt den neuesten Build herunter und installiert ihn.",
+    "AdGuard CLI forgets the license on this computer. You will have to activate it again.":
+        "AdGuard CLI vergisst die Lizenz auf diesem Computer. Du musst sie danach erneut aktivieren.",
+    "AdGuard CLI logs":
+        "AdGuard-CLI-Logs",
+    "AdGuard CLI update finished.":
+        "AdGuard-CLI-Update abgeschlossen.",
+    "AdGuard Tray":
+        "AdGuard Tray",
+    "AdGuard Tray log":
+        "AdGuard-Tray-Log",
+    "AdGuard doesn't filter these websites.":
+        "AdGuard filtert diese Websites nicht.",
+    "AdGuard is filtering this computer's traffic.":
+        "AdGuard filtert den Datenverkehr dieses Computers.",
+    "AdGuard restarts to load the new lists.":
+        "AdGuard startet neu, um die neuen Listen zu laden.",
+    "AdGuard's reply did not say whether it is running.":
+        "Aus der Antwort von AdGuard geht nicht hervor, ob es läuft.",
+    "AdGuard's settings file was not found ({}). Run adguard-cli once to create it.":
+        "AdGuards Einstellungsdatei wurde nicht gefunden ({}). Starte adguard-cli einmal, um sie anzulegen.",
+    "Add DNS filter by ID":
+        "DNS-Filter nach ID hinzufügen",
+    "Add DNS filter from URL":
+        "DNS-Filter von URL hinzufügen",
+    "Add filter":
+        "Filter hinzufügen",
+    "Add filter by ID":
+        "Filter nach ID hinzufügen",
+    "Add filter from URL":
+        "Filter von URL hinzufügen",
+    "Add rule":
+        "Regel hinzufügen",
+    "Add to browsers":
+        "Zu Browsern hinzufügen",
+    "Add userscript":
+        "Userscript hinzufügen",
+    "Add userscript…":
+        "Userscript hinzufügen…",
+    "Add website":
+        "Website hinzufügen",
+    "Add…":
+        "Hinzufügen…",
+    "Advanced":
+        "Erweitert",
+    "All available":
+        "Alle verfügbaren",
+    "Allow {}":
+        "{} erlauben",
+    "Also adds the certificate to this Firefox profile.":
+        "Trägt das Zertifikat zusätzlich in dieses Firefox-Profil ein.",
+    "Also on restarts and errors. Needs notify-send (libnotify) or a running notification service such as dunst, mako or KDE's.":
+        "Auch bei Neustarts und Fehlern. Benötigt notify-send (libnotify) oder einen laufenden Benachrichtigungsdienst wie dunst, mako oder den von KDE.",
+    "Appearance":
+        "Darstellung",
+    "Applies after AdGuard Tray restarts.":
+        "Wird nach einem Neustart von AdGuard Tray wirksam.",
+    "Apply":
+        "Übernehmen",
+    "Apply your changes to AdGuard's settings before closing?":
+        "Änderungen an den AdGuard-Einstellungen vor dem Schließen übernehmen?",
+    "Applying them restarts AdGuard if protection is on.":
+        "Beim Übernehmen startet AdGuard neu, wenn der Schutz aktiv ist.",
+    "Asks GitHub for the newest release.":
+        "Fragt GitHub nach der neuesten Version.",
+    "At a glance":
+        "Auf einen Blick",
+    "Automatic":
+        "Automatisch",
+    "Automatic – filter all apps":
+        "Automatisch – alle Apps filtern",
+    "Benchmark":
+        "Benchmark",
+    "Beta":
+        "Beta",
+    "Block ECH in DNS records":
+        "ECH in DNS-Einträgen blockieren",
+    "Block domains before a connection is made.":
+        "Blockiert Domains, bevor eine Verbindung aufgebaut wird.",
+    "Block {}":
+        "{} blockieren",
+    "Blocked (24 h)":
+        "Blockiert (24 h)",
+    "Browser list ({})":
+        "Browser-Liste ({})",
+    "By ID or name…":
+        "Nach ID oder Name…",
+    "Certificate":
+        "Zertifikat",
+    "Certificate checks":
+        "Zertifikatsprüfungen",
+    "Changes are collected in the bar at the bottom and applied together.":
+        "Änderungen werden in der Leiste unten gesammelt und gemeinsam übernommen.",
+    "Check again":
+        "Erneut prüfen",
+    "Check every":
+        "Prüfen alle",
+    "Chromium- and Firefox-based browsers keep their own certificate store.":
+        "Chromium- und Firefox-basierte Browser haben einen eigenen Zertifikatsspeicher.",
+    "Close":
+        "Schließen",
+    "Controls which AdGuard CLI build “{}” installs.":
+        "Legt fest, welchen AdGuard-CLI-Build „{}“ installiert.",
+    "Could not add the rule.":
+        "Regel konnte nicht hinzugefügt werden.",
+    "Could not open {}":
+        "{} konnte nicht geöffnet werden",
+    "Could not read {}":
+        "{} konnte nicht gelesen werden",
+    "Could not refresh. Showing data from {}.":
+        "Aktualisierung fehlgeschlagen. Angezeigt werden Daten von {}.",
+    "Could not reset the history.":
+        "Verlauf konnte nicht zurückgesetzt werden.",
+    "Could not restart AdGuard.":
+        "AdGuard konnte nicht neu gestartet werden.",
+    "Could not start protection.":
+        "Schutz konnte nicht gestartet werden.",
+    "Could not stop protection.":
+        "Schutz konnte nicht gestoppt werden.",
+    "Create":
+        "Erstellen",
+    "Create certificate":
+        "Zertifikat erstellen",
+    "Custom":
+        "Eigene",
+    "DNS filter lists":
+        "DNS-Filterlisten",
+    "DNS filtering":
+        "DNS-Filterung",
+    "DNS filtering is off, so these lists have no effect.":
+        "Die DNS-Filterung ist aus, diese Listen wirken daher nicht.",
+    "DNS servers":
+        "DNS-Server",
+    "Dark":
+        "Dunkel",
+    "Default":
+        "Standard",
+    "Details":
+        "Details",
+    "Discard":
+        "Verwerfen",
+    "Don't filter":
+        "Nicht filtern",
+    "Don't trust":
+        "Nicht vertrauen",
+    "Downloads and installs the newest AdGuard CLI build.":
+        "Lädt den neuesten AdGuard-CLI-Build herunter und installiert ihn.",
+    "Duration":
+        "Dauer",
+    "Export…":
+        "Exportieren…",
+    "Filter everything":
+        "Alles filtern",
+    "Filter in place":
+        "Direkt filtern",
+    "Filtering":
+        "Filterung",
+    "Follow system":
+        "Systemeinstellung",
+    "From URL…":
+        "Von URL…",
+    "Go to updates":
+        "Zu den Updates",
+    "HTTP proxy: {}":
+        "HTTP-Proxy: {}",
+    "HTTPS filtering":
+        "HTTPS-Filterung",
+    "How much detail AdGuard Tray writes to its own log.":
+        "Wie ausführlich AdGuard Tray in sein eigenes Log schreibt.",
+    "ID {}":
+        "ID {}",
+    "If a site doesn't load, turn off HTTP/3 filtering first. The other checks protect every site – turn them off only if that didn't help.":
+        "Lädt eine Seite nicht, schalte zuerst die HTTP/3-Filterung aus. Die anderen Prüfungen schützen alle Seiten – schalte sie nur aus, wenn das nicht geholfen hat.",
+    "Included":
+        "Eingebunden",
+    "Installed":
+        "Installiert",
+    "License":
+        "Lizenz",
+    "Light":
+        "Hell",
+    "Logs":
+        "Logs",
+    "MIT license":
+        "MIT-Lizenz",
+    "Maintenance":
+        "Wartung",
+    "Manual proxy":
+        "Manueller Proxy",
+    "Manual – only apps set to use the proxy":
+        "Manuell – nur Apps, die den Proxy verwenden",
+    "More":
+        "Mehr",
+    "Move down":
+        "Nach unten",
+    "Move up":
+        "Nach oben",
+    "Network":
+        "Netzwerk",
+    "Nightly":
+        "Nightly",
+    "No requests yet – AdGuard logs requests while protection is on.":
+        "Noch keine Anfragen – AdGuard protokolliert Anfragen, solange der Schutz aktiv ist.",
+    "Not added":
+        "Nicht hinzugefügt",
+    "Nothing matches your search.":
+        "Keine Treffer für deine Suche.",
+    "Notify me when protection turns on or off":
+        "Benachrichtigen, wenn der Schutz ein- oder ausgeschaltet wird",
+    "Off":
+        "Aus",
+    "Only affects browsers that use DoH or DoT. Off lets them bypass AdGuard's DNS filtering.":
+        "Betrifft nur Browser, die DoH oder DoT nutzen. Mit „Aus“ umgehen sie AdGuards DNS-Filterung.",
+    "Open AdGuard Tray":
+        "AdGuard Tray öffnen",
+    "Open exceptions":
+        "Ausnahmen öffnen",
+    "Open folder":
+        "Ordner öffnen",
+    "Open release page":
+        "Release-Seite öffnen",
+    "Pages":
+        "Seiten",
+    "Performance":
+        "Leistung",
+    "Protection":
+        "Schutz",
+    "Protection started.":
+        "Schutz gestartet.",
+    "Protection stopped.":
+        "Schutz gestoppt.",
+    "Proxy mode":
+        "Proxy-Modus",
+    "Redirect to AdGuard's DNS":
+        "Zu AdGuards DNS umleiten",
+    "Refresh this page (F5)":
+        "Diese Seite aktualisieren (F5)",
+    "Release (stable)":
+        "Release (stabil)",
+    "Remove rule":
+        "Regel entfernen",
+    "Remove “{}”?":
+        "«{}» entfernen?",
+    "Remove…":
+        "Entfernen…",
+    "Replace the current AdGuard settings with the ones in {}?\n\nAdGuard restarts to apply them.":
+        "Die aktuellen AdGuard-Einstellungen durch die aus {} ersetzen?\n\nAdGuard startet neu, um sie zu übernehmen.",
+    "Reset history…":
+        "Verlauf zurücksetzen…",
+    "Reset…":
+        "Zurücksetzen…",
+    "Restart AdGuard":
+        "AdGuard neu starten",
+    "Rules apply only in automatic proxy mode. The first matching rule wins, so keep \"*\" last.":
+        "Regeln gelten nur im automatischen Proxy-Modus. Die erste passende Regel gewinnt, daher \"*\" immer als letzte Regel.",
+    "Safe Browsing":
+        "Safe Browsing",
+    "Save anyway":
+        "Trotzdem speichern",
+    "Saved. AdGuard restarts to apply the change.":
+        "Gespeichert. AdGuard startet neu, um die Änderung zu übernehmen.",
+    "Saved. Applies after AdGuard Tray restarts.":
+        "Gespeichert. Wird nach einem Neustart von AdGuard Tray wirksam.",
+    "Saved. The change applies when protection is turned on.":
+        "Gespeichert. Die Änderung gilt, sobald der Schutz eingeschaltet wird.",
+    "Secure DNS and ECH":
+        "Sicheres DNS und ECH",
+    "Secure DNS filtering":
+        "Sichere DNS-Filterung",
+    "Set the path in Settings":
+        "Pfad in den Einstellungen festlegen",
+    "Settings":
+        "Einstellungen",
+    "Show":
+        "Anzeigen",
+    "Show recent entries":
+        "Letzte Einträge anzeigen",
+    "Skip HTTPS filtering":
+        "HTTPS-Filterung überspringen",
+    "Some counts could not be loaded.":
+        "Einige Zahlen konnten nicht geladen werden.",
+    "Source code":
+        "Quellcode",
+    "Start AdGuard Tray when I log in":
+        "AdGuard Tray beim Anmelden starten",
+    "Startup":
+        "Start",
+    "Status checks":
+        "Statusabfrage",
+    "Stealth mode":
+        "Tarnmodus",
+    "System":
+        "System",
+    "The new lists load when protection is turned on.":
+        "Die neuen Listen werden geladen, sobald der Schutz eingeschaltet ist.",
+    "Theme":
+        "Design",
+    "This turns off HTTP/3 filtering, OCSP checks, Certificate Transparency and secure DNS filtering. Revoked or mis-issued certificates then go unnoticed, and browsers can resolve past AdGuard's DNS filter.":
+        "Damit werden HTTP/3-Filterung, OCSP-Prüfung, Certificate Transparency und Secure-DNS-Filterung ausgeschaltet. Widerrufene oder falsch ausgestellte Zertifikate fallen dann nicht mehr auf, und Browser können an AdGuards DNS-Filter vorbei auflösen.",
+    "Time range":
+        "Zeitraum",
+    "To keep it but stop using it, switch it off instead.":
+        "Zum Behalten ohne Nutzung stattdessen ausschalten.",
+    "Top lists":
+        "Toplisten",
+    "Trust":
+        "Vertrauen",
+    "Trust “{}”?":
+        "«{}» vertrauen?",
+    "Trust…":
+        "Vertrauen…",
+    "Turn off all strict checks…":
+        "Alle strengen Prüfungen ausschalten…",
+    "Undo":
+        "Rückgängig",
+    "Unknown":
+        "Unbekannt",
+    "Unsaved changes":
+        "Nicht gespeicherte Änderungen",
+    "Update AdGuard CLI…":
+        "AdGuard CLI aktualisieren…",
+    "Update channel: {}":
+        "Update-Channel: {}",
+    "Updated {}":
+        "Aktualisiert {}",
+    "Updates":
+        "Updates",
+    "Used in manual mode only.":
+        "Wird nur im manuellen Modus verwendet.",
+    "Userscripts update together with filters.":
+        "Userscripts werden zusammen mit den Filtern aktualisiert.",
+    "Uses XDG autostart (~/.config/autostart).":
+        "Nutzt XDG-Autostart (~/.config/autostart).",
+    "Waiting for authorization…":
+        "Warte auf Autorisierung…",
+    "Website exceptions":
+        "Website-Ausnahmen",
+    "Websites":
+        "Websites",
+    "example.com or a link":
+        "beispiel.de oder ein Link",
+    "expires {}":
+        "läuft ab am {}",
+    "of {} requests in the last 24 hours":
+        "von {} Anfragen in den letzten 24 Stunden",
+    "{} of {} DNS filters on":
+        "{} von {} DNS-Filtern an",
+    "{} of {} filters on":
+        "{} von {} Filtern an",
+    "{} of {} on":
+        "{} von {} an",
+    "{} unsaved changes to AdGuard's settings":
+        "{} nicht gespeicherte Änderungen an den AdGuard-Einstellungen",
+    "“Follow system” uses your desktop's light or dark setting.":
+        "„Systemeinstellung“ übernimmt die helle oder dunkle Darstellung deines Desktops.",
+
+    # ── Manager redesign, second round ─────────────────────────────
+    "Active":
+        "Aktiv",
+    "AdGuard's certificate will be added to every browser profile found on this system.\n\nThis allows AdGuard to inspect HTTPS traffic in those browsers. Close your browsers first – they read the certificate store at startup.":
+        "AdGuards Zertifikat wird in jedes gefundene Browser-Profil auf diesem System eingetragen.\n\nDamit kann AdGuard den HTTPS-Verkehr dieser Browser mitlesen. Schließe die Browser vorher – sie lesen den Zertifikatsspeicher beim Start.",
+    "Allow":
+        "Erlauben",
+    "Apply or discard your changes to AdGuard's settings first, then restart.":
+        "Übernimm oder verwirf zuerst deine Änderungen an den AdGuard-Einstellungen und starte dann neu.",
+    "Automatic: AdGuard redirects all app traffic to itself via iptables. Manual: AdGuard only listens on the SOCKS5 and HTTP ports below.":
+        "Automatisch: AdGuard leitet den Datenverkehr aller Apps per iptables zu sich um. Manuell: AdGuard lauscht nur auf den SOCKS5- und HTTP-Ports unten.",
+    "Block":
+        "Blockieren",
+    "Browser API blocking":
+        "Browser-API-Blockierung",
+    "CRLite":
+        "CRLite",
+    "Cancel":
+        "Abbrechen",
+    "Computers":
+        "Computer",
+    "Could not change the autostart entry.":
+        "Autostart-Eintrag konnte nicht geändert werden.",
+    "Could not export the logs.":
+        "Logs konnten nicht exportiert werden.",
+    "Could not export the settings.":
+        "Einstellungen konnten nicht exportiert werden.",
+    "Could not reset the license.":
+        "Lizenz konnte nicht zurückgesetzt werden.",
+    "Could not retrieve license info.":
+        "Lizenzinformationen konnten nicht abgerufen werden.",
+    "Could not run the benchmark.":
+        "Benchmark konnte nicht ausgeführt werden.",
+    "Could not save the settings.":
+        "Einstellungen konnten nicht gespeichert werden.",
+    "Could not set the update channel.":
+        "Update-Channel konnte nicht gesetzt werden.",
+    "Could not update AdGuard CLI.":
+        "AdGuard CLI konnte nicht aktualisiert werden.",
+    "Could not update the filters.":
+        "Filter konnten nicht aktualisiert werden.",
+    "DNS upstream server.\n'default' = system DNS.\nExamples: 1.1.1.1, https://dns.google/dns-query,\ntls://dns.adguard.com, quic://dns.adguard.com":
+        "DNS-Upstream-Server.\n'default' = System-DNS.\nBeispiele: 1.1.1.1, https://dns.google/dns-query,\ntls://dns.adguard.com, quic://dns.adguard.com",
+    "Expiration date":
+        "Ablaufdatum",
+    "Expires":
+        "Läuft ab",
+    "HTTP/3 turned back on in Firefox profiles – restart the browser.":
+        "HTTP/3 in den Firefox-Profilen wieder eingeschaltet – Browser neu starten.",
+    "License key":
+        "Lizenzschlüssel",
+    "License type":
+        "Lizenztyp",
+    "Manual":
+        "Manuell",
+    "No exceptions.":
+        "Keine Ausnahmen.",
+    "OK":
+        "OK",
+    "On: AdGuard filters HTTP/3 (QUIC) itself – experimental, and some\nbrowsers refuse HTTP/3 through a user-installed certificate anyway.\nOff: AdGuard blocks QUIC instead, so browsers fall back to HTTP/2,\nwhich is filtered reliably.\nEither way this only applies in automatic mode – in manual mode\nHTTP/3 traffic never reaches AdGuard.":
+        "An: AdGuard filtert HTTP/3 (QUIC) selbst – experimentell, und manche\nBrowser lehnen HTTP/3 über ein selbst installiertes Zertifikat ohnehin ab.\nAus: AdGuard blockiert QUIC stattdessen, Browser weichen auf HTTP/2 aus,\ndas zuverlässig gefiltert wird.\nBeides gilt nur im automatischen Modus – im manuellen Modus erreicht\nHTTP/3-Verkehr AdGuard gar nicht.",
+    "Owner":
+        "Inhaber",
+    "Personal":
+        "Persönlich",
+    "Proxy mode: {} – UDP port 443 is redirected to AdGuard.":
+        "Proxy-Modus: {} – UDP-Port 443 wird zu AdGuard umgeleitet.",
+    "Save adguard-cli path":
+        "adguard-cli-Pfad speichern",
+    "Search domains or rules…":
+        "Domains oder Regeln durchsuchen…",
+    "Settings file":
+        "Einstellungsdatei",
+    "Status":
+        "Status",
+    "Trial":
+        "Testversion",
+    "Turn HTTP/3 back on in Firefox profiles":
+        "HTTP/3 in Firefox-Profilen wieder einschalten",
+    "Turn off":
+        "Ausschalten",
+    "Turn off HTTP/3 in Firefox profiles":
+        "HTTP/3 in Firefox-Profilen ausschalten",
+    "Turn off HTTP/3 in Firefox profiles…":
+        "HTTP/3 in Firefox-Profilen ausschalten…",
+    "Turn off HTTP/3 in {} Firefox-family profile(s)?\n\nTheir traffic then uses HTTP/2, which AdGuard can filter. Restart the browser afterwards.":
+        "HTTP/3 in {} Firefox-Profil(en) ausschalten?\n\nDeren Datenverkehr läuft dann über HTTP/2, das AdGuard filtern kann. Browser danach neu starten.",
+    "Turn off all strict checks":
+        "Alle strengen Prüfungen ausschalten",
+    "Unavailable until AdGuard CLI reports its current channel.":
+        "Nicht verfügbar, bis AdGuard CLI den aktuellen Channel meldet.",
+    "Update AdGuard CLI":
+        "AdGuard CLI aktualisieren",
+    "Used in automatic mode only. Ranges (80:5221,5300:49151) or single ports (80,443,8080).":
+        "Wird nur im automatischen Modus verwendet. Bereiche (80:5221,5300:49151) oder einzelne Ports (80,443,8080).",
+    "{} of {}":
+        "{} von {}",
+    "{} of {} userscripts on":
+        "{} von {} Userscripts an",
+    "{}% blocked":
+        "{} % blockiert",
+
+    # ── Printed by adguard-cli and looked up at runtime (filter groups, licence) ──
+    "Annoyances":
+        "Belästigungen",
+    "General":
+        "Allgemein",
+    "Language-specific":
+        "Sprachspezifisch",
+    "Security":
+        "Sicherheit",
+    "Social widgets":
+        "Social-Media-Widgets",
+    "Expired":
+        "Abgelaufen",
+    "Autostart on login":
+        "Autostart beim Login",
+    "Add app rule":
+        "App-Regel hinzufügen",
+    "Wildcards work, e.g. *steam* or *EasyAntiCheat*.":
+        "Platzhalter sind erlaubt, z. B. *steam* oder *EasyAntiCheat*.",
+    "There is already a rule for '{}'.":
+        "Für „{}“ gibt es schon eine Regel.",
+    "AdGuard settings":
+        "AdGuard-Einstellungen",
+    "Ads and trackers are not blocked until you enable protection.":
+        "Werbung und Tracker werden erst blockiert, wenn du den Schutz aktivierst.",
+    "Could not import the settings.":
+        "Einstellungen konnten nicht importiert werden.",
+    "Disable protection":
+        "Schutz deaktivieren",
+    "Enable protection":
+        "Schutz aktivieren",
+    "Export and import":
+        "Export und Import",
+    "Features":
+        "Funktionen",
+    "Import settings":
+        "Einstellungen importieren",
+    "Import settings from…":
+        "Einstellungen importieren aus…",
+    "Import settings…":
+        "Einstellungen importieren…",
+    "Import…":
+        "Importieren…",
+    "Save filters, rules and configuration to a zip file, or load them from one.":
+        "Filter, Regeln und Konfiguration in einer ZIP-Datei speichern oder daraus laden.",
+    "Update":
+        "Aktualisieren",
+    "Version":
+        "Version",
+    "{} is not a settings export. Choose a file saved with Export under AdGuard settings.":
+        "{} ist keine Einstellungssicherung. Wähle eine Datei, die unter „AdGuard-Einstellungen“ mit „Exportieren“ gespeichert wurde.",
 }
 
 # ── Simplified Chinese translations ──────────────────────────────────────
@@ -947,12 +1198,7 @@ _DE: dict[str, str] = {
 _ZH_CN: dict[str, str] = {
     # ── General ─────────────────────────────────────────────────────
     "Language":                          "语言",
-    "Auto (system locale)":              "自动（系统语言）",
     "English":                           "英语",
-    "Simplified Chinese":                "简体中文",
-    "German":                            "德语",
-    "Requires application restart to take effect.":
-        "需要重启应用程序才能生效。",
 
     # ── tray.py – status labels ───────────────────────────────────────────
     "Active – Protection running":          "已激活 – 保护运行中",
@@ -963,18 +1209,12 @@ _ZH_CN: dict[str, str] = {
     "Checking status…":                     "正在检查状态…",
 
     # ── tray.py – menu items ──────────────────────────────────────────────
-    "Toggle":                               "切换",
-    "Enable":                               "启用",
-    "Disable":                              "禁用",
     "Restart":                              "重启",
     "Filters":                              "过滤器",
     "Loading…":                             "加载中…",
     "Manage filters…":                      "管理过滤器…",
     "No userscripts installed":             "未安装用户脚本",
     "Manage userscripts…":                  "管理用户脚本…",
-    "Refresh status":                       "刷新状态",
-    "Settings…":                            "设置…",
-    "Autostart on login":                   "登录时自动启动",
     "Quit":                                 "退出",
 
     # ── tray.py – tooltips & notifications ────────────────────────────────
@@ -992,33 +1232,15 @@ _ZH_CN: dict[str, str] = {
     "Command failed":                       "命令失败",
 
     # ── settings_dialog.py ────────────────────────────────────────────────
-    "AdGuard Tray – Settings":              "AdGuard Tray – 设置",
-    "Status Refresh":                       "状态刷新",
     " seconds":                             " 秒",
     "How often adguard-cli status is checked automatically.":
         "自动检查 adguard-cli 状态的频率。",
-    "Interval:":                            "间隔：",
     "Log level:":                           "日志级别：",
     "adguard-cli path:":                    "adguard-cli 路径：",
     "auto-detect via PATH":                 "通过 PATH 自动检测",
     "Browse…":                              "浏览…",
     "Select adguard-cli binary":            "选择 adguard-cli 二进制文件",
     "Notifications":                        "通知",
-    "Desktop notification on status change":
-        "状态变更时显示桌面通知",
-    "<small>Requires <i>libnotify</i> / <i>notify-send</i> or an "
-    "active notification service (dunst, mako, KDE).</small>":
-        "<small>需要 <i>libnotify</i> / <i>notify-send</i> 或活动的 "
-        "通知服务（dunst、mako、KDE）。</small>",
-    "Autostart":                            "自动启动",
-    "Start automatically on desktop login (XDG Autostart)":
-        "桌面登录时自动启动（XDG 自动启动）",
-    "<small>Creates <i>~/.config/autostart/adguard-tray.desktop</i>.<br>"
-    "Works on KDE Plasma, GNOME, Hyprland (with xdg-autostart-impl) "
-    "and other XDG-compliant environments.</small>":
-        "<small>创建 <i>~/.config/autostart/adguard-tray.desktop</i>。<br>"
-        "适用于 KDE Plasma、GNOME、Hyprland（使用 xdg-autostart-impl）"
-        "和其他兼容 XDG 的环境。</small>",
 
     # ── filters_dialog.py ─────────────────────────────────────────────────
     "Update filters":                       "更新过滤器",
@@ -1026,51 +1248,25 @@ _ZH_CN: dict[str, str] = {
     "SafebrowsingV2, CRLite and checks for app updates.":
         "更新所有过滤器、DNS 过滤器、用户脚本，\n"
         "SafebrowsingV2、CRLite 并检查应用更新。",
-    "Add custom filter…":                   "添加自定义过滤器…",
-    "Install custom filter by URL":         "通过 URL 安装自定义过滤器",
-    "↺ Reload":                             "↺ 重新加载",
-    "Loading filters…":                     "正在加载过滤器…",
     "No filters found.":                    "未找到过滤器。",
-    "{} of {} filters active":              "{} / {} 个过滤器已激活",
-    "Filter":                               "过滤器",
-    "ID":                                   "ID",
-    "Last updated":                         "上次更新",
-    "Enabling filter {}…":                  "正在启用过滤器 {}…",
-    "Disabling filter {}…":                 "正在禁用过滤器 {}…",
-    "Updating filters…":                    "正在更新过滤器…",
     "Updating filters… (can take up to 2 minutes)":
         "正在更新过滤器…（可能需要最多 2 分钟）",
     "Update completed.":                    "更新完成。",
     "Update failed.":                       "更新失败。",
-    "Add Custom Filter":                    "添加自定义过滤器",
     "Installing: {}":                       "正在安装：{}",
     "Filter installed.":                    "过滤器已安装。",
     "Remove":                               "移除",
     "Remove filter":                        "移除过滤器",
-    'Really remove filter "{}"?':           "确定要移除过滤器 “{}” 吗？",
-    "Removing filter {}…":                  "正在移除过滤器 {}…",
     "Filter {} removed.":                   "过滤器 {} 已移除。",
 
     # ── userscripts_dialog.py ─────────────────────────────────────────────
-    "Install (URL)…":                       "安装（URL）…",
     "Install userscript from a direct .js URL":
         "从直接的 .js URL 安装用户脚本",
-    "Userscript":                           "用户脚本",
-    "ID / Name":                            "ID / 名称",
-    "<small>Right-click a userscript to remove it.<br>"
-    "Userscripts are automatically updated when running "
-    "<i>Update filters</i>.</small>":
-        "<small>右键单击用户脚本以移除它。<br>"
-        "运行 <i>更新过滤器</i> 时，用户脚本会自动更新。</small>",
-    "Loading userscripts…":                 "正在加载用户脚本…",
     "No userscripts installed.":            "未安装用户脚本。",
-    "{} of {} userscripts active":          "{} / {} 个用户脚本已激活",
-    "Install Userscript":                   "安装用户脚本",
     "Userscript URL (direct .js URL):":     "用户脚本 URL（直接 .js URL）：",
     "Userscript installed.":                "用户脚本已安装。",
     'Remove "{}"':                          "移除 “{}”",
     "Remove userscript":                    "移除用户脚本",
-    'Really remove userscript "{}"?':       "确定要移除用户脚本 “{}” 吗？",
     "'{}' removed.":                        "'{}' 已移除。",
 
     # ── cli.py ────────────────────────────────────────────────────────────
@@ -1119,31 +1315,14 @@ _ZH_CN: dict[str, str] = {
     "Search userscripts…":              "搜索用户脚本…",
 
     # ── proxy_config_dialog.py ───────────────────────────────────────────
-    "AdGuard CLI – Configuration":      "AdGuard CLI – 配置",
     "Could not load proxy.yaml.\nPath: {}":
         "无法加载 proxy.yaml。\n路径：{}",
-    "Proxy":                            "代理",
     "HTTPS":                            "HTTPS",
     "DNS":                              "DNS",
-    "Stealth Mode":                     "隐身模式",
-    "Apps":                             "应用",
-    "Security":                         "安全",
-    "<small><b>Note:</b> Changes require an AdGuard CLI restart to take effect.</small>":
-        "<small><b>注意：</b>更改需要重启 AdGuard CLI 才能生效。</small>",
-    "Proxy Mode":                       "代理模式",
+    "Apps":
+        "应用程序",
     "Mode:":                            "模式：",
-    "auto: AdGuard redirects app traffic into itself via iptables\n"
-    "manual: Only listens on the configured proxy ports (SOCKS5/HTTP)":
-        "auto：AdGuard 通过 iptables 将应用流量重定向到自身\n"
-        "manual：仅监听配置的代理端口（SOCKS5/HTTP）",
     "Filtered ports:":                  "过滤的端口：",
-    "Port ranges intercepted in auto mode.\n"
-    "Format: 80:5221,5300:49151 (range) or 80,443,8080 (individual)\n"
-    "Only applies when proxy mode is 'auto'.":
-        "自动模式下拦截的端口范围。\n"
-        "格式：80:5221,5300:49151（范围）或 80,443,8080（单个）\n"
-        "仅适用于代理模式为 “auto” 时。",
-    "Manual Proxy Ports":               "手动代理端口",
     "SOCKS5 port:":                     "SOCKS5 端口：",
     "SOCKS5 proxy port for manual mode.\nSet to -1 to disable.":
         "手动模式的 SOCKS5 代理端口。\n设置为 -1 以禁用。",
@@ -1157,14 +1336,8 @@ _ZH_CN: dict[str, str] = {
         "127.0.0.1 = 仅本地。0.0.0.0 = 所有接口（需要身份验证）。",
     "Worker threads:":                  "工作线程：",
     "Number of proxy worker threads.":  "代理工作线程数量。",
-    "HTTPS Filtering":                  "HTTPS 过滤",
-    "Enable HTTPS filtering":           "启用 HTTPS 过滤",
-    "Decrypt and filter HTTPS traffic.\n"
-    "Needed to block ads on https sites.\n"
-    "Requires a trusted root certificate installed on the system.":
-        "解密并过滤 HTTPS 流量。\n"
-        "需要阻止 https 网站上的广告。\n"
-        "需要在系统上安装受信任的根证书。",
+    "Decrypt and filter HTTPS traffic.\nNeeded to block ads on https sites.\nRequires a trusted root certificate installed on the system.":
+        "解密并过滤 HTTPS 流量。\n需要阻止 https 网站上的广告。\n需要在系统上安装受信任的根证书。",
     "Enable TLS 1.3":                   "启用 TLS 1.3",
     "Enable TLS 1.3 support for filtered connections.":
         "为过滤的连接启用 TLS 1.3 支持。",
@@ -1180,20 +1353,11 @@ _ZH_CN: dict[str, str] = {
     "Encrypted Client Hello (ECH)":     "加密客户端 Hello (ECH)",
     "Enable ECH for better privacy.\nRequires DNS filtering to be enabled.":
         "启用 ECH 以获得更好的隐私。\n需要启用 DNS 过滤。",
-    "Secure DNS Filtering":             "安全 DNS 过滤",
-    "DNS Filtering":                    "DNS 过滤",
-    "Enable DNS filtering":             "启用 DNS 过滤",
     "Filter DNS queries to block ads and trackers at the DNS level.\n"
     "Uses a local DNS proxy with configurable upstreams.":
         "过滤 DNS 查询以在 DNS 级别阻止广告和跟踪器。\n"
         "使用具有可配置上游的本地 DNS 代理。",
     "Upstream:":                        "上游：",
-    "DNS upstream server.\n'default' = system DNS\n"
-    "Examples: 1.1.1.1, https://dns.google/dns-query,\n"
-    "tls://dns.adguard.com, quic://dns.adguard.com":
-        "DNS 上游服务器。\n'default' = 系统 DNS\n"
-        "示例：1.1.1.1、https://dns.google/dns-query、\n"
-        "tls://dns.adguard.com、quic://dns.adguard.com",
     "Fallbacks:":                       "后备：",
     "Fallback DNS servers (used when primary upstream fails).\n"
     "'default' = system DNS. Space-separated list.\n"
@@ -1208,14 +1372,10 @@ _ZH_CN: dict[str, str] = {
         "用于解析上游主机名的引导 DNS。\n"
         "'default' = 系统 DNS IP。仅允许 IP 地址。\n"
         "示例：default 8.8.8.8 tls://1.1.1.1",
-    "Block ECH in DNS":                 "在 DNS 中阻止 ECH",
     "Remove ECH parameter from SVCB/HTTPS DNS records.\n"
     "Enable only for browsers that don't auto-detect HTTPS filtering.":
         "从 SVCB/HTTPS DNS 记录中移除 ECH 参数。\n"
         "仅对无法自动检测 HTTPS 过滤的浏览器启用。",
-    "Stealth Mode (Tracking Protection)":
-        "隐身模式（跟踪保护）",
-    "Enable Stealth Mode":              "启用隐身模式",
     "Master switch for all tracking protection features below.":
         "以下所有跟踪保护功能的主开关。",
     "Cookies":                          "Cookie",
@@ -1258,7 +1418,6 @@ _ZH_CN: dict[str, str] = {
     "Remove X-Client-Data header":      "移除 X-Client-Data 标头",
     "Removes the X-Client-Data header sent by Chrome to Google services.":
         "移除 Chrome 发送到 Google 服务的 X-Client-Data 标头。",
-    "Browser API Blocking":             "浏览器 API 阻止",
     "Block WebRTC":                     "阻止 WebRTC",
     "Prevents IP leaks via WebRTC.\nMay break video calls and some web apps.":
         "防止通过 WebRTC 泄露 IP。\n可能会破坏视频通话和一些 Web 应用。",
@@ -1276,94 +1435,37 @@ _ZH_CN: dict[str, str] = {
         "禁用 Java 插件。JavaScript 保持启用。",
     "Anti-DPI":                         "Anti-DPI",
     "Enable Anti-DPI":                  "启用 Anti-DPI",
-    "Alters outgoing packet data to bypass Deep Packet Inspection.\n"
-    "Useful in countries with internet censorship.":
-        "更改传出数据包以绕过深度数据包检测。\n"
-        "在存在互联网审查的国家/地区很有用。",
-    "App pattern":                      "应用模式",
-    "Action":                           "操作",
+    "Alters outgoing packet data to bypass Deep Packet Inspection.\nUseful in countries with internet censorship.":
+        "更改传出数据包以绕过深度数据包检测。\n在存在互联网审查的国家/地区很有用。",
+    "App pattern":
+        "应用名称模式",
     "Skip outbound proxy":              "跳过出站代理",
-    "default: Filter fully\n"
-    "bypass_https: Skip HTTPS filtering\n"
-    "bypass: Skip all filtering (games, anti-cheat)":
-        "default：完全过滤\n"
-        "bypass_https：跳过 HTTPS 过滤\n"
-        "bypass：跳过所有过滤（游戏、反作弊）",
     "Don't route this app's traffic through outbound proxy":
         "不要将此应用的流量通过出站代理路由",
     "Browser list included from {}":    "浏览器列表从 {} 包含",
-    "+ Add rule":                        "+ 添加规则",
-    "Add a new app filter rule":        "添加新的应用过滤规则",
-    "− Remove selected":                "− 移除选中项",
-    "Remove the selected rule":         "移除选中的规则",
-    "↑ Move up":                        "↑ 上移",
-    "↓ Move down":                      "↓ 下移",
-    "Cannot remove":                    "无法移除",
     "The browser include-list and wildcard (*) rule cannot be removed.":
         "浏览器包含列表和通配符 (*) 规则无法移除。",
-    "Browsing Security":                "浏览安全",
-    "Enable Safe Browsing":             "启用安全浏览",
-    "Warns about malicious and phishing websites.\n"
-    "Uses AdGuard's Safe Browsing database.":
-        "警告恶意和钓鱼网站。\n"
-        "使用 AdGuard 的安全浏览数据库。",
+    "Warns about malicious and phishing websites.\nUses AdGuard's Safe Browsing database.":
+        "警告恶意和钓鱼网站。\n使用 AdGuard 的安全浏览数据库。",
     "Send anonymous statistics":        "发送匿名统计信息",
     "Send anonymous lookups to AdGuard.":
         "向 AdGuard 发送匿名查询。",
-    "CRLite":                           "CRLite",
-    "Enable CRLite":                    "启用 CRLite",
-    "Certificate revocation checking using Mozilla's CRLite.\n"
-    "Faster and more reliable than traditional CRL/OCSP checks.":
-        "使用 Mozilla 的 CRLite 进行证书撤销检查。\n"
-        "比传统的 CRL/OCSP 检查更快、更可靠。",
-    "Content Filtering":                "内容过滤",
-    "Enable ad blocking":               "启用广告拦截",
+    "Certificate revocation checking using Mozilla's CRLite.\nFaster and more reliable than traditional CRL/OCSP checks.":
+        "使用 Mozilla 的 CRLite 进行证书吊销检查。\n比传统的 CRL/OCSP 检查更快、更可靠。",
     "Apply ad-blocking filter rules to HTTP/HTTPS requests.":
         "将广告拦截过滤规则应用于 HTTP/HTTPS 请求。",
     "Save failed":                      "保存失败",
     "Could not save proxy.yaml:\n{}":   "无法保存 proxy.yaml：\n{}",
-    "Configuration saved. Restart AdGuard to apply changes.":
-        "配置已保存。重启 AdGuard 以应用更改。",
     "Restarting AdGuard…":              "正在重启 AdGuard…",
     "AdGuard restarted.":               "AdGuard 已重启。",
     "Restart failed: {}":               "重启失败：{}",
     "Unknown error":                    "未知错误",
-    "AdGuard Configuration…":           "AdGuard 配置…",
-    "<b>App filter rules</b> (auto mode only)<br>"
-    "<small>"
-    "<b>default</b> – filter this app fully<br>"
-    "<b>bypass_https</b> – no HTTPS filtering for this app<br>"
-    "<b>bypass</b> – no filtering at all (use for games with anti-cheat)<br><br>"
-    "Wildcard patterns supported (e.g. <code>*steam*</code>, <code>*EasyAntiCheat*</code>).<br>"
-    "Rules are evaluated top to bottom – first match wins.<br>"
-    "The wildcard <code>*</code> rule should always be last."
-    "</small>":
-        "<b>应用过滤规则</b>（仅自动模式）<br>"
-        "<small>"
-        "<b>default</b> – 完全过滤此应用<br>"
-        "<b>bypass_https</b> – 此应用不进行 HTTPS 过滤<br>"
-        "<b>bypass</b> – 完全不过滤（用于带有反作弊的游戏）<br><br>"
-        "支持通配符模式（例如 <code>*steam*</code>、<code>*EasyAntiCheat*</code>）。<br>"
-        "规则从上到下评估 – 第一个匹配项生效。<br>"
-        "通配符 <code>*</code> 规则应始终在最后。"
-        "</small>",
 
     # ── exceptions_dialog.py ────────────────────────────────────────────
-    "Website Exceptions…":              "网站例外…",
-    "AdGuard Tray – Website Exceptions":
-        "AdGuard Tray – 网站例外",
-    "<small>Websites listed here will not have ads or trackers blocked.<br>"
-    "Enter a domain (e.g. <code>example.com</code>) without <code>https://</code>.</small>":
-        "<small>此处列出的网站将不会阻止广告或跟踪器。<br>"
-        "输入域名（例如 <code>example.com</code>）不带 <code>https://</code>。</small>",
-    "example.com":                      "example.com",
     "Add":                              "添加",
     "Search exceptions…":               "搜索例外…",
-    "Remove selected":                  "移除选中项",
     "1 exception":                      "1 个例外",
     "{} exceptions":                    "{} 个例外",
-    "Invalid domain":                   "无效域名",
-    "Invalid URL":                      "无效 URL",
     "'{}' is not a valid domain or IP address.":
         "'{}' 不是有效的域名或 IP 地址。",
     "'{}' is already in the list.":     "'{}' 已在列表中。",
@@ -1371,120 +1473,59 @@ _ZH_CN: dict[str, str] = {
         "无法保存例外：\n{}",
 
     # ── manager_window.py ──────────────────────────────────────────────────
-    "AdGuard Tray – Manager":           "AdGuard Tray – 管理器",
     "Overview":                         "概览",
-    "DNS Filters":                      "DNS 过滤器",
     "Userscripts":                      "用户脚本",
     "Exceptions":                       "例外",
-    "Configuration":                    "配置",
-    "Diagnostics":                      "诊断",
 
     # ── overview_tab.py ──────────────────────────────────────────────────
-    "Status":                           "状态",
-    "↺ Refresh":                        "↺ 刷新",
-    "Version & License":                "版本和许可证",
-    "Check for CLI update":             "检查 CLI 更新",
     "Reset license":                    "重置许可证",
-    "HTTPS Certificate":                "HTTPS 证书",
     "Generate a root CA certificate for HTTPS filtering. "
     "The certificate must be installed and trusted on your system.":
         "生成用于 HTTPS 过滤的根 CA 证书。"
         "证书必须在你的系统上安装并受信任。",
-    "Generate certificate":             "生成证书",
     "Checking for updates…":            "正在检查更新…",
-    "Are you sure you want to reset the AdGuard license?":
-        "你确定要重置 AdGuard 许可证吗？",
-    "Generating certificate…":          "正在生成证书…",
     "Firefox profile:":                 "Firefox 配置文件：",
     "(optional) e.g. abcd1234.MyProfile":
         "（可选）例如 abcd1234.MyProfile",
-    "License: {}":                      "许可证：{}",
-    "Could not retrieve":               "无法获取",
 
     # ── filters_tab.py ───────────────────────────────────────────────────
-    "Add by ID…":                       "按 ID 添加…",
-    "Add internal filter by ID or name":
-        "按 ID 或名称添加内部过滤器",
-    "Show all available":               "显示所有可用项",
-    "Show all available filters, not just installed ones":
-        "显示所有可用的过滤器，不仅仅是已安装的",
-    "Add Filter by ID":                 "按 ID 添加过滤器",
     "Enter filter ID or name:":         "输入过滤器 ID 或名称：",
-    "Adding filter: {}":                "正在添加过滤器：{}",
     "Filter added.":                    "过滤器已添加。",
     "Rename…":                          "重命名…",
-    "Set trusted":                      "设为受信任",
-    "Set untrusted":                    "设为不受信任",
     "Rename filter":                    "重命名过滤器",
     "New title:":                       "新标题：",
-    "Renaming filter {}…":              "正在重命名过滤器 {}…",
     "Filter renamed.":                  "过滤器已重命名。",
-    "trusted":                          "受信任",
-    "untrusted":                        "不受信任",
-    "Setting filter {} as {}…":         "正在将过滤器 {} 设为 {}…",
     "Filter trust updated.":            "过滤器信任已更新。",
     "Filter URL:":                      "过滤器 URL：",
     "Title:":                           "标题：",
     "(optional)":                       "（可选）",
     "Trusted filter":                   "受信任的过滤器",
-    "Trusted filters can use advanced rules (JS scriptlets, etc.)":
-        "受信任的过滤器可以使用高级规则（JS scriptlets 等）",
 
     # ── dns_filters_tab.py ───────────────────────────────────────────────
-    "Add custom DNS filter…":           "添加自定义 DNS 过滤器…",
     "Search DNS filters…":              "搜索 DNS 过滤器…",
-    "DNS filters block domains at the DNS level. "
-    "Requires DNS filtering to be enabled in Configuration → DNS.":
-        "DNS 过滤器在 DNS 级别阻止域名。"
-        "需要在配置 → DNS 中启用 DNS 过滤。",
-    "Loading DNS filters…":             "正在加载 DNS 过滤器…",
     "No DNS filters found.":            "未找到 DNS 过滤器。",
-    "{} of {} DNS filters active":      "{} / {} 个 DNS 过滤器已激活",
     "DNS filter installed.":            "DNS 过滤器已安装。",
-    "Add DNS Filter by ID":             "按 ID 添加 DNS 过滤器",
-    "Adding DNS filter: {}":            "正在添加 DNS 过滤器：{}",
     "DNS filter added.":                "DNS 过滤器已添加。",
     "Remove DNS filter":                "移除 DNS 过滤器",
-    'Really remove DNS filter "{}"?':   "确定要移除 DNS 过滤器 “{}” 吗？",
     "DNS filter {} removed.":           "DNS 过滤器 {} 已移除。",
     "Rename DNS filter":                "重命名 DNS 过滤器",
     "DNS filter renamed.":              "DNS 过滤器已重命名。",
-    "Add Custom DNS Filter":            "添加自定义 DNS 过滤器",
 
     # ── config_tab.py ────────────────────────────────────────────────────
-    "Could not load proxy.yaml.":       "无法加载 proxy.yaml。",
-    "Edit the full AdGuard CLI configuration (proxy.yaml).":
-        "编辑完整的 AdGuard CLI 配置 (proxy.yaml)。",
-    "Open Configuration Editor…":       "打开配置编辑器…",
 
     # ── diagnostics_tab.py ───────────────────────────────────────────────
-    "Export & Import":                  "导出和导入",
     "Export logs…":                     "导出日志…",
     "Export AdGuard CLI logs to a zip file":
         "将 AdGuard CLI 日志导出到 zip 文件",
     "Export settings…":                 "导出设置…",
-    "Export all AdGuard CLI settings to a zip file":
-        "将所有 AdGuard CLI 设置导出到 zip 文件",
-    "Import settings…":                 "导入设置…",
-    "Import settings from a previously exported zip file":
-        "从先前导出的 zip 文件导入设置",
-    "Performance Benchmark":            "性能基准测试",
     "Run a cryptographic and HTTPS filtering benchmark.":
         "运行加密和 HTTPS 过滤基准测试。",
     "Run benchmark":                    "运行基准测试",
-    "Running benchmark…":               "正在运行基准测试…",
     "Done.":                            "完成。",
-    "Failed.":                          "失败。",
     "Export logs to…":                  "导出日志到…",
-    "Exporting logs…":                  "正在导出日志…",
     "Export settings to…":              "导出设置到…",
-    "Exporting settings…":              "正在导出设置…",
-    "Import settings from…":            "从…导入设置",
     "Zip files (*.zip);;All files (*)":
         "Zip 文件 (*.zip);;所有文件 (*)",
-    "Importing settings…":              "正在导入设置…",
-    "Application Log":                  "应用程序日志",
-    "View recent log entries":          "查看最近的日志条目",
     "Log file not found.":              "未找到日志文件。",
 
     # ── cli.py (new methods) ─────────────────────────────────────────────
@@ -1521,7 +1562,6 @@ _ZH_CN: dict[str, str] = {
     "Update check completed":           "更新检查完成",
     "Update check failed":              "更新检查失败",
     "Benchmark failed":                 "基准测试失败",
-    "Open Manager…":                    "打开管理器…",
     "AdGuard stopped (forced)":         "AdGuard 已停止（强制）",
     "Could not stop AdGuard – process may still be running":
         "无法停止 AdGuard – 进程可能仍在运行",
@@ -1546,22 +1586,14 @@ _ZH_CN: dict[str, str] = {
         "一次只能运行一个实例。请检查你的系统托盘。",
     "Authentication cancelled":         "身份验证已取消",
     "Authorization failed":             "授权失败",
-    "Also turns off OCSP revocation checks, Certificate Transparency\nand secure DNS filtering. Revoked or mis-issued certificates then\ngo unnoticed, and browsers can resolve past AdGuard's DNS filter.":
-        "同时关闭 OCSP 吊销检查、证书透明度和安全 DNS 过滤。\n被吊销或错误签发的证书将不再被发现，\n浏览器也可绕过 AdGuard 的 DNS 过滤进行解析。",
     "Check whether a site's certificate was revoked (OCSP).\nAdGuard checks asynchronously and lets the connection through if\nthe check is slow, so this rarely breaks a site – leave it on\nunless you have narrowed a problem down to it.":
         "检查网站证书是否已被吊销（OCSP）。\nAdGuard 采用异步检查，检查缓慢时会放行连接，\n因此很少导致网站打不开 — 除非已确定问题出在这里，否则请保持开启。",
     "Enforce Certificate Transparency checks (Chrome's CT policy).\nSites whose own certificate is not CT-compliant stop being filtered\nand the browser may refuse them. Large sites are compliant, so try\nthis only for a site that reports a certificate error.":
         "强制执行证书透明度检查（Chrome 的 CT 策略）。\n自身证书不符合 CT 要求的网站将不再被过滤，浏览器可能拒绝访问。\n大型网站均符合要求，仅在网站报告证书错误时才尝试关闭。",
     "Sites that don't load":
         "无法加载的网站",
-    "Start with HTTP/3: AdGuard's HTTP/3 filtering is experimental and Chromium-based browsers reject it through a user-installed certificate, so it is the usual culprit. Change one setting at a time and save in between – the other three above weaken security for every site, so only turn them off if HTTP/3 wasn't it.":
-        "先从 HTTP/3 开始：AdGuard 的 HTTP/3 过滤属实验功能，基于 Chromium 的浏览器会拒绝通过用户安装的证书使用它，因此通常是它的问题。每次只更改一项设置并保存；上面另外三项会降低所有网站的安全性，只有确认与 HTTP/3 无关时才关闭。",
     "Turn off HTTP/3 filtering":
         "关闭 HTTP/3 过滤",
-    "Turn off all strict checks (weakens security)":
-        "关闭所有严格检查（降低安全性）",
-    "off: No secure DNS filtering\ntransparent: Filter DoH/DoT inline without changing destination\nredirect: Redirect all secure DNS to the local DNS proxy\nOnly affects browsers that use DoH/DoT. 'off' lets them resolve\npast AdGuard's DNS filtering, so try it only if name resolution\nitself is broken.":
-        "off：不过滤安全 DNS\ntransparent：就地过滤 DoH/DoT，不改变目标\nredirect：将所有安全 DNS 重定向到本地 DNS 代理\n仅影响使用 DoH/DoT 的浏览器。设为 “off” 后它们会绕过\nAdGuard 的 DNS 过滤，因此仅在域名解析本身出问题时尝试。",
     "No filters installed":
         "未安装过滤器",
     "HTTP/3 is blocked by a firewall rule; browsers use HTTP/2.":
@@ -1580,60 +1612,34 @@ _ZH_CN: dict[str, str] = {
         "浏览器策略已禁用 QUIC：{}",
     "Browsers can bypass AdGuard over HTTP/3 (UDP 443).":
         "浏览器可通过 HTTP/3（UDP 443）绕过 AdGuard。",
-    "Browsers prefer HTTP/3 over UDP port 443. AdGuard only sees that traffic in <i>auto</i> proxy mode; otherwise those requests reach the site directly and are not filtered.":
-        "浏览器优先使用基于 UDP 443 端口的 HTTP/3。只有在 <i>auto</i> 代理模式下 AdGuard 才能看到这些流量；否则请求会直连网站且不被过滤。",
     "Checking…":
         "正在检查…",
     "Could not read proxy.yaml – HTTP/3 state unknown.":
         "无法读取 proxy.yaml — HTTP/3 状态未知。",
-    "Disable HTTP/3 in Firefox profiles":
-        "在 Firefox 配置文件中禁用 HTTP/3",
     "Firefox-family profiles with HTTP/3 switched off: {} of {}":
-        "已禁用 HTTP/3 的 Firefox 系列配置文件：{} / {}",
+        "已关闭 HTTP/3 的 Firefox 系列配置文件：{} / {}",
     "HTTP/3 (QUIC)":
         "HTTP/3（QUIC）",
     "HTTP/3 is blocked by AdGuard; browsers fall back to filtered HTTP/2.":
         "AdGuard 阻止 HTTP/3；浏览器回退到受过滤的 HTTP/2。",
     "HTTP/3 is filtered by AdGuard.":
         "HTTP/3 由 AdGuard 过滤。",
-    "HTTP/3 re-enabled in Firefox profiles – restart the browser.":
-        "已在 Firefox 配置文件中重新启用 HTTP/3 — 请重启浏览器。",
     "HTTP/3 switched off in Firefox profiles – restart the browser.":
-        "已在 Firefox 配置文件中禁用 HTTP/3 — 请重启浏览器。",
+        "已在 Firefox 配置文件中关闭 HTTP/3 — 请重启浏览器。",
     "HTTPS filtering is off – nothing is filtered.":
         "HTTPS 过滤已关闭 — 不会过滤任何内容。",
-    "On: AdGuard filters HTTP/3 (QUIC) itself – experimental, and some\nbrowsers refuse HTTP/3 through a user-installed certificate anyway.\nOff: AdGuard blocks QUIC instead, so browsers fall back to HTTP/2,\nwhich is filtered reliably.\nEither way this only applies in 'auto' proxy mode – in manual mode\nHTTP/3 traffic never reaches AdGuard.":
-        "开启：AdGuard 自行过滤 HTTP/3（QUIC）— 属实验功能，且部分浏览器\n本就拒绝通过用户安装的证书使用 HTTP/3。\n关闭：AdGuard 转为阻止 QUIC，浏览器回退到 HTTP/2，可被可靠过滤。\n两者都仅在 “auto” 代理模式下生效 — 在 “manual” 模式下\nHTTP/3 流量根本不会到达 AdGuard。",
-    "Proxy mode: auto – UDP port 443 is redirected to AdGuard.":
-        "代理模式：auto — UDP 443 端口被重定向到 AdGuard。",
     "Proxy mode: {} – only traffic sent through the proxy is filtered, and browsers do not send QUIC through it.":
         "代理模式：{} — 只有经过代理的流量会被过滤，而浏览器不会通过代理发送 QUIC。",
-    "Re-enable HTTP/3 in Firefox profiles":
-        "在 Firefox 配置文件中重新启用 HTTP/3",
-    "Switch HTTP/3 off in {} Firefox-family profile(s)?\n\nTheir traffic then uses HTTP/2, which AdGuard can filter. Restart the browser afterwards.":
-        "在 {} 个 Firefox 系列配置文件中禁用 HTTP/3？\n\n其流量将改用 HTTP/2，AdGuard 可以过滤。之后请重启浏览器。",
     "unknown":
         "未知",
-    "↺ Re-check":
-        "↺ 重新检查",
     "AdGuard's certificate was not found. Generate it first.":
         "未找到 AdGuard 证书。请先生成。",
-    "AdGuard's certificate will be added to every browser profile found on this system.\n\nThis allows AdGuard to inspect HTTPS traffic in those browsers. Close your browsers first – they read the certificate store at startup.\n\nContinue?":
-        "AdGuard 证书将被添加到本机找到的每个浏览器配置文件。\n\n这将允许 AdGuard 检查这些浏览器的 HTTPS 流量。请先关闭浏览器 — 它们在启动时读取证书库。\n\n是否继续？",
     "Certificate could not be installed in any browser.":
         "无法在任何浏览器中安装证书。",
     "Certificate installed for {} of {} stores.":
         "已在 {} / {} 个证书库中安装证书。",
     "Chromium-based browsers":
         "基于 Chromium 的浏览器",
-    "Chromium-based browsers (Brave, Chrome, ungoogled-chromium, Vivaldi, …) keep their own certificate store and ignore the system one. This adds AdGuard's certificate to every browser profile found, which lets AdGuard read those browsers' HTTPS traffic.":
-        "基于 Chromium 的浏览器（Brave、Chrome、ungoogled-chromium、Vivaldi 等）使用自己的证书库，会忽略系统证书库。此操作会将 AdGuard 证书添加到找到的每个浏览器配置文件，使 AdGuard 能够读取这些浏览器的 HTTPS 流量。",
-    "Install certificate in browsers":
-        "在浏览器中安装证书",
-    "Install certificate in browsers…":
-        "在浏览器中安装证书…",
-    "Installing certificate in browsers…":
-        "正在浏览器中安装证书…",
     "No browser certificate stores found.":
         "未找到浏览器证书库。",
     "Restart your browsers for the certificate to take effect.":
@@ -1646,26 +1652,17 @@ _ZH_CN: dict[str, str] = {
         "未找到 certutil — 请安装 “nss” 软件包",
     "not found":
         "不存在",
-    "Could not save the settings:\n{}":
-        "无法保存设置：\n{}",
     "Could not read the filter list (unexpected CLI output).":
         "无法读取过滤器列表（CLI 输出异常）。",
     "No system tray found. AdGuard Tray is running without an icon — enable a tray/AppIndicator in your panel.":
         "未找到系统托盘。AdGuard Tray 正在无图标运行 — 请在面板中启用托盘/AppIndicator。",
     "URL must start with http:// or https://":
         "URL 必须以 http:// 或 https:// 开头",
-    "Log level and CLI path changes apply after a restart.":
-        "日志级别和 CLI 路径更改在重启后生效。",
     "adguard-cli path does not exist or is not executable.":
         "adguard-cli 路径不存在或不可执行。",
     "That binary does not identify as adguard-cli. Save anyway?":
         "该二进制文件未标识为 adguard-cli。仍然保存吗？",
     "Update channel":                   "更新通道",
-    "Channel:":                         "通道：",
-    "<small>Controls which AdGuard CLI build <i>Check for CLI update</i> "
-    "will pull. Changes take effect on the next update run.</small>":
-        "<small>控制 <i>检查 CLI 更新</i> 将拉取哪个 AdGuard CLI 构建。"
-        "更改在下次更新运行时生效。</small>",
     "Switching update channel to {}…":  "正在将更新通道切换到 {}…",
     "Update channel set to {}":         "更新通道已设置为 {}",
     "Could not set update channel":     "无法设置更新通道",
@@ -1678,8 +1675,6 @@ _ZH_CN: dict[str, str] = {
         '无法读取访问日志（{}）：{}',
     'Blocked':
         '已拦截',
-    'Filter by domain or rule…':
-        '按域名或规则筛选…',
     'Blocked only':
         '仅已拦截',
     'Refresh':
@@ -1700,30 +1695,20 @@ _ZH_CN: dict[str, str] = {
         '规则',
     'Size':
         '大小',
-    'Time (ms)':
-        '耗时（毫秒）',
     'Count':
         '次数',
     'Could not read the access log.':
         '无法读取访问日志。',
-    'No activity to show.':
-        '暂无活动记录。',
     '{} lines not understood':
         '{} 行无法解析',
-    'Select a request first.':
-        '请先选择一个请求。',
     'Not a valid domain: {}':
         '不是有效域名：{}',
-    'Restart AdGuard to apply changes.':
-        '重启 AdGuard 以应用更改。',
     'Source: {}':
         '来源：{}',
     'Allowed':
         '已放行',
     'Added rule: {}':
         '已添加规则：{}',
-    'Activity…':
-        '活动…',
     'Requests per hour, {} to {} · busiest hour: {}':
         '每小时请求数，{} 至 {} · 最繁忙时段：{}',
     'Last 24 hours':
@@ -1734,10 +1719,6 @@ _ZH_CN: dict[str, str] = {
         '请求',
     'Traffic':
         '流量',
-    'Most blocked domains':
-        '拦截最多的域名',
-    'Most active domains':
-        '请求最多的域名',
 
     # ── Application update ────────────────────────────────────────────────
     'Version {} is available (you have {}).':
@@ -1804,10 +1785,6 @@ _ZH_CN: dict[str, str] = {
         '全部时间',
     'Modified':
         '已修改',
-    'Most traffic':
-        '流量最多',
-    'Top rules':
-        '命中最多的规则',
     'Rules':
         '规则',
     'Showing {} – show all':
@@ -1830,6 +1807,532 @@ _ZH_CN: dict[str, str] = {
         '要删除已保存的历史吗？只有日志中仍存在的记录能被重新读取。',
     'History is not being updated: {}':
         '历史未在更新：{}',
+
+    # ── Manager redesign: pages, sidebar, apply bar ────────────────
+    "1 unsaved change to AdGuard's settings":
+        "AdGuard 设置有 1 项未保存的更改",
+    "A trusted filter can run scripts in the pages you visit. Only trust lists from sources you know.":
+        "受信任的过滤器可以在你访问的网页中运行脚本。只信任来自你了解的来源的列表。",
+    "About":
+        "关于",
+    "Actions for the selected filter":
+        "所选过滤器的操作",
+    "Ad blocking":
+        "广告拦截",
+    "Ad blocking is off, so the filter lists below have no effect.":
+        "广告拦截已关闭，下面的过滤器列表不会生效。",
+    "AdGuard CLI":
+        "AdGuard CLI",
+    "AdGuard CLI downloads and installs its newest build.":
+        "AdGuard CLI 将下载并安装其最新版本。",
+    "AdGuard CLI forgets the license on this computer. You will have to activate it again.":
+        "AdGuard CLI 会在此计算机上移除许可证，之后需要重新激活。",
+    "AdGuard CLI logs":
+        "AdGuard CLI 日志",
+    "AdGuard CLI update finished.":
+        "AdGuard CLI 更新完成。",
+    "AdGuard Tray":
+        "AdGuard Tray",
+    "AdGuard Tray log":
+        "AdGuard Tray 日志",
+    "AdGuard doesn't filter these websites.":
+        "AdGuard 不过滤这些网站。",
+    "AdGuard is filtering this computer's traffic.":
+        "AdGuard 正在过滤此计算机的流量。",
+    "AdGuard restarts to load the new lists.":
+        "AdGuard 将重新启动以加载新列表。",
+    "AdGuard's reply did not say whether it is running.":
+        "无法从 AdGuard 的响应判断其是否正在运行。",
+    "AdGuard's settings file was not found ({}). Run adguard-cli once to create it.":
+        "未找到 AdGuard 的设置文件（{}）。请先运行一次 adguard-cli 以创建它。",
+    "Add DNS filter by ID":
+        "按 ID 添加 DNS 过滤器",
+    "Add DNS filter from URL":
+        "从 URL 添加 DNS 过滤器",
+    "Add filter":
+        "添加过滤器",
+    "Add filter by ID":
+        "按 ID 添加过滤器",
+    "Add filter from URL":
+        "从 URL 添加过滤器",
+    "Add rule":
+        "添加规则",
+    "Add to browsers":
+        "添加到浏览器",
+    "Add userscript":
+        "添加用户脚本",
+    "Add userscript…":
+        "添加用户脚本…",
+    "Add website":
+        "添加网站",
+    "Add…":
+        "添加…",
+    "Advanced":
+        "高级",
+    "All available":
+        "全部可用",
+    "Allow {}":
+        "允许 {}",
+    "Also adds the certificate to this Firefox profile.":
+        "同时将证书添加到此 Firefox 配置文件。",
+    "Also on restarts and errors. Needs notify-send (libnotify) or a running notification service such as dunst, mako or KDE's.":
+        "重启和出错时也会通知。需要 notify-send（libnotify）或正在运行的通知服务，例如 dunst、mako 或 KDE 自带的服务。",
+    "Appearance":
+        "外观",
+    "Applies after AdGuard Tray restarts.":
+        "重启 AdGuard Tray 后生效。",
+    "Apply":
+        "应用",
+    "Apply your changes to AdGuard's settings before closing?":
+        "关闭前要应用对 AdGuard 设置的更改吗？",
+    "Applying them restarts AdGuard if protection is on.":
+        "应用后，如果保护已开启，AdGuard 将重新启动。",
+    "Asks GitHub for the newest release.":
+        "向 GitHub 查询最新版本。",
+    "At a glance":
+        "概况",
+    "Automatic":
+        "自动",
+    "Automatic – filter all apps":
+        "自动 — 过滤所有应用",
+    "Benchmark":
+        "基准测试",
+    "Beta":
+        "测试版",
+    "Block ECH in DNS records":
+        "在 DNS 记录中阻止 ECH",
+    "Block domains before a connection is made.":
+        "在建立连接之前拦截域名。",
+    "Block {}":
+        "拦截 {}",
+    "Blocked (24 h)":
+        "已拦截（24 小时）",
+    "Browser list ({})":
+        "浏览器列表（{}）",
+    "By ID or name…":
+        "按 ID 或名称添加…",
+    "Certificate":
+        "证书",
+    "Certificate checks":
+        "证书检查",
+    "Changes are collected in the bar at the bottom and applied together.":
+        "更改会汇总在底部栏中，并一起应用。",
+    "Check again":
+        "重新检查",
+    "Check every":
+        "检查间隔",
+    "Chromium- and Firefox-based browsers keep their own certificate store.":
+        "基于 Chromium 和 Firefox 的浏览器使用自己的证书库。",
+    "Close":
+        "关闭",
+    "Controls which AdGuard CLI build “{}” installs.":
+        "决定“{}”安装哪个 AdGuard CLI 版本。",
+    "Could not add the rule.":
+        "无法添加规则。",
+    "Could not open {}":
+        "无法打开 {}",
+    "Could not read {}":
+        "无法读取 {}",
+    "Could not refresh. Showing data from {}.":
+        "刷新失败。当前显示 {} 的数据。",
+    "Could not reset the history.":
+        "无法重置历史。",
+    "Could not restart AdGuard.":
+        "无法重启 AdGuard。",
+    "Could not start protection.":
+        "无法启动保护。",
+    "Could not stop protection.":
+        "无法停止保护。",
+    "Create":
+        "创建",
+    "Create certificate":
+        "创建证书",
+    "Custom":
+        "自定义",
+    "DNS filter lists":
+        "DNS 过滤器列表",
+    "DNS filtering":
+        "DNS 过滤",
+    "DNS filtering is off, so these lists have no effect.":
+        "DNS 过滤已关闭，这些列表不会生效。",
+    "DNS servers":
+        "DNS 服务器",
+    "Dark":
+        "深色",
+    "Default":
+        "默认",
+    "Details":
+        "详情",
+    "Discard":
+        "放弃",
+    "Don't filter":
+        "不过滤",
+    "Don't trust":
+        "不信任",
+    "Downloads and installs the newest AdGuard CLI build.":
+        "下载并安装最新的 AdGuard CLI 版本。",
+    "Duration":
+        "耗时",
+    "Export…":
+        "导出…",
+    "Filter everything":
+        "全部过滤",
+    "Filter in place":
+        "就地过滤",
+    "Filtering":
+        "过滤",
+    "Follow system":
+        "跟随系统",
+    "From URL…":
+        "从 URL 添加…",
+    "Go to updates":
+        "前往更新",
+    "HTTP proxy: {}":
+        "HTTP 代理：{}",
+    "HTTPS filtering":
+        "HTTPS 过滤",
+    "How much detail AdGuard Tray writes to its own log.":
+        "AdGuard Tray 写入自身日志的详细程度。",
+    "ID {}":
+        "ID {}",
+    "If a site doesn't load, turn off HTTP/3 filtering first. The other checks protect every site – turn them off only if that didn't help.":
+        "如果网站无法加载，请先关闭 HTTP/3 过滤。其他检查保护所有网站 — 仅在这样仍无效时才关闭它们。",
+    "Included":
+        "已包含",
+    "Installed":
+        "已安装",
+    "License":
+        "许可证",
+    "Light":
+        "浅色",
+    "Logs":
+        "日志",
+    "MIT license":
+        "MIT 许可证",
+    "Maintenance":
+        "维护",
+    "Manual proxy":
+        "手动代理",
+    "Manual – only apps set to use the proxy":
+        "手动 — 仅限设置为使用代理的应用",
+    "More":
+        "更多",
+    "Move down":
+        "下移",
+    "Move up":
+        "上移",
+    "Network":
+        "网络",
+    "Nightly":
+        "每夜版",
+    "No requests yet – AdGuard logs requests while protection is on.":
+        "暂无请求 — 保护开启时 AdGuard 会记录请求。",
+    "Not added":
+        "未添加",
+    "Nothing matches your search.":
+        "没有匹配的结果。",
+    "Notify me when protection turns on or off":
+        "保护开启或关闭时通知我",
+    "Off":
+        "关闭",
+    "Only affects browsers that use DoH or DoT. Off lets them bypass AdGuard's DNS filtering.":
+        "仅影响使用 DoH 或 DoT 的浏览器。选择“关闭”会让它们绕过 AdGuard 的 DNS 过滤。",
+    "Open AdGuard Tray":
+        "打开 AdGuard Tray",
+    "Open exceptions":
+        "打开例外",
+    "Open folder":
+        "打开文件夹",
+    "Open release page":
+        "打开发布页面",
+    "Pages":
+        "页面",
+    "Performance":
+        "性能",
+    "Protection":
+        "保护",
+    "Protection started.":
+        "保护已启动。",
+    "Protection stopped.":
+        "保护已停止。",
+    "Proxy mode":
+        "代理模式",
+    "Redirect to AdGuard's DNS":
+        "重定向到 AdGuard 的 DNS",
+    "Refresh this page (F5)":
+        "刷新此页面 (F5)",
+    "Release (stable)":
+        "正式版（稳定）",
+    "Remove rule":
+        "移除规则",
+    "Remove “{}”?":
+        "移除 “{}”？",
+    "Remove…":
+        "移除…",
+    "Replace the current AdGuard settings with the ones in {}?\n\nAdGuard restarts to apply them.":
+        "用 {} 中的设置替换当前的 AdGuard 设置？\n\nAdGuard 将重启以应用这些设置。",
+    "Reset history…":
+        "重置历史…",
+    "Reset…":
+        "重置…",
+    "Restart AdGuard":
+        "重启 AdGuard",
+    "Rules apply only in automatic proxy mode. The first matching rule wins, so keep \"*\" last.":
+        "规则仅在自动代理模式下生效。第一条匹配的规则生效，因此请将 \"*\" 放在最后。",
+    "Safe Browsing":
+        "安全浏览",
+    "Save anyway":
+        "仍然保存",
+    "Saved. AdGuard restarts to apply the change.":
+        "已保存。AdGuard 将重新启动以应用更改。",
+    "Saved. Applies after AdGuard Tray restarts.":
+        "已保存。重启 AdGuard Tray 后生效。",
+    "Saved. The change applies when protection is turned on.":
+        "已保存。更改将在开启保护后生效。",
+    "Secure DNS and ECH":
+        "安全 DNS 与 ECH",
+    "Secure DNS filtering":
+        "安全 DNS 过滤",
+    "Set the path in Settings":
+        "在设置中指定路径",
+    "Settings":
+        "设置",
+    "Show":
+        "显示",
+    "Show recent entries":
+        "显示最近的条目",
+    "Skip HTTPS filtering":
+        "跳过 HTTPS 过滤",
+    "Some counts could not be loaded.":
+        "部分统计数据无法加载。",
+    "Source code":
+        "源代码",
+    "Start AdGuard Tray when I log in":
+        "登录时启动 AdGuard Tray",
+    "Startup":
+        "启动",
+    "Status checks":
+        "状态检查",
+    "Stealth mode":
+        "隐身模式",
+    "System":
+        "系统",
+    "The new lists load when protection is turned on.":
+        "开启防护后将加载新列表。",
+    "Theme":
+        "主题",
+    "This turns off HTTP/3 filtering, OCSP checks, Certificate Transparency and secure DNS filtering. Revoked or mis-issued certificates then go unnoticed, and browsers can resolve past AdGuard's DNS filter.":
+        "这将关闭 HTTP/3 过滤、OCSP 检查、证书透明度和安全 DNS 过滤。被吊销或错误签发的证书将不再被发现，浏览器也可绕过 AdGuard 的 DNS 过滤进行解析。",
+    "Time range":
+        "时间范围",
+    "To keep it but stop using it, switch it off instead.":
+        "如果想保留但不再使用，请改为将其关闭。",
+    "Top lists":
+        "排行榜",
+    "Trust":
+        "信任",
+    "Trust “{}”?":
+        "信任 “{}”？",
+    "Trust…":
+        "信任…",
+    "Turn off all strict checks…":
+        "关闭所有严格检查…",
+    "Undo":
+        "撤销",
+    "Unknown":
+        "未知",
+    "Unsaved changes":
+        "未保存的更改",
+    "Update AdGuard CLI…":
+        "更新 AdGuard CLI…",
+    "Update channel: {}":
+        "更新通道：{}",
+    "Updated {}":
+        "更新于 {}",
+    "Updates":
+        "更新",
+    "Used in manual mode only.":
+        "仅在手动模式下使用。",
+    "Userscripts update together with filters.":
+        "用户脚本会随过滤器一起更新。",
+    "Uses XDG autostart (~/.config/autostart).":
+        "使用 XDG 自动启动（~/.config/autostart）。",
+    "Waiting for authorization…":
+        "正在等待授权…",
+    "Website exceptions":
+        "网站例外",
+    "Websites":
+        "网站",
+    "example.com or a link":
+        "example.com 或链接",
+    "expires {}":
+        "到期日 {}",
+    "of {} requests in the last 24 hours":
+        "共 {} 个请求（最近 24 小时）",
+    "{} of {} DNS filters on":
+        "{} / {} 个 DNS 过滤器已开启",
+    "{} of {} filters on":
+        "{} / {} 个过滤器已开启",
+    "{} of {} on":
+        "已开启 {}/{}",
+    "{} unsaved changes to AdGuard's settings":
+        "AdGuard 设置有 {} 项未保存的更改",
+    "“Follow system” uses your desktop's light or dark setting.":
+        "“跟随系统”会使用桌面的浅色或深色设置。",
+
+    # ── Manager redesign, second round ─────────────────────────────
+    "Active":
+        "有效",
+    "AdGuard's certificate will be added to every browser profile found on this system.\n\nThis allows AdGuard to inspect HTTPS traffic in those browsers. Close your browsers first – they read the certificate store at startup.":
+        "AdGuard 证书将被添加到本机找到的每个浏览器配置文件。\n\n这将允许 AdGuard 检查这些浏览器的 HTTPS 流量。请先关闭浏览器 — 它们在启动时读取证书库。",
+    "Allow":
+        "允许",
+    "Apply or discard your changes to AdGuard's settings first, then restart.":
+        "请先应用或放弃对 AdGuard 设置的更改，然后再重启。",
+    "Automatic: AdGuard redirects all app traffic to itself via iptables. Manual: AdGuard only listens on the SOCKS5 and HTTP ports below.":
+        "自动：AdGuard 通过 iptables 将所有应用的流量重定向到自身。手动：AdGuard 仅监听下方的 SOCKS5 和 HTTP 端口。",
+    "Block":
+        "拦截",
+    "Browser API blocking":
+        "浏览器 API 阻止",
+    "CRLite":
+        "CRLite",
+    "Cancel":
+        "取消",
+    "Computers":
+        "计算机",
+    "Could not change the autostart entry.":
+        "无法更改自动启动项。",
+    "Could not export the logs.":
+        "无法导出日志。",
+    "Could not export the settings.":
+        "无法导出设置。",
+    "Could not reset the license.":
+        "无法重置许可证。",
+    "Could not retrieve license info.":
+        "无法获取许可证信息。",
+    "Could not run the benchmark.":
+        "无法运行基准测试。",
+    "Could not save the settings.":
+        "无法保存设置。",
+    "Could not set the update channel.":
+        "无法设置更新通道。",
+    "Could not update AdGuard CLI.":
+        "无法更新 AdGuard CLI。",
+    "Could not update the filters.":
+        "无法更新过滤器。",
+    "DNS upstream server.\n'default' = system DNS.\nExamples: 1.1.1.1, https://dns.google/dns-query,\ntls://dns.adguard.com, quic://dns.adguard.com":
+        "DNS 上游服务器。\n'default' = 系统 DNS。\n示例：1.1.1.1、https://dns.google/dns-query、\ntls://dns.adguard.com、quic://dns.adguard.com",
+    "Expiration date":
+        "到期日期",
+    "Expires":
+        "到期",
+    "HTTP/3 turned back on in Firefox profiles – restart the browser.":
+        "已在 Firefox 配置文件中重新开启 HTTP/3 — 请重启浏览器。",
+    "License key":
+        "许可证密钥",
+    "License type":
+        "许可证类型",
+    "Manual":
+        "手动",
+    "No exceptions.":
+        "没有例外。",
+    "OK":
+        "确定",
+    "On: AdGuard filters HTTP/3 (QUIC) itself – experimental, and some\nbrowsers refuse HTTP/3 through a user-installed certificate anyway.\nOff: AdGuard blocks QUIC instead, so browsers fall back to HTTP/2,\nwhich is filtered reliably.\nEither way this only applies in automatic mode – in manual mode\nHTTP/3 traffic never reaches AdGuard.":
+        "开启：AdGuard 自行过滤 HTTP/3（QUIC）— 属实验功能，且部分浏览器\n本就拒绝通过用户安装的证书使用 HTTP/3。\n关闭：AdGuard 转为阻止 QUIC，浏览器回退到 HTTP/2，可被可靠过滤。\n两者都仅在自动模式下生效 — 在手动模式下，\nHTTP/3 流量根本不会到达 AdGuard。",
+    "Owner":
+        "所有者",
+    "Personal":
+        "个人版",
+    "Proxy mode: {} – UDP port 443 is redirected to AdGuard.":
+        "代理模式：{} — UDP 443 端口被重定向到 AdGuard。",
+    "Save adguard-cli path":
+        "保存 adguard-cli 路径",
+    "Search domains or rules…":
+        "搜索域名或规则…",
+    "Settings file":
+        "设置文件",
+    "Status":
+        "状态",
+    "Trial":
+        "试用版",
+    "Turn HTTP/3 back on in Firefox profiles":
+        "在 Firefox 配置文件中重新开启 HTTP/3",
+    "Turn off":
+        "关闭",
+    "Turn off HTTP/3 in Firefox profiles":
+        "在 Firefox 配置文件中关闭 HTTP/3",
+    "Turn off HTTP/3 in Firefox profiles…":
+        "在 Firefox 配置文件中关闭 HTTP/3…",
+    "Turn off HTTP/3 in {} Firefox-family profile(s)?\n\nTheir traffic then uses HTTP/2, which AdGuard can filter. Restart the browser afterwards.":
+        "在 {} 个 Firefox 系列配置文件中关闭 HTTP/3？\n\n其流量将改用 HTTP/2，AdGuard 可以过滤。之后请重启浏览器。",
+    "Turn off all strict checks":
+        "关闭所有严格检查",
+    "Unavailable until AdGuard CLI reports its current channel.":
+        "在 AdGuard CLI 报告当前通道之前不可用。",
+    "Update AdGuard CLI":
+        "更新 AdGuard CLI",
+    "Used in automatic mode only. Ranges (80:5221,5300:49151) or single ports (80,443,8080).":
+        "仅在自动模式下使用。可填写范围（80:5221,5300:49151）或单个端口（80,443,8080）。",
+    "{} of {}":
+        "{}/{}",
+    "{} of {} userscripts on":
+        "{} / {} 个用户脚本已开启",
+    "{}% blocked":
+        "已拦截 {}%",
+
+    # ── Printed by adguard-cli and looked up at runtime (filter groups, licence) ──
+    "Annoyances":
+        "烦扰内容",
+    "General":
+        "常规",
+    "Language-specific":
+        "特定语言",
+    "Security":
+        "安全",
+    "Social widgets":
+        "社交小组件",
+    "Expired":
+        "已过期",
+    "Autostart on login":
+        "登录时自动启动",
+    "Add app rule":
+        "添加应用程序规则",
+    "Wildcards work, e.g. *steam* or *EasyAntiCheat*.":
+        "支持通配符，例如 *steam* 或 *EasyAntiCheat*。",
+    "There is already a rule for '{}'.":
+        "已存在“{}”的规则。",
+    "AdGuard settings":
+        "AdGuard 设置",
+    "Ads and trackers are not blocked until you enable protection.":
+        "启用保护后才会拦截广告和跟踪器。",
+    "Could not import the settings.":
+        "无法导入设置。",
+    "Disable protection":
+        "禁用保护",
+    "Enable protection":
+        "启用保护",
+    "Export and import":
+        "导出和导入",
+    "Features":
+        "功能",
+    "Import settings":
+        "导入设置",
+    "Import settings from…":
+        "从…导入设置",
+    "Import settings…":
+        "导入设置…",
+    "Import…":
+        "导入…",
+    "Save filters, rules and configuration to a zip file, or load them from one.":
+        "将过滤器、规则和配置保存到 zip 文件，或从 zip 文件加载。",
+    "Update":
+        "更新",
+    "Version":
+        "版本",
+    "{} is not a settings export. Choose a file saved with Export under AdGuard settings.":
+        "{} 不是设置导出文件。请选择在“AdGuard 设置”中通过“导出”保存的文件。",
 }
 
 # ── Translation registry ──────────────────────────────────────────────────

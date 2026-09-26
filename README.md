@@ -4,7 +4,7 @@ System tray app for [adguard-cli](https://adguard.com/en/adguard-linux/overview.
 
 Works on Wayland and X11. Written in Python + PyQt6.
 
-The UI language is detected automatically from the system locale (override in Settings). English is the default; German and Simplified Chinese are included.
+The UI language is detected automatically from the system locale (override in Settings). English is the default; German and Simplified Chinese are included. Light and dark mode follow the desktop's setting while the app runs (override in Settings → Appearance).
 
 ---
 
@@ -13,12 +13,14 @@ The UI language is detected automatically from the system locale (override in Se
 - Shows AdGuard status in the tray (green = running, grey = stopped, red = error)
 - Start / stop / restart from the tray menu
 - Toggle individual filters without opening a terminal
-- Search / filter in the filter and userscript management dialogs
+- Manager window with a sidebar: Overview, Activity, Filters, DNS, Userscripts, Exceptions, HTTPS, Stealth mode, Network, Maintenance, Settings, About — every adguard-cli setting on the page it belongs to, no nested dialogs
+- Changes to AdGuard's own settings collect in one Apply bar, so several switches cost one restart
 - Manage userscripts (install, enable/disable, remove)
 - Update all filters with one click
 - Install custom filter lists by URL
 - Desktop notifications when status changes (with dedup to prevent spam)
-- Autostart toggle right in the tray menu
+- Start at login from Settings → Startup
+- Light and dark mode that follow the desktop (KDE Plasma, GNOME, Hyprland), with a manual override
 - Activity dashboard: requests, blocked/allowed/modified counts, traffic, per-hour chart, top-10 lists and a searchable request log, kept in a local database so history survives adguard-cli's log rotation
 - Update check for adguard-tray itself, with one-click install where the files belong to us
 - Install the HTTPS certificate into Chromium-based browsers (Brave, Chrome, ungoogled-chromium, Vivaldi, …) and Firefox-family profiles
@@ -101,7 +103,7 @@ adguard-tray
 
 ## Updating adguard-tray
 
-The Overview tab has an **Application update** section: it shows the installed
+The About page has an **Updates** section: it shows the installed
 version, how this copy was installed, and checks GitHub for a newer release
 when you ask it to. Nothing is contacted unless you press the button.
 
@@ -125,7 +127,7 @@ afterwards — the running process still has the old modules loaded.
 
 ## Autostart
 
-Either tick **"Autostart on login"** in the tray menu, or add it via KDE System Settings → Autostart.
+Turn on **Settings → Startup → Start AdGuard Tray when I log in**, or add it via KDE System Settings → Autostart.
 
 The entry goes to `~/.config/autostart/adguard-tray.desktop` (standard XDG autostart).
 
@@ -134,29 +136,25 @@ The entry goes to `~/.config/autostart/adguard-tray.desktop` (standard XDG autos
 ## Tray menu
 
 ```
-● Status: Active – Protection running
-──────────────────────────────
-  Toggle
-  Enable / Disable     (whichever applies)
-  Restart
+● Active – Protection running   (opens the Overview)
+  Stop protection / Start protection   (whichever applies)
+  Restart AdGuard
 ──────────────────────────────
   Filters         ▶  (live list with checkboxes)
     └ Manage filters…
   Userscripts     ▶  (live list with checkboxes)
     └ Manage userscripts…
 ──────────────────────────────
-  Refresh status
-──────────────────────────────
-  Open Manager…         (full tabbed GUI)
-  Activity…             (requests from the access log)
-  AdGuard Configuration…(proxy.yaml editor)
-  Website Exceptions…
-  Settings…
-  Autostart on login  [✓]
+  Open AdGuard Tray
+  Activity
+  Website exceptions
+  Settings
 ──────────────────────────────
   adguard-tray vX.Y.Z · CLI vA.B.C
   Quit
 ```
+
+A left click on the tray icon opens the Manager as well.
 
 ---
 
@@ -177,7 +175,7 @@ which covers Firefox's default profile and WebKit browsers. Chromium-based
 browsers keep their own certificate store and ignore the system one, so HTTPS
 filtering silently does nothing there.
 
-The Manager's **Overview** tab has *Install certificate in browsers…*, which
+The Manager's **HTTPS** page has *Add to browsers…*, which
 imports the certificate into every browser certificate store it finds:
 
 - `~/.pki/nssdb` and `~/.local/share/pki/nssdb` (Chromium 146+ prefers the latter) — created when missing
@@ -194,7 +192,7 @@ HTTPS traffic — the same trade-off HTTPS filtering always makes.
 
 ## Websites don't load with HTTPS filtering on
 
-Change **one** setting at a time in *AdGuard Configuration → HTTPS*, save, and
+Change **one** setting at a time on the Manager's *HTTPS* page, apply, and
 retry — the four below are listed in the order worth trying, not as four causes
 of the same problem.
 
@@ -222,9 +220,9 @@ setting, and switch it back once the real cause is known.
 
 ## Activity
 
-The Manager's Activity tab is a traffic dashboard: counters for requests,
-blocked, allowed, modified and traffic; a bar chart of the requests per hour
-with the blocked share drawn over it; top-10 lists for most blocked, most
+The Manager's Activity page is a traffic dashboard: counters for requests,
+blocked, allowed, modified and traffic; a bar chart of the requests per hour,
+blocked and allowed stacked; top-10 lists for most blocked, most
 requested, most traffic and most-hit rules; and a searchable request list.
 Click a domain in any list to drill into it, and allow or block the selected
 domain straight from the table.
@@ -241,7 +239,7 @@ per-request record is the access log named by `access_log_file` in
 setting for them.
 
 Reading the tail of that file therefore only ever shows a sliding window. So
-the tab reads the log *forward* instead, into a SQLite database at
+the page reads the log *forward* instead, into a SQLite database at
 `~/.local/share/adguard-tray/activity.db`, remembering how far it got. It
 keeps three things:
 
@@ -259,12 +257,12 @@ new file is read, including the case of several rollovers between two looks.
 Only whole lines are consumed, because the daemon may be halfway through
 writing the last one.
 
-The catch worth knowing: **the log is only read while the Activity tab
+The catch worth knowing: **the log is only read while the Activity page
 refreshes it.** If the Manager stays closed long enough for the log to rotate
 through all ten generations, the requests in between are gone before anything
-records them. Opening the tab now and then is what keeps the history complete.
+records them. Opening the page now and then is what keeps the history complete.
 
-`Reset history` empties the database and reads the log again from what is
+*More → Reset history* empties the database and reads the log again from what is
 still on disk.
 
 One known inaccuracy: log timestamps carry no time zone, so during the hour
@@ -303,7 +301,7 @@ the proxy mode in `proxy.yaml`:
 | `auto` | UDP 443 is redirected into AdGuard. `https_filtering.http3_filtering_enabled: true` filters HTTP/3, `false` **blocks** QUIC so browsers fall back to HTTP/2 — which is filtered reliably, so `false` is the safer setting |
 | `manual` | Nothing touches UDP 443. Browsers reach sites directly over HTTP/3 and that traffic is **not filtered** |
 
-The Manager's **Diagnostics** tab shows which case applies, whether a firewall
+The HTTP/3 section of the Manager's **HTTPS** page shows which case applies, whether a firewall
 rule or a browser policy blocks QUIC, and can switch HTTP/3 off in Firefox-family
 profiles (writes `network.http.http3.enable` to the profile's `user.js`).
 
@@ -320,9 +318,29 @@ echo '{ "QuicAllowed": false }' | sudo tee /etc/brave/policies/managed/quic.json
 Blocking UDP 443 in the firewall also works, but it breaks DNS-over-QUIC,
 WireGuard on port 443 and some video calls — so the app does not do it for you.
 
+## Light and dark mode
+
+On KDE Plasma the app takes Plasma's colour scheme as it is — custom schemes and
+the accent colour included — and follows a switch while it runs. The same goes
+for a palette picked in qt5ct/qt6ct.
+
+On GNOME, Hyprland, sway and similar sessions Qt keeps the colours it started
+with and never reacts to the desktop's light/dark switch. There the app reads
+the preference itself from the xdg desktop portal (`org.freedesktop.appearance`
+`color-scheme`, the setting GNOME and most portal backends expose) and swaps in
+its own light or dark palette when the two disagree.
+
+If your session sets no preference or runs no portal, choose Light or Dark in
+Settings → Appearance.
+
+Checked on Qt 6.4 and 6.11 against a fake portal, with Qt's GTK, GNOME, portal
+and generic platform themes, and with KDE Plasma 6 (plasma-integration and the
+real portal) in a container. Not yet on a real GNOME or Hyprland desktop —
+reports welcome.
+
 ## Config
 
-`~/.config/adguard-tray/config.json` — written when you save the Settings dialog; defaults apply until then.
+`~/.config/adguard-tray/config.json` — written as soon as something changes on the Settings page; defaults apply until then.
 
 ```json
 {
@@ -330,12 +348,14 @@ WireGuard on port 443 and some video calls — so the app does not do it for you
   "notifications_enabled": true,
   "log_level": "INFO",
   "adguard_cli_path": "",
-  "language": ""
+  "language": "",
+  "appearance": ""
 }
 ```
 
 - **adguard_cli_path**: Leave empty to auto-detect via PATH. Set to a full path (e.g. `/opt/adguard-cli/adguard-cli`) if installed in a non-standard location.
 - **language**: Leave empty to follow the system locale, or set `en`, `de` or `zh`.
+- **appearance**: Leave empty to follow the desktop's light/dark setting, or set `light` or `dark`.
 
 Logs go to `~/.local/share/adguard-tray/adguard-tray.log` (auto-rotated, 5 MB max, 3 backups).
 
