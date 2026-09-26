@@ -18,6 +18,6 @@ pkgbase = adguard-tray
 	optdepends = qt6-svg: sidebar and toolbar icons in the Manager window
 	optdepends = nss: install the HTTPS certificate into browsers (certutil)
 	source = adguard-tray-2.0.0.tar.gz::https://github.com/RiDDiX/adguard-tray/archive/v2.0.0.tar.gz
-	sha256sums = 2d4afc8f44a0209af92707d0f4764a1dca2d18f27657ad969312147286b85bf6
+	sha256sums = 23384ac5b3bde92718fee8fc21bbe845ab20c9c99851e662cfaa6da1d8061d1c
 
 pkgname = adguard-tray
