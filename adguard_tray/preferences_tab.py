@@ -10,13 +10,11 @@ from PyQt6.QtWidgets import QApplication, QComboBox, QFileDialog, QLineEdit, QPu
 from . import theme, ui
 from .autostart import autostart_enabled, set_autostart
 from .config import save_config
-from .i18n import _TRANSLATIONS, _t
+from .i18n import LANGUAGES, _t
 from .ui import Page, Row, Switch
 
 logger = logging.getLogger(__name__)
 
-# Endonyms, never translated: someone stuck in the wrong language still finds their own.
-_LANGUAGES = {"en": "English", "de": "Deutsch", "zh": "简体中文"}
 _LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
 
 
@@ -68,8 +66,7 @@ class PreferencesTab(Page):
             theme.set_appearance)
         self.combo_language = self._add_combo(
             look, "language", cfg.language, _t("Language"), restart_note,
-            [(_t("Automatic"), "")] + [(_LANGUAGES.get(code, code), code)
-                                       for code in ("en", *_TRANSLATIONS)],
+            [(_t("Automatic"), "")] + [(name, code) for code, name in LANGUAGES.items()],
             lambda _code: self._saved_for_restart())
 
         notify_card = self.section(_t("Notifications"))

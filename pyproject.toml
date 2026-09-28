@@ -45,7 +45,7 @@ Documentation = "https://github.com/riddix/adguard-tray#readme"
 adguard-tray = "adguard_tray.main:main"
 
 [tool.setuptools]
-packages = ["adguard_tray"]
+packages = ["adguard_tray", "adguard_tray.locales"]
 include-package-data = true
 
 [tool.setuptools.package-dir]

@@ -156,7 +156,6 @@ class ManagerWindow(QMainWindow):
 
         self.sidebar = QListWidget()
         self.sidebar.setObjectName("sidebar")
-        self.sidebar.setFixedWidth(212)
         self.sidebar.setAccessibleName(_t("Pages"))
         self.sidebar.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         last_group = None
@@ -339,6 +338,9 @@ class ManagerWindow(QMainWindow):
                 item.setIcon(icons[index] if icons[index] is not None else ui.QIcon())
         refresh = ui.theme_icon(("view-refresh-symbolic", "view-refresh"), tok.text, 16)
         self.btn_refresh.setIcon(refresh if refresh is not None else ui.QIcon())
+        # Wide enough for the longest page name in any language or font size;
+        # 17 = the sheet's padding (8 + 8) and border (1).
+        self.sidebar.setFixedWidth(max(212, self.sidebar.sizeHintForColumn(0) + 17))
 
     def showEvent(self, event) -> None:
         # Reopened after a while: adguard-cli may have rewritten proxy.yaml.

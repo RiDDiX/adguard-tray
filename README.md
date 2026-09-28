@@ -4,7 +4,7 @@ System tray app for [adguard-cli](https://adguard.com/en/adguard-linux/overview.
 
 Works on Wayland and X11. Written in Python + PyQt6.
 
-The UI language is detected automatically from the system locale (override in Settings). English is the default; German and Simplified Chinese are included. Light and dark mode follow the desktop's setting while the app runs (override in Settings → Appearance).
+The UI language is detected automatically from the system locale (override in Settings). English is the default; German, Spanish, French, Italian, Japanese, Korean, Dutch, Polish, Brazilian Portuguese, Russian, Turkish, Ukrainian and Chinese (Simplified and Traditional) are included. The translations other than German and Simplified Chinese are recent and not yet reviewed by native speakers; corrections are welcome. Light and dark mode follow the desktop's setting while the app runs (override in Settings → Appearance).
 
 ---
 
@@ -354,7 +354,7 @@ reports welcome.
 ```
 
 - **adguard_cli_path**: Leave empty to auto-detect via PATH. Set to a full path (e.g. `/opt/adguard-cli/adguard-cli`) if installed in a non-standard location.
-- **language**: Leave empty to follow the system locale, or set `en`, `de` or `zh`.
+- **language**: Leave empty to follow the system locale, or set one of `en`, `de`, `es`, `fr`, `it`, `ja`, `ko`, `nl`, `pl`, `pt` (Brazilian Portuguese), `ru`, `tr`, `uk`, `zh` (Simplified Chinese), `zh_TW` (Traditional Chinese). A language picked in Settings stays, whatever the system locale says.
 - **appearance**: Leave empty to follow the desktop's light/dark setting, or set `light` or `dark`.
 
 Logs go to `~/.local/share/adguard-tray/adguard-tray.log` (auto-rotated, 5 MB max, 3 backups).
