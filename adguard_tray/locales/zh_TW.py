@@ -1120,4 +1120,50 @@ STRINGS: dict[str, str] = {
         "版本",
     "{} is not a settings export. Choose a file saved with Export under AdGuard settings.":
         "{} 不是設定匯出檔。請選擇在「AdGuard 設定」下使用「匯出…」儲存的檔案。",
+
+    # ── AdGuard VPN, outbound proxy, install ──────────────────────────
+    "Press Enter to close this window.":
+        "按 Enter 鍵關閉此視窗。",
+    "No terminal app was found. The install command is on the clipboard: paste it into a terminal.":
+        "找不到終端機應用程式。安裝命令已複製到剪貼簿，請將其貼到終端機中執行。",
+    "Finish the installation in the terminal, then press Refresh.":
+        "請在終端機中完成安裝，然後按下「重新整理」。",
+    "Open in a terminal":
+        "在終端機中開啟",
+    "AdGuard VPN":
+        "AdGuard VPN",
+    "AdGuard's VPN for Linux (adguardvpn-cli) runs next to AdGuard CLI. AdGuard Tray checks that their settings fit together; it does not connect the VPN or log in.":
+        "AdGuard 的 Linux 版 VPN（adguardvpn-cli）會與 AdGuard CLI 並行運作。AdGuard Tray 會檢查兩者的設定是否相容，但不會連線到 VPN，也不會登入。",
+    "Install…":
+        "安裝…",
+    "Outbound proxy":
+        "對外代理",
+    "AdGuard sends its own connections through this proxy, for example through AdGuard VPN in SOCKS5 mode.":
+        "AdGuard 會透過此代理傳送自身的連線，例如透過 SOCKS5 模式的 AdGuard VPN。",
+    "Use an outbound proxy":
+        "使用對外代理",
+    "Host":
+        "主機",
+    "Port":
+        "連接埠",
+    "Not installed.":
+        "未安裝。",
+    "AdGuard VPN is set to TUN mode while AdGuard filters in automatic mode. Connected like this, traffic loops between the two – AdGuard does not support this combination.":
+        "AdGuard VPN 已設為 TUN 模式，而 AdGuard 正以自動模式過濾。若在此狀態下連線，流量會在兩者之間形成迴圈 – AdGuard 不支援這種組合。",
+    "AdGuard VPN now uses SOCKS5 mode. Press Apply to send AdGuard's traffic through it, and reconnect AdGuard VPN if it is connected.":
+        "AdGuard VPN 現在使用 SOCKS5 模式。按下「套用」即可讓 AdGuard 的流量經由它傳送；若 AdGuard VPN 已連線，請重新連線。",
+    "AdGuard VPN CLI":
+        "AdGuard VPN CLI",
+    "Installed, but its settings could not be read: {}":
+        "已安裝，但無法讀取其設定：{}",
+    "Route AdGuard through the VPN":
+        "透過 VPN 轉送 AdGuard 流量",
+    "Could not switch AdGuard VPN to SOCKS5 mode.":
+        "無法將 AdGuard VPN 切換為 SOCKS5 模式。",
+    "Installed · SOCKS5 mode on {}:{}":
+        "已安裝 · SOCKS5 模式（{}:{}）",
+    "Installed · TUN mode":
+        "已安裝 · TUN 模式",
+    "Installed · {} mode":
+        "已安裝 · {} 模式",
 }

@@ -34,6 +34,7 @@ Taken in real Plasma, GNOME and Hyprland sessions running headless in containers
 - Update check for adguard-tray itself, with one-click install where the files belong to us
 - Install the HTTPS certificate into Chromium-based browsers (Brave, Chrome, ungoogled-chromium, Vivaldi, …) and Firefox-family profiles
 - HTTP/3 (QUIC) check: tells you when browsers can bypass filtering
+- Works next to AdGuard VPN CLI: warns when the two settings would loop and fixes it with one click; outbound proxy setting on the Network page
 - Guided settings for sites that refuse to load behind the proxy
 - `--version`, `--check-update` and `--update` flags
 
@@ -70,7 +71,7 @@ Alternative (Arch Linux AUR):
 paru -S adguard-cli-bin
 ```
 
-If adguard-cli is not found at startup, the app shows a helpful dialog with install instructions and a copy-to-clipboard button.
+If adguard-cli is not found at startup, the app shows a dialog with the install command: it can open it in a terminal (the AUR helper on Arch, AdGuard's script elsewhere) or copy it. The app never runs the install as root itself — AdGuard's script asks questions and calls `sudo` on its own, so it belongs in a terminal where you see it.
 
 ---
 
@@ -326,6 +327,29 @@ echo '{ "QuicAllowed": false }' | sudo tee /etc/brave/policies/managed/quic.json
 
 Blocking UDP 443 in the firewall also works, but it breaks DNS-over-QUIC,
 WireGuard on port 443 and some video calls — so the app does not do it for you.
+
+## AdGuard VPN
+
+[AdGuard VPN CLI](https://github.com/AdguardTeam/AdGuardVPNCLI) and adguard-cli can run at the
+same time. AdGuard Tray does not control the VPN — it does not connect, disconnect or log in —
+but the **Network** page shows whether `adguardvpn-cli` is installed and in which mode, and
+checks that the two fit together.
+
+One combination does not work, and AdGuard says so itself
+([AdGuard CLI and AdGuard VPN CLI](https://adguard.com/kb/adguard-for-linux/vpn-cli-interaction/)):
+the VPN in **TUN** mode while adguard-cli filters in **automatic** mode. Traffic then loops between
+the two. A fresh VPN install starts in TUN mode, so the Network page warns as soon as both are set
+up like that, and **Route AdGuard through the VPN** applies AdGuard's recommended setup:
+
+1. `adguardvpn-cli config set-mode socks` — the VPN offers a SOCKS5 proxy (default `127.0.0.1:1080`) instead of a tunnel
+2. adguard-cli's outbound proxy points at that address (`outbound_proxy` in `proxy.yaml`, also editable on the Network page)
+3. the app rule `*vpn*` with *Skip outbound proxy* stays in place (adguard-cli ships it; it is added if missing), so the VPN's own traffic does not go back into itself
+
+Press **Apply** afterwards, and reconnect the VPN if it was connected. The other way out is
+adguard-cli in manual mode with the VPN in TUN mode; then only apps set to use AdGuard's proxy are
+filtered.
+
+If `adguardvpn-cli` is not installed, **Install…** opens a terminal with AdGuard's install command.
 
 ## Light and dark mode
 

@@ -105,7 +105,7 @@ def _run(args: list[str], timeout: int = 15, stdin_data: str | None = None) -> t
     try:
         r = subprocess.run(
             args, capture_output=True, timeout=timeout,
-            input=stdin_data.encode("utf-8") if stdin_data else None,
+            input=stdin_data.encode("utf-8") if stdin_data is not None else None,
         )
         # Decode explicitly so a C-locale runtime (systemd unit, cron) doesn't
         # crash on filter titles with umlauts or CJK.

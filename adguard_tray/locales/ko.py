@@ -1120,4 +1120,50 @@ STRINGS: dict[str, str] = {
         "버전",
     "{} is not a settings export. Choose a file saved with Export under AdGuard settings.":
         "{} 파일은 내보낸 설정 파일이 아닙니다. “AdGuard 설정”의 “내보내기”로 저장한 파일을 선택하세요.",
+
+    # ── AdGuard VPN, outbound proxy, install ──────────────────────────
+    "Press Enter to close this window.":
+        "이 창을 닫으려면 Enter 키를 누르세요.",
+    "No terminal app was found. The install command is on the clipboard: paste it into a terminal.":
+        "터미널 앱을 찾을 수 없습니다. 설치 명령이 클립보드에 복사되어 있으니 터미널에 붙여 넣으세요.",
+    "Finish the installation in the terminal, then press Refresh.":
+        "터미널에서 설치를 마친 다음 “새로고침”을 누르세요.",
+    "Open in a terminal":
+        "터미널에서 열기",
+    "AdGuard VPN":
+        "AdGuard VPN",
+    "AdGuard's VPN for Linux (adguardvpn-cli) runs next to AdGuard CLI. AdGuard Tray checks that their settings fit together; it does not connect the VPN or log in.":
+        "AdGuard의 Linux용 VPN(adguardvpn-cli)은 AdGuard CLI와 함께 실행됩니다. AdGuard Tray는 두 프로그램의 설정이 서로 맞는지 확인할 뿐, VPN에 연결하거나 로그인하지는 않습니다.",
+    "Install…":
+        "설치…",
+    "Outbound proxy":
+        "아웃바운드 프록시",
+    "AdGuard sends its own connections through this proxy, for example through AdGuard VPN in SOCKS5 mode.":
+        "AdGuard가 자체 연결을 이 프록시로 보냅니다(예: SOCKS5 모드의 AdGuard VPN).",
+    "Use an outbound proxy":
+        "아웃바운드 프록시 사용",
+    "Host":
+        "호스트",
+    "Port":
+        "포트",
+    "Not installed.":
+        "설치되지 않았습니다.",
+    "AdGuard VPN is set to TUN mode while AdGuard filters in automatic mode. Connected like this, traffic loops between the two – AdGuard does not support this combination.":
+        "AdGuard가 자동 모드로 필터링하는 동안 AdGuard VPN이 TUN 모드로 설정되어 있습니다. 이 상태로 연결하면 둘 사이에 트래픽 루프가 발생합니다 – AdGuard는 이 조합을 지원하지 않습니다.",
+    "AdGuard VPN now uses SOCKS5 mode. Press Apply to send AdGuard's traffic through it, and reconnect AdGuard VPN if it is connected.":
+        "이제 AdGuard VPN이 SOCKS5 모드를 사용합니다. AdGuard의 트래픽이 AdGuard VPN을 거치도록 하려면 “적용”을 누르고, AdGuard VPN이 연결되어 있다면 다시 연결하세요.",
+    "AdGuard VPN CLI":
+        "AdGuard VPN CLI",
+    "Installed, but its settings could not be read: {}":
+        "설치되었지만 설정을 읽을 수 없음: {}",
+    "Route AdGuard through the VPN":
+        "AdGuard를 VPN으로 라우팅",
+    "Could not switch AdGuard VPN to SOCKS5 mode.":
+        "AdGuard VPN을 SOCKS5 모드로 전환하지 못했습니다.",
+    "Installed · SOCKS5 mode on {}:{}":
+        "설치됨 · SOCKS5 모드({}:{})",
+    "Installed · TUN mode":
+        "설치됨 · TUN 모드",
+    "Installed · {} mode":
+        "설치됨 · {} 모드",
 }

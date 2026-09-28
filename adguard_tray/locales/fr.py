@@ -1120,4 +1120,50 @@ STRINGS: dict[str, str] = {
         "Version",
     "{} is not a settings export. Choose a file saved with Export under AdGuard settings.":
         "{} n’est pas un export de paramètres. Choisissez un fichier enregistré avec « Exporter » sous « Paramètres d’AdGuard ».",
+
+    # ── AdGuard VPN, outbound proxy, install ──────────────────────────
+    "Press Enter to close this window.":
+        "Appuyez sur Entrée pour fermer cette fenêtre.",
+    "No terminal app was found. The install command is on the clipboard: paste it into a terminal.":
+        "Aucune application de terminal trouvée. La commande d’installation a été copiée dans le presse-papiers : collez-la dans un terminal.",
+    "Finish the installation in the terminal, then press Refresh.":
+        "Terminez l’installation dans le terminal, puis cliquez sur « Actualiser ».",
+    "Open in a terminal":
+        "Ouvrir dans un terminal",
+    "AdGuard VPN":
+        "AdGuard VPN",
+    "AdGuard's VPN for Linux (adguardvpn-cli) runs next to AdGuard CLI. AdGuard Tray checks that their settings fit together; it does not connect the VPN or log in.":
+        "Le VPN d’AdGuard pour Linux (adguardvpn-cli) fonctionne en parallèle d’AdGuard CLI. AdGuard Tray vérifie que leurs paramètres sont compatibles ; il n’établit pas la connexion VPN et ne vous connecte pas à votre compte.",
+    "Install…":
+        "Installer…",
+    "Outbound proxy":
+        "Proxy sortant",
+    "AdGuard sends its own connections through this proxy, for example through AdGuard VPN in SOCKS5 mode.":
+        "AdGuard fait passer ses propres connexions par ce proxy, par exemple via AdGuard VPN en mode SOCKS5.",
+    "Use an outbound proxy":
+        "Utiliser un proxy sortant",
+    "Host":
+        "Hôte",
+    "Port":
+        "Port",
+    "Not installed.":
+        "Non installé.",
+    "AdGuard VPN is set to TUN mode while AdGuard filters in automatic mode. Connected like this, traffic loops between the two – AdGuard does not support this combination.":
+        "AdGuard VPN est en mode TUN alors qu’AdGuard filtre en mode automatique. Si le VPN est connecté ainsi, le trafic tourne en boucle entre les deux – AdGuard ne prend pas en charge cette combinaison.",
+    "AdGuard VPN now uses SOCKS5 mode. Press Apply to send AdGuard's traffic through it, and reconnect AdGuard VPN if it is connected.":
+        "AdGuard VPN utilise désormais le mode SOCKS5. Cliquez sur « Appliquer » pour y faire passer le trafic d’AdGuard, et reconnectez AdGuard VPN s’il est connecté.",
+    "AdGuard VPN CLI":
+        "AdGuard VPN CLI",
+    "Installed, but its settings could not be read: {}":
+        "Installé, mais impossible de lire ses paramètres : {}",
+    "Route AdGuard through the VPN":
+        "Faire passer AdGuard par le VPN",
+    "Could not switch AdGuard VPN to SOCKS5 mode.":
+        "Impossible de passer AdGuard VPN en mode SOCKS5.",
+    "Installed · SOCKS5 mode on {}:{}":
+        "Installé · mode SOCKS5 sur {}:{}",
+    "Installed · TUN mode":
+        "Installé · mode TUN",
+    "Installed · {} mode":
+        "Installé · mode {}",
 }

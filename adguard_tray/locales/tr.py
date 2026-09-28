@@ -1120,4 +1120,50 @@ STRINGS: dict[str, str] = {
         "Sürüm",
     "{} is not a settings export. Choose a file saved with Export under AdGuard settings.":
         "Bu bir ayar dışa aktarım dosyası değil: {}. “AdGuard ayarları” bölümündeki “Dışa aktar…” düğmesiyle kaydedilmiş bir dosya seçin.",
+
+    # ── AdGuard VPN, outbound proxy, install ──────────────────────────
+    "Press Enter to close this window.":
+        "Bu pencereyi kapatmak için Enter tuşuna basın.",
+    "No terminal app was found. The install command is on the clipboard: paste it into a terminal.":
+        "Terminal uygulaması bulunamadı. Kurulum komutu panoya kopyalandı: bir terminale yapıştırın.",
+    "Finish the installation in the terminal, then press Refresh.":
+        "Kurulumu terminalde tamamlayın, ardından “Yenile” düğmesine basın.",
+    "Open in a terminal":
+        "Terminalde aç",
+    "AdGuard VPN":
+        "AdGuard VPN",
+    "AdGuard's VPN for Linux (adguardvpn-cli) runs next to AdGuard CLI. AdGuard Tray checks that their settings fit together; it does not connect the VPN or log in.":
+        "AdGuard'ın Linux için VPN uygulaması (adguardvpn-cli), AdGuard CLI ile yan yana çalışır. AdGuard Tray, ikisinin ayarlarının uyumlu olup olmadığını denetler; VPN bağlantısı kurmaz ve oturum açmaz.",
+    "Install…":
+        "Kur…",
+    "Outbound proxy":
+        "Giden proxy",
+    "AdGuard sends its own connections through this proxy, for example through AdGuard VPN in SOCKS5 mode.":
+        "AdGuard kendi bağlantılarını bu proxy üzerinden gönderir; örneğin SOCKS5 modundaki AdGuard VPN üzerinden.",
+    "Use an outbound proxy":
+        "Giden proxy kullan",
+    "Host":
+        "Ana makine",
+    "Port":
+        "Port",
+    "Not installed.":
+        "Kurulu değil.",
+    "AdGuard VPN is set to TUN mode while AdGuard filters in automatic mode. Connected like this, traffic loops between the two – AdGuard does not support this combination.":
+        "AdGuard VPN TUN moduna ayarlı, AdGuard ise otomatik modda filtreliyor. Bu şekilde bağlanıldığında trafik ikisi arasında döngüye girer – AdGuard bu birleşimi desteklemez.",
+    "AdGuard VPN now uses SOCKS5 mode. Press Apply to send AdGuard's traffic through it, and reconnect AdGuard VPN if it is connected.":
+        "AdGuard VPN artık SOCKS5 modunu kullanıyor. AdGuard'ın trafiğini VPN üzerinden göndermek için “Uygula” düğmesine basın; AdGuard VPN bağlıysa bağlantıyı yeniden kurun.",
+    "AdGuard VPN CLI":
+        "AdGuard VPN CLI",
+    "Installed, but its settings could not be read: {}":
+        "Kurulu, ancak ayarları okunamadı: {}",
+    "Route AdGuard through the VPN":
+        "AdGuard'ı VPN üzerinden yönlendir",
+    "Could not switch AdGuard VPN to SOCKS5 mode.":
+        "AdGuard VPN SOCKS5 moduna geçirilemedi.",
+    "Installed · SOCKS5 mode on {}:{}":
+        "Kurulu · {}:{} üzerinde SOCKS5 modu",
+    "Installed · TUN mode":
+        "Kurulu · TUN modu",
+    "Installed · {} mode":
+        "Kurulu · {} modu",
 }

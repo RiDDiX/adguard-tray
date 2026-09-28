@@ -12,7 +12,7 @@ import logging
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
-from . import icons, ui
+from . import icons, installer, ui
 from .cli import AdGuardStatus, StatusResult, mask_license
 from .i18n import _t
 from .manager_window import (
@@ -182,6 +182,8 @@ class OverviewTab(Page):
         self.btn_path = ui.LinkButton(_t("Set the path in Settings"),
                                       lambda: self.ctx.navigate(PAGE_SETTINGS))
         actions.addWidget(self.btn_path)
+        self.btn_install = ui.LinkButton(_t("Install…"), lambda: installer.start_install(self, "adguard-cli"))
+        actions.addWidget(self.btn_install)
         self.spinner = ui.Spinner()
         actions.addWidget(self.spinner)
         self.lbl_busy = ui.Caption(_t("Waiting for authorization…"))
@@ -381,6 +383,7 @@ class OverviewTab(Page):
         self.btn_primary.setVisible(status not in (None, AdGuardStatus.NOT_INSTALLED))
         self.btn_restart.setVisible(active)
         self.btn_path.setVisible(status == AdGuardStatus.NOT_INSTALLED)
+        self.btn_install.setVisible(status == AdGuardStatus.NOT_INSTALLED)
         self._set_busy()
 
     def _set_busy(self) -> None:

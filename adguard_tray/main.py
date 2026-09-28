@@ -19,6 +19,7 @@ from pathlib import Path
 from PyQt6.QtCore import QLockFile, QTimer
 from PyQt6.QtWidgets import QApplication, QMessageBox, QPushButton, QSystemTrayIcon
 
+from . import installer
 from .cli import AdGuardCLI
 from .config import load_config
 from .i18n import _t
@@ -255,8 +256,10 @@ def _dependency_doctor(cli: AdGuardCLI) -> None:
         "  paru -S adguard-cli-bin\n\n"
         "Tray loads, but start/stop won't work until adguard-cli is installed."
     ))
+    btn_terminal = QPushButton(_t("Open in a terminal"))
     btn_copy = QPushButton(_t("Copy install command"))
     btn_continue = QPushButton(_t("Continue"))
+    msg.addButton(btn_terminal, QMessageBox.ButtonRole.ActionRole)
     msg.addButton(btn_copy, QMessageBox.ButtonRole.ActionRole)
     msg.addButton(btn_continue, QMessageBox.ButtonRole.AcceptRole)
     msg.setDefaultButton(btn_continue)
@@ -266,7 +269,9 @@ def _dependency_doctor(cli: AdGuardCLI) -> None:
 
     def _clicked(btn) -> None:
         global _doctor_box
-        if btn is btn_copy:
+        # No terminal found: the command still has to reach the user.
+        opened = btn is btn_terminal and installer.open_in_terminal(installer.install_command("adguard-cli"))
+        if btn is btn_copy or (btn is btn_terminal and not opened):
             clipboard = QApplication.clipboard()
             if clipboard:
                 clipboard.setText(_INSTALL_CMD)
