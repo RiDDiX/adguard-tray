@@ -6,6 +6,15 @@ Works on Wayland and X11. Written in Python + PyQt6.
 
 The UI language is detected automatically from the system locale (override in Settings). English is the default; German, Spanish, French, Italian, Japanese, Korean, Dutch, Polish, Brazilian Portuguese, Russian, Turkish, Ukrainian and Chinese (Simplified and Traditional) are included. The translations other than German and Simplified Chinese are recent and not yet reviewed by native speakers; corrections are welcome. Light and dark mode follow the desktop's setting while the app runs (override in Settings → Appearance).
 
+## Screenshots
+
+| KDE Plasma 6.7 | GNOME 50, dark | Hyprland 0.56, dark |
+|:---:|:---:|:---:|
+| ![Overview page on KDE Plasma, the shield in the panel's system tray](docs/screenshots/kde-overview.png) | ![Overview page on GNOME, the shield in the top bar](docs/screenshots/gnome-overview.png) | ![Overview page on Hyprland, the shield in waybar's tray](docs/screenshots/hyprland-overview.png) |
+| ![Filters page on KDE Plasma](docs/screenshots/kde-filters.png) | ![Activity page on GNOME](docs/screenshots/gnome-activity.png) | ![Exceptions page on Hyprland](docs/screenshots/hyprland-exceptions.png) |
+
+Taken in real Plasma, GNOME and Hyprland sessions running headless in containers. The numbers are demo data, not real traffic. The app picked light or dark from each desktop by itself.
+
 ---
 
 ## What it does
@@ -334,9 +343,11 @@ If your session sets no preference or runs no portal, choose Light or Dark in
 Settings → Appearance.
 
 Checked on Qt 6.4 and 6.11 against a fake portal, with Qt's GTK, GNOME, portal
-and generic platform themes, and with KDE Plasma 6 (plasma-integration and the
-real portal) in a container. Not yet on a real GNOME or Hyprland desktop —
-reports welcome.
+and generic platform themes, and in KDE Plasma 6.7, GNOME 50 and Hyprland 0.56
+sessions running headless in containers with their real portals
+(xdg-desktop-portal-kde, -gnome, and -gtk on Hyprland). On GNOME and Hyprland
+the app switched to dark by itself when the desktop asked for it. A normal
+login on real hardware is still untested — reports welcome.
 
 ## Config
 
