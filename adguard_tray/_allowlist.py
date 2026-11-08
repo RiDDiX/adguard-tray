@@ -2,7 +2,6 @@
 Shared allowlist logic for website exceptions.
 
 Manages @@||domain^$important,document rules in AdGuard CLI's user.txt file.
-Used by both the standalone ExceptionsDialog and the ExceptionsTab in the Manager window.
 """
 
 import logging
@@ -10,6 +9,7 @@ import os
 import re
 import tempfile
 from pathlib import Path
+from urllib.parse import urlsplit
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +55,41 @@ def is_valid_domain(text: str) -> bool:
     return len(text) <= 253 and bool(_DOMAIN_RE.match(text))
 
 
+def _public_suffix(domain: str) -> bool:
+    """A two-part suffix such as gov.uk or co.jp: allowing it would allow
+    every site under it, so "www.gov.uk" keeps its www. (no suffix list in
+    the stdlib; this covers the common second-level ones)."""
+    first, _, tld = domain.partition(".")
+    return "." not in tld and len(tld) == 2 and first in {
+        "co", "com", "gov", "ac", "org", "net", "edu", "or", "ne", "go", "gob", "nic"}
+
+
+def normalize_host(raw: str, strip_www: bool = True) -> str | None:
+    """The host an allowlist rule is written for, or None if *raw* holds no
+    valid domain or IPv4 address.
+
+    A pasted link counts as its host; the result is lower case, punycode for
+    an IDN, without a trailing dot. "www.test.de" becomes "test.de", which
+    covers www. and the site's other subdomains – what people mean when they
+    allow a website.
+    """
+    raw = raw.strip()
+    try:
+        parts = urlsplit(raw if "://" in raw else "//" + raw)
+        _ = parts.port  # raises for a bare IPv6 address or a bad port
+        name = (parts.hostname or "").rstrip(".")
+        host = name.encode("idna").decode("ascii")
+        # IDNA 2003 maps ß to ss and drops joiners: a different domain than
+        # the one browsers visit, so refuse what does not round-trip.
+        if not name.isascii() and host.encode("ascii").decode("idna") != name:
+            return None
+    except ValueError:  # UnicodeError too: an empty or over-long label
+        return None
+    if strip_www and host.startswith("www.") and "." in host[4:] and not _public_suffix(host[4:]):
+        host = host[4:]
+    return host if is_valid_domain(host) else None
+
+
 def domain_to_rule(domain: str) -> str:
     return f"@@||{domain}^$important,document"
 
@@ -66,7 +101,8 @@ def add_rule_line(rule: str) -> tuple[bool, str]:
     plain blocking rule has to be appended separately.
     """
     try:
-        existing = USER_RULES_FILE.read_text(encoding="utf-8") if USER_RULES_FILE.exists() else ""
+        # utf-8-sig: an editor's BOM would otherwise hide the first rule.
+        existing = USER_RULES_FILE.read_text(encoding="utf-8-sig") if USER_RULES_FILE.exists() else ""
     except (OSError, ValueError) as exc:
         logger.warning("Could not read user rules: %s", exc)
         return False, str(exc)
@@ -94,10 +130,10 @@ def load_user_rules() -> tuple[list[str], list[str]]:
     other_lines: list[str] = []
     if not USER_RULES_FILE.exists():
         return domains, other_lines
-    for line in USER_RULES_FILE.read_text(encoding="utf-8").splitlines():
+    for line in USER_RULES_FILE.read_text(encoding="utf-8-sig").splitlines():
         m = ALLOWLIST_RE.match(line)
         if m:
-            domains.append(m.group(1))
+            domains.append(m.group(1).lower())  # domains match case-insensitively
         else:
             other_lines.append(line)
     return domains, other_lines

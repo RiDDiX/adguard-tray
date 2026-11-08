@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 
 from . import ui
 from .cli import UserscriptEntry, UserscriptListResult
+from .filters_tab import _URL_RE
 from .i18n import _t
 from .manager_window import PAGE_ABOUT
 from .worker import safe_call, safe_result
@@ -87,7 +88,7 @@ class _UrlDialog(QDialog):
 
     def _check(self, *_args) -> None:
         url = self.url().lower()
-        valid = url.startswith(_SCHEMES) and not url.endswith("://")
+        valid = bool(_URL_RE.match(url))
         self.ok.setEnabled(valid)
         # No warning while the scheme is still being typed.
         self.hint.setVisible(bool(url) and not valid and not any(s.startswith(url) for s in _SCHEMES))
@@ -100,10 +101,15 @@ class UserscriptsTab(ui.Page):
         self.cli = ctx.cli
         self._workers: list[QThread] = []
         self._script_map: dict[str, UserscriptEntry] = {}
-        self._busy = False
+        self._busy_n = 0            # running jobs: a load can overlap a change
+        self._acting = False        # a CLI change is running
         self._again = False
 
         self._build_ui()        # the shell's on_shown() does the first load
+
+    @property
+    def _busy(self) -> bool:
+        return self._busy_n > 0
 
     def _build_ui(self) -> None:
         bar = QHBoxLayout()
@@ -233,6 +239,7 @@ class UserscriptsTab(ui.Page):
         if not name:
             return
         enable = item.checkState(0) == Qt.CheckState.Checked
+        self._acting = True
         self._set_busy(True)
         try:
             self.tree.itemChanged.disconnect(self._on_item_changed)
@@ -243,6 +250,7 @@ class UserscriptsTab(ui.Page):
         self._start(w)
 
     def _on_toggle_done(self, ok: bool, msg: str, name: str, new_enabled: bool) -> None:
+        self._acting = False
         self._set_busy(False)
         if ok:
             self.banner.show_message(self.ctx.restart_adguard(), "success", timeout_ms=5000)
@@ -267,8 +275,10 @@ class UserscriptsTab(ui.Page):
         accepted = dlg.exec() == QDialog.DialogCode.Accepted
         url = dlg.url()
         dlg.deleteLater()
-        if not accepted:
+        # A change may have started while the dialog was open.
+        if not accepted or self._acting:
             return
+        self._acting = True
         self._set_busy(True)
         self.banner.show_message(_t("Installing: {}", url), "info")
         w = _InstallWorker(self.cli, url)
@@ -276,6 +286,7 @@ class UserscriptsTab(ui.Page):
         self._start(w)
 
     def _on_install_done(self, ok: bool, msg: str) -> None:
+        self._acting = False
         self._set_busy(False)
         if ok:
             self.banner.show_message(f"{_t('Userscript installed.')} {self.ctx.restart_adguard()}",
@@ -308,14 +319,16 @@ class UserscriptsTab(ui.Page):
         display = s.title if s else name
         body = (_t("Remove “{}”?", display) + "\n\n"
                 + _t("To keep it but stop using it, switch it off instead."))
-        if not ui.confirm(self, _t("Remove userscript"), body, _t("Remove")):
+        if not ui.confirm(self, _t("Remove userscript"), body, _t("Remove")) or self._acting:
             return
+        self._acting = True
         self._set_busy(True)
         w = _RemoveWorker(self.cli, name)
         w.done.connect(self._on_remove_done)
         self._start(w)
 
     def _on_remove_done(self, ok: bool, msg: str, name: str) -> None:
+        self._acting = False
         self._set_busy(False)
         if ok:
             s = self._script_map.get(name)
@@ -353,7 +366,8 @@ class UserscriptsTab(ui.Page):
             self._load()
 
     def _set_busy(self, busy: bool) -> None:
-        self._busy = busy
+        self._busy_n += 1 if busy else -1
+        busy = self._busy
         self.btn_add.setEnabled(not busy)
         self.tree.setEnabled(not busy)
         self.spinner.set_busy(busy)

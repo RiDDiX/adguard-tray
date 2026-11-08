@@ -46,14 +46,16 @@ _EXTRA_CERT_DIRS = (
 # certutil ships with adguard-cli, so the `nss` package is only a fallback.
 _BUNDLED_CERTUTIL = "/opt/adguard-cli/certutil"
 
-# Chromium-family databases. The first two are created when missing – that is
-# what makes a browser that never had a client certificate work.
+# Chromium-family databases. Chromium ≥ M146 defaults to the second one but
+# switches back to the first as soon as it exists, so creating the legacy one
+# would hide every certificate the user already has in the new one.
 _CHROMIUM_DBS = (
-    (HOME / ".pki" / "nssdb", True),
-    (HOME / ".local" / "share" / "pki" / "nssdb", True),  # Chromium ≥ M146
+    HOME / ".pki" / "nssdb",
+    HOME / ".local" / "share" / "pki" / "nssdb",  # Chromium ≥ M146
 )
 _CHROMIUM_GLOBS = (
     str(HOME / "snap" / "*" / "current" / ".pki" / "nssdb"),
+    str(HOME / "snap" / "*" / "current" / ".local" / "share" / "pki" / "nssdb"),
     str(HOME / ".var" / "app" / "*" / ".pki" / "nssdb"),        # Flatpak
     str(HOME / ".var" / "app" / "*" / "data" / "pki" / "nssdb"),
 )
@@ -192,10 +194,12 @@ def _browser_label(ini: Path) -> str:
 
 def nss_targets() -> list[CertTarget]:
     """Every NSS database we can import into, browser-family agnostic."""
+    # Only the existing ones; with neither, create the legacy one: every
+    # Chromium version reads it, and with no new one nothing gets hidden.
     targets = [
         CertTarget(_t("Chromium-based browsers"), path, create=True)
-        for path, _ in _CHROMIUM_DBS
-    ]
+        for path in _CHROMIUM_DBS if path.is_dir()
+    ] or [CertTarget(_t("Chromium-based browsers"), _CHROMIUM_DBS[0], create=True)]
     for pattern in _CHROMIUM_GLOBS:
         for found in sorted(glob.glob(pattern)):
             path = Path(found)
@@ -212,14 +216,22 @@ def nss_targets() -> list[CertTarget]:
     return targets
 
 
-def _nickname_count(certutil: str, db: Path, nickname: str) -> int:
-    """How often *nickname* is in the database (-L -n exits 0 even if absent)."""
+def _nicknames(certutil: str, db: Path) -> list[str]:
+    """Every nickname in the database, one entry per certificate."""
     proc = subprocess.run(
         [certutil, "-d", f"sql:{db}", "-L"],
         capture_output=True, timeout=30, check=False,
     )
     out = proc.stdout.decode("utf-8", errors="replace")
-    return sum(1 for line in out.splitlines() if line.startswith(nickname))
+    # Rows are "<nickname padded> <trust flags>"; a prefix match would also
+    # count "AdGuard Personal CA 2" and block the import for good.
+    rows = (line.rsplit(None, 1) for line in out.splitlines())
+    return [row[0] for row in rows if len(row) == 2]
+
+
+def _nickname_count(certutil: str, db: Path, nickname: str) -> int:
+    """How often *nickname* is in the database (-L -n exits 0 even if absent)."""
+    return _nicknames(certutil, db).count(nickname)
 
 
 def _has_fingerprint(certutil: str, db: Path, fingerprint: str) -> bool:
@@ -231,11 +243,9 @@ def _has_fingerprint(certutil: str, db: Path, fingerprint: str) -> bool:
     """
     if not fingerprint:
         return False
-    proc = subprocess.run(
-        [certutil, "-d", f"sql:{db}", "-L", "-a"],
-        capture_output=True, timeout=30, check=False,
-    )
-    return fingerprint in _fingerprints(proc.stdout)
+    # -L -a refuses to run without -n, so export each nickname on its own.
+    return any(fingerprint in _fingerprints(_export_cert(certutil, db, name))
+               for name in set(_nicknames(certutil, db)))
 
 
 def _fingerprints(pem_bundle: bytes) -> set[str]:

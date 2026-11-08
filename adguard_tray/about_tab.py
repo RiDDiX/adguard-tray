@@ -13,7 +13,7 @@ from .cli import AdGuardStatus, mask_license
 from .i18n import _t
 from .ui import Caption, LinkButton, Page, Row, Spinner, ToneLabel, confirm, ignore_idle_wheel, one_line
 from .updates import REPO, Install, update_command
-from .worker import safe_call
+from .worker import FnWorker
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,7 @@ def _license_word(text: str) -> str:
         "active": _t("Active"),
         "personal": _t("Personal"),
         "trial": _t("Trial"),
+        "expired": _t("Expired"),
     }.get(text.lower(), text)
 
 
@@ -65,17 +66,6 @@ def _value(text: str) -> ToneLabel:
     label.setAccessibleName(text)
     label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
     return label
-
-
-class _Worker(QThread):
-    done = pyqtSignal(bool, str)
-
-    def __init__(self, fn):
-        super().__init__()
-        self._fn = fn
-
-    def run(self):
-        self.done.emit(*safe_call(self._fn))
 
 
 class _AppUpdateWorker(QThread):
@@ -317,7 +307,7 @@ class AboutTab(Page):
                 self.ctx.on_status_change()
             self.refresh()
 
-        self._start(_Worker(fn), finished)
+        self._start(FnWorker(fn), finished)
 
     def _report(self, ok: bool, success: str, failure: str, output: str = "") -> None:
         if ok:

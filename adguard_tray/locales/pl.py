@@ -3,7 +3,6 @@
 STRINGS: dict[str, str] = {
     # ── General ─────────────────────────────────────────────────────
     "Language":                          "Język",
-    "English":                           "Angielski",
 
     # ── tray.py – status labels ───────────────────────────────────────────
     "Active – Protection running":          "Aktywny – ochrona działa",
@@ -357,6 +356,8 @@ STRINGS: dict[str, str] = {
     "AdGuard stopped (forced)":         "Wymuszono zatrzymanie AdGuard",
     "Could not stop AdGuard – process may still be running":
         "Nie udało się zatrzymać AdGuard – proces może nadal działać",
+    "Another action is still running":
+        "Inne działanie jest jeszcze w toku",
 
     # ── main.py ───────────────────────────────────────────────────────────
     "adguard-cli could not be found on this system.\n\n"

@@ -6,7 +6,6 @@ proxy.yaml's `apps` list and go through the window's Apply bar.
 
 import copy
 import logging
-from urllib.parse import urlsplit
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QKeySequence, QPalette, QShortcut
@@ -29,9 +28,9 @@ from PyQt6.QtWidgets import (
 )
 
 from . import theme, ui
-from ._allowlist import is_valid_domain, load_user_rules, save_user_rules
+from ._allowlist import load_user_rules, normalize_host, save_user_rules
 from .i18n import _t
-from .proxy_settings import guard
+from .proxy_settings import get, guard
 
 logger = logging.getLogger(__name__)
 
@@ -153,18 +152,9 @@ class ExceptionsTab(ui.Page):
         raw = self.input_domain.text().strip()
         if not raw or self._other_lines is None:
             return
-        # A pasted link counts as its host.
-        try:
-            host = urlsplit(raw if "://" in raw else "//" + raw).hostname or ""
-        except ValueError:
-            host = ""
-        host = host.rstrip(".")
-        # "www.test.de" is saved as "test.de", which covers www. and the site's
-        # other subdomains – what people mean when they allow a website.
-        if host.startswith("www.") and "." in host[4:] and not _public_suffix(host[4:]):
-            host = host[4:]
-        if not is_valid_domain(host):
-            self.banner.show_message(_t("'{}' is not a valid domain or IP address.", host or raw),
+        host = normalize_host(raw)
+        if host is None:
+            self.banner.show_message(_t("'{}' is not a valid domain or IP address.", raw),
                                      "warning")
             return
         if host in self._loaded_domains:
@@ -383,7 +373,7 @@ class ExceptionsTab(ui.Page):
             t.setCellWidget(row, 1, self._centered(combo, Qt.AlignmentFlag.AlignLeft))
 
             switch = ui.Switch()
-            switch.setChecked(bool(entry.get("skip_outbound_proxy", False)))
+            switch.setChecked(get(entry, "skip_outbound_proxy", default=False))
             switch.setAccessibleName(_t("Skip outbound proxy"))
             switch.setToolTip(_t("Don't route this app's traffic through outbound proxy"))
             switch.setProperty("app_index", index)
@@ -518,15 +508,6 @@ class ExceptionsTab(ui.Page):
         self.btn_app_remove.setEnabled(selected)
         self.btn_app_up.setEnabled(selected and row > 0)
         self.btn_app_down.setEnabled(selected and row < self.app_table.rowCount() - 1)
-
-
-def _public_suffix(domain: str) -> bool:
-    """A two-part suffix such as gov.uk or co.jp: allowing it would allow
-    every site under it, so "www.gov.uk" keeps its www. (no suffix list in
-    the stdlib; this covers the common second-level ones)."""
-    first, _, tld = domain.partition(".")
-    return "." not in tld and len(tld) == 2 and first in {
-        "co", "com", "gov", "ac", "org", "net", "edu", "or", "ne", "go", "gob", "nic"}
 
 
 class _AppRuleDialog(QDialog):

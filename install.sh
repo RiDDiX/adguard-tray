@@ -24,7 +24,7 @@ if [[ "${1:-}" == "--uninstall" ]]; then
     rm -rf "${LIB_DIR}"
     rm -f "${BIN_DIR}/adguard-tray"
     rm -f "${DESKTOP_DIR}/adguard-tray.desktop"
-    rm -f "${HOME}/.config/autostart/adguard-tray.desktop"
+    rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/adguard-tray.desktop"
     update-desktop-database "${DESKTOP_DIR}" 2>/dev/null || true
     info "removed application, launcher, desktop entry and autostart"
     info "kept: ~/.config/adguard-tray (settings), ~/.local/share/adguard-tray (logs)"

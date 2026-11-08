@@ -13,6 +13,7 @@ from . import ui
 from .i18n import _t
 from .proxy_settings import add_switch, gate, guard
 from .ui import Caption, Page, Row, Spinner, ToneLabel
+from .worker import FnWorker
 
 logger = logging.getLogger(__name__)
 
@@ -40,21 +41,6 @@ def _clear(layout) -> None:
         if widget is not None:
             widget.setParent(None)      # gone now, not at the next event loop pass
             widget.deleteLater()
-
-
-class _Worker(QThread):
-    done = pyqtSignal(bool, str)
-
-    def __init__(self, fn):
-        super().__init__()
-        self._fn = fn
-
-    def run(self):
-        try:
-            ok, msg = self._fn()
-        except Exception as exc:
-            ok, msg = False, str(exc)
-        self.done.emit(ok, msg)
 
 
 class _CertWorker(QThread):
@@ -226,7 +212,7 @@ class HttpsTab(Page):
             return
         profile = self.edit_profile.text().strip()
         self._set_cert_busy(True, self.spin_cert)
-        w = _Worker(lambda: self.ctx.cli.generate_cert(firefox_profile=profile))
+        w = FnWorker(lambda: self.ctx.cli.generate_cert(firefox_profile=profile))
         w.done.connect(self._on_cert_created)
         self._start(w)
 

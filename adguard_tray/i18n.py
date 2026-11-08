@@ -62,11 +62,14 @@ def _detect_language() -> str:
     except Exception:
         pass
 
-    # Fall back to system locale. LANGUAGE may list several ("de_DE:en"):
-    # the first one we have wins.
-    for var in ("LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"):
-        tags = [_normalize(t) for t in os.environ.get(var, "").split(":")]
-        tags = [t for t in tags if t and t not in ("c", "posix")]
+    # Fall back to system locale: LC_ALL, then LC_MESSAGES, then LANG. Like gettext,
+    # LANGUAGE is ignored under the C locale; otherwise it wins and may list several
+    # ("de_DE:en"): the first one we have is used.
+    loc = next((v for v in map(os.environ.get, ("LC_ALL", "LC_MESSAGES", "LANG")) if v), "")
+    if _normalize(loc) in ("c", "posix"):
+        return "en"
+    for value in (os.environ.get("LANGUAGE", ""), loc):
+        tags = [t for t in map(_normalize, value.split(":")) if t and t not in ("c", "posix")]
         if tags:
             return next((t for t in tags if t in LANGUAGES), "en")
     try:
@@ -95,5 +98,8 @@ def _t(key: str, *args: object) -> str:
     """Return the translated string, optionally formatted with *args*."""
     text = _CURRENT.get(key, key)
     if args:
-        return text.format(*args)
+        try:
+            return text.format(*args)
+        except (IndexError, KeyError, ValueError):  # broken placeholder in a translation
+            return key.format(*args)
     return text

@@ -21,6 +21,7 @@ import json
 import logging
 import re
 import subprocess
+import threading
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -96,26 +97,38 @@ class AdGuardStatus(Enum):
 class StatusResult:
     status: AdGuardStatus
     message: str = ""
-    raw_output: str = ""
     proxy_port: str = ""
     filtering_enabled: bool = False
 
 
 def _run(args: list[str], timeout: int = 15, stdin_data: str | None = None) -> tuple[int, str, str]:
     try:
-        r = subprocess.run(
-            args, capture_output=True, timeout=timeout,
-            input=stdin_data.encode("utf-8") if stdin_data is not None else None,
+        p = subprocess.Popen(
+            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            stdin=subprocess.PIPE if stdin_data is not None else None,
         )
+        try:
+            raw_out, raw_err = p.communicate(
+                stdin_data.encode("utf-8") if stdin_data is not None else None, timeout=timeout
+            )
+        except subprocess.TimeoutExpired:
+            try:
+                p.kill()
+            except PermissionError:
+                pass    # a root child started by pkexec can't be signalled
+            for f in (p.stdin, p.stdout, p.stderr):
+                if f:
+                    f.close()
+            # Reap whenever it exits instead of blocking the caller on it.
+            threading.Thread(target=p.wait, daemon=True).start()
+            return -2, "", f"Command timed out after {timeout}s"
         # Decode explicitly so a C-locale runtime (systemd unit, cron) doesn't
         # crash on filter titles with umlauts or CJK.
-        out = r.stdout.decode("utf-8", errors="replace").strip()
-        err = r.stderr.decode("utf-8", errors="replace").strip()
-        return r.returncode, _strip_ansi(out), _strip_ansi(err)
+        out = raw_out.decode("utf-8", errors="replace").strip()
+        err = raw_err.decode("utf-8", errors="replace").strip()
+        return p.returncode, _strip_ansi(out), _strip_ansi(err)
     except FileNotFoundError:
         return -1, "", f"Binary not found: {args[0]}"
-    except subprocess.TimeoutExpired:
-        return -2, "", f"Command timed out after {timeout}s"
     except OSError as exc:
         return -3, "", str(exc)
 
@@ -126,6 +139,9 @@ class AdGuardCLI:
     def __init__(self, binary: str = "") -> None:
         if binary:
             self.BINARY = binary
+        # Tray menu and Overview both drive start/stop; one at a time.
+        self._action_lock = threading.Lock()
+        self._last_status_error = ""
 
     # ── Version ────────────────────────────────────────────────────────────
 
@@ -164,34 +180,57 @@ class AdGuardCLI:
         filtering_enabled = "enabled" in combined
 
         if _RUNNING_RE.search(combined):
-            return StatusResult(AdGuardStatus.ACTIVE, out, out, proxy_port, filtering_enabled)
+            return StatusResult(AdGuardStatus.ACTIVE, out, proxy_port, filtering_enabled)
 
         if _STOPPED_RE.search(combined):
             # adguard-cli may lack a PID file when managed by systemd → verify
             fallback = self._systemctl_fallback(out)
             if fallback.status == AdGuardStatus.ACTIVE:
-                return StatusResult(AdGuardStatus.ACTIVE, out, out, proxy_port, filtering_enabled)
-            return StatusResult(AdGuardStatus.INACTIVE, out, out, proxy_port, filtering_enabled)
+                return StatusResult(AdGuardStatus.ACTIVE, out, proxy_port, filtering_enabled)
+            return StatusResult(AdGuardStatus.INACTIVE, out, proxy_port, filtering_enabled)
 
         # Ambiguous output → fallback to systemctl, but keep what we parsed
         logger.debug("Status output ambiguous, checking systemctl: %r", out)
         fallback = self._systemctl_fallback(out)
-        return StatusResult(
-            fallback.status, out, out, proxy_port, filtering_enabled
-        )
+        if code != 0 and err:
+            # e.g. an unreadable proxy.yaml: show it instead of a silent "stopped".
+            # A known systemd state stays, the restart guards rely on INACTIVE.
+            if err != self._last_status_error:
+                logger.warning("adguard-cli status failed (exit %d): %s", code, _clip(err))
+            self._last_status_error = err
+            status = AdGuardStatus.ERROR if fallback.status == AdGuardStatus.UNKNOWN else fallback.status
+            return StatusResult(status, _clip(err), proxy_port, filtering_enabled)
+        return StatusResult(fallback.status, out or err, proxy_port, filtering_enabled)
 
     def _systemctl_fallback(self, original: str) -> StatusResult:
         code, out, _ = _run(["systemctl", "is-active", "adguard-cli"], timeout=5)
         state = out.strip()
         if state == "active":
-            return StatusResult(AdGuardStatus.ACTIVE, original, original)
+            return StatusResult(AdGuardStatus.ACTIVE, original)
         if state in ("inactive", "failed", "dead"):
-            return StatusResult(AdGuardStatus.INACTIVE, original, original)
-        return StatusResult(AdGuardStatus.UNKNOWN, original, original)
+            return StatusResult(AdGuardStatus.INACTIVE, original)
+        return StatusResult(AdGuardStatus.UNKNOWN, original)
 
     # ── Control commands ───────────────────────────────────────────────────
 
+    def _exclusive(self, fn) -> tuple[bool, str]:
+        if not self._action_lock.acquire(blocking=False):
+            return False, _t("Another action is still running")
+        try:
+            return fn()
+        finally:
+            self._action_lock.release()
+
     def start(self) -> tuple[bool, str]:
+        return self._exclusive(self._start)
+
+    def stop(self) -> tuple[bool, str]:
+        return self._exclusive(self._stop)
+
+    def restart(self) -> tuple[bool, str]:
+        return self._exclusive(self._restart)
+
+    def _start(self) -> tuple[bool, str]:
         ok, msg, first_error = self._privileged_command("start")
         if not ok and "socket busy" in (msg + " " + first_error).lower():
             # Stale socket from a previous unclean stop – kill and retry.
@@ -201,7 +240,7 @@ class AdGuardCLI:
             ok, msg, _ = self._privileged_command("start")
         return ok, msg
 
-    def stop(self) -> tuple[bool, str]:
+    def _stop(self) -> tuple[bool, str]:
         ok, msg, _ = self._privileged_command("stop")
         if not ok:
             # e.g. polkit prompt cancelled – don't follow up with a force-kill
@@ -237,7 +276,8 @@ class AdGuardCLI:
         pkexec since adguard_root_helper runs as root and can't be signalled
         from the user session.
         """
-        for name in ("adguard-cli", "adguard_root_helper"):
+        # pkill -x matches comm, which the kernel cuts to 15 characters.
+        for name in ("adguard-cli", "adguard_root_he"):
             code, _, err = _run(["pkill", "-x", name], timeout=5)
             # exit 1 means "no matching process" which is fine here
             if code not in (0, 1):
@@ -248,7 +288,7 @@ class AdGuardCLI:
             return True, _t("AdGuard stopped (forced)")
 
         logger.warning("User-level pkill did not stop service, trying pkexec")
-        for name in ("adguard-cli", "adguard_root_helper"):
+        for name in ("adguard-cli", "adguard_root_he"):
             code, _, err = _run(["pkexec", "pkill", "-x", name], timeout=30)
             if code not in (0, 1):
                 logger.warning("pkexec pkill %s exit %d: %s", name, code, err)
@@ -260,7 +300,7 @@ class AdGuardCLI:
         logger.error("Force-kill failed, service may still be running")
         return False, _t("Could not stop AdGuard – process may still be running")
 
-    def restart(self) -> tuple[bool, str]:
+    def _restart(self) -> tuple[bool, str]:
         ok, msg, _ = self._privileged_command("restart")
         if not ok:
             return ok, msg
@@ -269,12 +309,8 @@ class AdGuardCLI:
         time.sleep(1)
         if self.get_status().status != AdGuardStatus.ACTIVE:
             logger.info("restart left the proxy inactive – calling start")
-            return self.start()
+            return self._start()
         return ok, msg
-
-    def toggle(self) -> tuple[bool, str]:
-        s = self.get_status()
-        return self.stop() if s.status == AdGuardStatus.ACTIVE else self.start()
 
     def _privileged_command(self, cmd: str) -> tuple[bool, str, str]:
         """
@@ -314,6 +350,10 @@ class AdGuardCLI:
         if code2 == 127:
             logger.error("pkexec authorization failed (exit 127): %s", err2)
             return False, _t("Authorization failed"), ""
+        if code2 == -2:
+            # The prompt may still be open; the systemctl fallback would stack a second one.
+            logger.error("pkexec adguard-cli %s timed out", cmd)
+            return False, err2, ""
 
         logger.info("pkexec adguard-cli %s failed (exit %d): %s – trying systemctl",
                     cmd, code2, err2 or out2)
@@ -352,32 +392,39 @@ class AdGuardCLI:
             return FilterListResult(error=_clip(err or out) or _t("Could not retrieve filter list"))
         return _parse_filter_list(out)
 
-    def enable_filter(self, filter_id: int) -> tuple[bool, str]:
-        code, out, err = _run([self.BINARY, "filters", "enable", str(filter_id)], timeout=15)
-        if code == 0 and not _is_cli_failure(out, err):
-            logger.info("Filter %d enabled", filter_id)
-            return True, _clip(out) or _t("Filter {} enabled", filter_id)
-        msg = _clip(err or out) or _t("Could not enable filter {}", filter_id)
-        logger.error("enable_filter(%d) failed: %s", filter_id, msg)
+    def _simple(
+        self, args: list[str], ok_msg: str, fail_msg: str, label: str = "", *,
+        timeout: int = 15, check: bool = True, stdin_data: str | None = None, done_log: str = "",
+    ) -> tuple[bool, str]:
+        """Run `adguard-cli <args>` and turn it into (ok, message).
+
+        check: also treat failure text in the output as failure (the CLI
+        exits 0 on some failures). label: name logged on failure.
+        """
+        code, out, err = _run([self.BINARY, *args], timeout=timeout, stdin_data=stdin_data)
+        if code == 0 and not (check and _is_cli_failure(out, err)):
+            if done_log:
+                logger.info("%s", done_log)
+            return True, _clip(out) or ok_msg
+        msg = _clip(err or out) or fail_msg
+        if label:
+            logger.error("%s failed: %s", label, msg)
         return False, msg
+
+    def enable_filter(self, filter_id: int) -> tuple[bool, str]:
+        return self._simple(["filters", "enable", str(filter_id)], _t("Filter {} enabled", filter_id),
+                            _t("Could not enable filter {}", filter_id), f"enable_filter({filter_id})",
+                            done_log=f"Filter {filter_id} enabled")
 
     def disable_filter(self, filter_id: int) -> tuple[bool, str]:
-        code, out, err = _run([self.BINARY, "filters", "disable", str(filter_id)], timeout=15)
-        if code == 0 and not _is_cli_failure(out, err):
-            logger.info("Filter %d disabled", filter_id)
-            return True, _clip(out) or _t("Filter {} disabled", filter_id)
-        msg = _clip(err or out) or _t("Could not disable filter {}", filter_id)
-        logger.error("disable_filter(%d) failed: %s", filter_id, msg)
-        return False, msg
+        return self._simple(["filters", "disable", str(filter_id)], _t("Filter {} disabled", filter_id),
+                            _t("Could not disable filter {}", filter_id), f"disable_filter({filter_id})",
+                            done_log=f"Filter {filter_id} disabled")
 
     def remove_filter(self, filter_id: int) -> tuple[bool, str]:
-        code, out, err = _run([self.BINARY, "filters", "remove", str(filter_id)], timeout=15)
-        if code == 0 and not _is_cli_failure(out, err):
-            logger.info("Filter %d removed", filter_id)
-            return True, _clip(out) or _t("Filter {} removed", filter_id)
-        msg = _clip(err or out) or _t("Could not remove filter {}", filter_id)
-        logger.error("remove_filter(%d) failed: %s", filter_id, msg)
-        return False, msg
+        return self._simple(["filters", "remove", str(filter_id)], _t("Filter {} removed", filter_id),
+                            _t("Could not remove filter {}", filter_id), f"remove_filter({filter_id})",
+                            done_log=f"Filter {filter_id} removed")
 
     def update_filters(self) -> tuple[bool, str]:
         """
@@ -389,13 +436,8 @@ class AdGuardCLI:
         # userscripts, Safebrowsing and CRLite in one run, and a single failed
         # download must not mark the whole update as failed. The raw output is
         # shown to the user.
-        code, out, err = _run([self.BINARY, "check-update"], timeout=120)
-        if code == 0:
-            logger.info("Filter update completed")
-            return True, _clip(out) or _t("Filters updated")
-        msg = _clip(err or out) or _t("Update failed")
-        logger.error("update_filters failed: %s", msg)
-        return False, msg
+        return self._simple(["check-update"], _t("Filters updated"), _t("Update failed"), "update_filters",
+                            timeout=120, check=False, done_log="Filter update completed")
 
     # ── Userscript management ──────────────────────────────────────────────
 
@@ -438,22 +480,29 @@ class AdGuardCLI:
         # Match parsed entries (possibly truncated) to real IDs by prefix.
         result = UserscriptListResult()
         used: set[str] = set()
-        for entry in parsed.scripts:
+
+        def candidates(entry):
             pid = entry.name
-            # CLI appends "..." when the ID was truncated. Exact match is
-            # tried first below, so we don't lose IDs that legitimately end
-            # in "...".
+            # CLI appends "..." when the ID was truncated. An exact match wins,
+            # so we don't lose IDs that legitimately end in "...".
             truncated = pid.endswith("...")
             prefix = pid[:-3] if truncated else pid
-            match: tuple[str, str] | None = None
-            for real_id, title in real:
-                if real_id in used:
-                    continue
-                if real_id == pid or (truncated and real_id.startswith(prefix)):
-                    match = (real_id, title)
-                    break
+            return [(real_id, title) for real_id, title in real if real_id not in used
+                    and (real_id == pid or (truncated and real_id.startswith(prefix)))]
+
+        # Truncated IDs can share a prefix: exact IDs and titles are settled
+        # first, so a guess never takes a script another entry names.
+        matches = {}
+        for pick in (lambda c, e: c[0] == e.name, lambda c, e: c[1] == e.title, lambda c, e: True):
+            for i, entry in enumerate(parsed.scripts):
+                if i not in matches and (match := next(
+                        (c for c in candidates(entry) if pick(c, entry)), None)):
+                    matches[i] = match
+                    used.add(match[0])
+
+        for i, entry in enumerate(parsed.scripts):
+            match = matches.get(i)
             if match:
-                used.add(match[0])
                 result.scripts.append(UserscriptEntry(
                     name=match[0],
                     title=match[1] or entry.title,
@@ -473,38 +522,22 @@ class AdGuardCLI:
         return result
 
     def enable_userscript(self, name: str) -> tuple[bool, str]:
-        code, out, err = _run([self.BINARY, "userscripts", "enable", name], timeout=15)
-        if code == 0 and not _is_cli_failure(out, err):
-            return True, _clip(out) or _t("Userscript '{}' enabled", name)
-        msg = _clip(err or out) or _t("Could not enable userscript '{}'", name)
-        logger.error("enable_userscript(%s) failed: %s", name, msg)
-        return False, msg
+        return self._simple(["userscripts", "enable", name], _t("Userscript '{}' enabled", name),
+                            _t("Could not enable userscript '{}'", name), f"enable_userscript({name})")
 
     def disable_userscript(self, name: str) -> tuple[bool, str]:
-        code, out, err = _run([self.BINARY, "userscripts", "disable", name], timeout=15)
-        if code == 0 and not _is_cli_failure(out, err):
-            return True, _clip(out) or _t("Userscript '{}' disabled", name)
-        msg = _clip(err or out) or _t("Could not disable userscript '{}'", name)
-        logger.error("disable_userscript(%s) failed: %s", name, msg)
-        return False, msg
+        return self._simple(["userscripts", "disable", name], _t("Userscript '{}' disabled", name),
+                            _t("Could not disable userscript '{}'", name), f"disable_userscript({name})")
 
     def remove_userscript(self, name: str) -> tuple[bool, str]:
-        code, out, err = _run([self.BINARY, "userscripts", "remove", name], timeout=15)
-        if code == 0 and not _is_cli_failure(out, err):
-            return True, _clip(out) or _t("Userscript '{}' removed", name)
-        msg = _clip(err or out) or _t("Could not remove userscript '{}'", name)
-        logger.error("remove_userscript(%s) failed: %s", name, msg)
-        return False, msg
+        return self._simple(["userscripts", "remove", name], _t("Userscript '{}' removed", name),
+                            _t("Could not remove userscript '{}'", name), f"remove_userscript({name})")
 
     def install_userscript(self, url: str) -> tuple[bool, str]:
         if not _valid_url(url):
             return False, _t("URL must start with http:// or https://")
-        code, out, err = _run([self.BINARY, "userscripts", "install", url], timeout=30)
-        if code == 0 and not _is_cli_failure(out, err):
-            return True, _clip(out) or _t("Userscript installed")
-        msg = _clip(err or out) or _t("Installation failed")
-        logger.error("install_userscript(%s) failed: %s", url, msg)
-        return False, msg
+        return self._simple(["userscripts", "install", url], _t("Userscript installed"),
+                            _t("Installation failed"), f"install_userscript({url})", timeout=30)
 
     # ── DNS filter management ─────────────────────────────────────────────
 
@@ -518,107 +551,61 @@ class AdGuardCLI:
         return _parse_filter_list(out)
 
     def enable_dns_filter(self, filter_id: int) -> tuple[bool, str]:
-        code, out, err = _run([self.BINARY, "dns", "filters", "enable", str(filter_id)], timeout=15)
-        if code == 0 and not _is_cli_failure(out, err):
-            return True, _clip(out) or _t("DNS filter {} enabled", filter_id)
-        msg = _clip(err or out) or _t("Could not enable DNS filter {}", filter_id)
-        logger.error("enable_dns_filter(%s) failed: %s", filter_id, msg)
-        return False, msg
+        return self._simple(["dns", "filters", "enable", str(filter_id)], _t("DNS filter {} enabled", filter_id),
+                            _t("Could not enable DNS filter {}", filter_id), f"enable_dns_filter({filter_id})")
 
     def disable_dns_filter(self, filter_id: int) -> tuple[bool, str]:
-        code, out, err = _run([self.BINARY, "dns", "filters", "disable", str(filter_id)], timeout=15)
-        if code == 0 and not _is_cli_failure(out, err):
-            return True, _clip(out) or _t("DNS filter {} disabled", filter_id)
-        msg = _clip(err or out) or _t("Could not disable DNS filter {}", filter_id)
-        logger.error("disable_dns_filter(%s) failed: %s", filter_id, msg)
-        return False, msg
+        return self._simple(["dns", "filters", "disable", str(filter_id)], _t("DNS filter {} disabled", filter_id),
+                            _t("Could not disable DNS filter {}", filter_id), f"disable_dns_filter({filter_id})")
 
     def install_dns_filter(self, url: str, title: str = "") -> tuple[bool, str]:
         if not _valid_url(url):
             return False, _t("URL must start with http:// or https://")
-        args = [self.BINARY, "dns", "filters", "install", url]
+        args = ["dns", "filters", "install", url]
         if title:
             args += ["--title", title]
-        code, out, err = _run(args, timeout=30)
-        if code == 0 and not _is_cli_failure(out, err):
-            return True, _clip(out) or _t("DNS filter installed")
-        msg = _clip(err or out) or _t("Installation failed")
-        logger.error("install_dns_filter(%s) failed: %s", url, msg)
-        return False, msg
+        return self._simple(args, _t("DNS filter installed"), _t("Installation failed"),
+                            f"install_dns_filter({url})", timeout=30)
 
     def remove_dns_filter(self, filter_id: int) -> tuple[bool, str]:
-        code, out, err = _run([self.BINARY, "dns", "filters", "remove", str(filter_id)], timeout=15)
-        if code == 0 and not _is_cli_failure(out, err):
-            return True, _clip(out) or _t("DNS filter {} removed", filter_id)
-        msg = _clip(err or out) or _t("Could not remove DNS filter {}", filter_id)
-        logger.error("remove_dns_filter(%s) failed: %s", filter_id, msg)
-        return False, msg
+        return self._simple(["dns", "filters", "remove", str(filter_id)], _t("DNS filter {} removed", filter_id),
+                            _t("Could not remove DNS filter {}", filter_id), f"remove_dns_filter({filter_id})")
 
     def add_dns_filter(self, filter_id: str) -> tuple[bool, str]:
-        code, out, err = _run([self.BINARY, "dns", "filters", "add", str(filter_id)], timeout=15)
-        if code == 0 and not _is_cli_failure(out, err):
-            return True, _clip(out) or _t("DNS filter added")
-        msg = _clip(err or out) or _t("Could not add DNS filter")
-        logger.error("add_dns_filter(%s) failed: %s", filter_id, msg)
-        return False, msg
+        return self._simple(["dns", "filters", "add", str(filter_id)], _t("DNS filter added"),
+                            _t("Could not add DNS filter"), f"add_dns_filter({filter_id})")
 
     def set_dns_filter_title(self, filter_id: int, title: str) -> tuple[bool, str]:
-        code, out, err = _run(
-            [self.BINARY, "dns", "filters", "set-title", str(filter_id), title], timeout=15
-        )
-        if code == 0 and not _is_cli_failure(out, err):
-            return True, _clip(out) or _t("DNS filter title updated")
-        msg = _clip(err or out) or _t("Could not set DNS filter title")
-        logger.error("set_dns_filter_title(%d) failed: %s", filter_id, msg)
-        return False, msg
+        return self._simple(["dns", "filters", "set-title", str(filter_id), title], _t("DNS filter title updated"),
+                            _t("Could not set DNS filter title"), f"set_dns_filter_title({filter_id})")
 
     # ── Extended filter management ────────────────────────────────────────
 
     def add_filter(self, filter_id: str) -> tuple[bool, str]:
         """Add an internal filter by ID or name."""
-        code, out, err = _run([self.BINARY, "filters", "add", filter_id], timeout=15)
-        if code == 0 and not _is_cli_failure(out, err):
-            return True, _clip(out) or _t("Filter added")
-        msg = _clip(err or out) or _t("Could not add filter")
-        logger.error("add_filter(%s) failed: %s", filter_id, msg)
-        return False, msg
+        return self._simple(["filters", "add", filter_id], _t("Filter added"), _t("Could not add filter"),
+                            f"add_filter({filter_id})")
 
     def set_filter_trusted(self, filter_id: int, trusted: bool) -> tuple[bool, str]:
-        code, out, err = _run(
-            [self.BINARY, "filters", "set-trusted", str(filter_id), str(trusted).lower()],
-            timeout=15,
-        )
-        if code == 0 and not _is_cli_failure(out, err):
-            return True, _clip(out) or _t("Filter trust updated")
-        msg = _clip(err or out) or _t("Could not update filter trust")
-        logger.error("set_filter_trusted(%d) failed: %s", filter_id, msg)
-        return False, msg
+        return self._simple(["filters", "set-trusted", str(filter_id), str(trusted).lower()],
+                            _t("Filter trust updated"), _t("Could not update filter trust"),
+                            f"set_filter_trusted({filter_id})")
 
     def set_filter_title(self, filter_id: int, title: str) -> tuple[bool, str]:
-        code, out, err = _run(
-            [self.BINARY, "filters", "set-title", str(filter_id), title], timeout=15
-        )
-        if code == 0 and not _is_cli_failure(out, err):
-            return True, _clip(out) or _t("Filter title updated")
-        msg = _clip(err or out) or _t("Could not set filter title")
-        logger.error("set_filter_title(%d) failed: %s", filter_id, msg)
-        return False, msg
+        return self._simple(["filters", "set-title", str(filter_id), title], _t("Filter title updated"),
+                            _t("Could not set filter title"), f"set_filter_title({filter_id})")
 
     def install_filter_ext(self, url: str, trusted: bool = False, title: str = "") -> tuple[bool, str]:
         """Install custom filter with optional --trusted and --title flags."""
         if not _valid_url(url):
             return False, _t("URL must start with http:// or https://")
-        args = [self.BINARY, "filters", "install", url]
+        args = ["filters", "install", url]
         if trusted:
             args.append("--trusted")
         if title:
             args += ["--title", title]
-        code, out, err = _run(args, timeout=30)
-        if code == 0 and not _is_cli_failure(out, err):
-            return True, _clip(out) or _t("Filter installed")
-        msg = _clip(err or out) or _t("Installation failed")
-        logger.error("install_filter_ext(%s) failed: %s", url, msg)
-        return False, msg
+        return self._simple(args, _t("Filter installed"), _t("Installation failed"),
+                            f"install_filter_ext({url})", timeout=30)
 
     # ── Config (adguard-cli config get/set) ───────────────────────────────
 
@@ -637,31 +624,18 @@ class AdGuardCLI:
     def set_update_channel(self, channel: str) -> tuple[bool, str]:
         if channel not in self.UPDATE_CHANNELS:
             return False, _t("Invalid channel: {}", channel)
-        code, out, err = _run(
-            [self.BINARY, "config", "set", "update_channel", channel], timeout=10
-        )
-        if code == 0 and not _is_cli_failure(out, err):
-            logger.info("Update channel set to %s", channel)
-            return True, _clip(out) or _t("Update channel set to {}", channel)
-        msg = _clip(err or out) or _t("Could not set update channel")
-        logger.error("set_update_channel(%s) failed: %s", channel, msg)
-        return False, msg
+        return self._simple(["config", "set", "update_channel", channel], _t("Update channel set to {}", channel),
+                            _t("Could not set update channel"), f"set_update_channel({channel})",
+                            timeout=10, done_log=f"Update channel set to {channel}")
 
     # ── License ───────────────────────────────────────────────────────────
 
     def get_license(self) -> tuple[bool, str]:
-        code, out, err = _run([self.BINARY, "license"], timeout=10)
-        if code == 0:
-            return True, _clip(out)
-        return False, _clip(err or out) or _t("Could not retrieve license info")
+        return self._simple(["license"], "", _t("Could not retrieve license info"), timeout=10, check=False)
 
     def reset_license(self) -> tuple[bool, str]:
-        code, out, err = _run([self.BINARY, "reset-license"], timeout=15)
-        if code == 0:
-            return True, _clip(out) or _t("License reset")
-        msg = _clip(err or out) or _t("Could not reset license")
-        logger.error("reset_license failed: %s", msg)
-        return False, msg
+        return self._simple(["reset-license"], _t("License reset"), _t("Could not reset license"),
+                            "reset_license", check=False)
 
     # ── Certificate ───────────────────────────────────────────────────────
 
@@ -671,67 +645,37 @@ class AdGuardCLI:
         Runs without pkexec — adguard-cli cert handles privilege
         elevation internally. Pipes 'yes' to confirm the interactive prompt.
         """
-        args = [self.BINARY, "cert"]
+        args = ["cert"]
         if firefox_profile:
             args += ["--firefox-profile", firefox_profile]
-        code, out, err = _run(
-            args, timeout=60, stdin_data="yes\n",
-        )
-        if code == 0:
-            return True, _clip(out) or _t("Certificate generated")
-        msg = _clip(err or out) or _t("Certificate generation failed")
-        logger.error("generate_cert failed: %s", msg)
-        return False, msg
+        return self._simple(args, _t("Certificate generated"), _t("Certificate generation failed"),
+                            "generate_cert", timeout=60, check=False, stdin_data="yes\n")
 
     # ── Export / Import ───────────────────────────────────────────────────
 
     def export_logs(self, output_dir: str = "") -> tuple[bool, str]:
-        args = [self.BINARY, "export-logs"]
-        if output_dir:
-            args += ["-o", output_dir]
-        code, out, err = _run(args, timeout=60)
-        if code == 0:
-            return True, _clip(out) or _t("Logs exported")
-        msg = _clip(err or out) or _t("Log export failed")
-        logger.error("export_logs failed: %s", msg)
-        return False, msg
+        args = ["export-logs"] + (["-o", output_dir] if output_dir else [])
+        return self._simple(args, _t("Logs exported"), _t("Log export failed"), "export_logs",
+                            timeout=60, check=False)
 
     def export_settings(self, output_dir: str = "") -> tuple[bool, str]:
-        args = [self.BINARY, "export-settings"]
-        if output_dir:
-            args += ["-o", output_dir]
-        code, out, err = _run(args, timeout=60)
-        if code == 0:
-            return True, _clip(out) or _t("Settings exported")
-        msg = _clip(err or out) or _t("Settings export failed")
-        logger.error("export_settings failed: %s", msg)
-        return False, msg
+        args = ["export-settings"] + (["-o", output_dir] if output_dir else [])
+        return self._simple(args, _t("Settings exported"), _t("Settings export failed"), "export_settings",
+                            timeout=60, check=False)
 
     def import_settings(self, input_path: str) -> tuple[bool, str]:
-        code, out, err = _run([self.BINARY, "import-settings", "-i", input_path], timeout=60)
-        if code == 0:
-            return True, _clip(out) or _t("Settings imported")
-        msg = _clip(err or out) or _t("Settings import failed")
-        logger.error("import_settings failed: %s", msg)
-        return False, msg
+        return self._simple(["import-settings", "-i", input_path], _t("Settings imported"),
+                            _t("Settings import failed"), "import_settings", timeout=60, check=False)
 
     # ── Update / Speed ────────────────────────────────────────────────────
 
     def check_cli_update(self) -> tuple[bool, str]:
-        code, out, err = _run([self.BINARY, "update"], timeout=120)
-        if code == 0:
-            return True, _clip(out) or _t("Update check completed")
-        msg = _clip(err or out) or _t("Update check failed")
-        logger.error("check_cli_update failed: %s", msg)
-        return False, msg
+        return self._simple(["update"], _t("Update check completed"), _t("Update check failed"),
+                            "check_cli_update", timeout=120, check=False)
 
     def run_speed_benchmark(self) -> tuple[bool, str]:
-        code, out, err = _run([self.BINARY, "speed", "--json"], timeout=120)
-        if code == 0:
-            return True, _clip(out)
-        msg = _clip(err or out) or _t("Benchmark failed")
-        logger.error("run_speed_benchmark failed: %s", msg)
-        return False, msg
+        return self._simple(["speed", "--json"], "", _t("Benchmark failed"), "run_speed_benchmark",
+                            timeout=120, check=False)
 
 
 # ── Filter data structures ─────────────────────────────────────────────────

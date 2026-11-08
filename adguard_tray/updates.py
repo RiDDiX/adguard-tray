@@ -254,6 +254,14 @@ def _version_of(package: Path) -> str:
 
 def _sweep(root: Path) -> None:
     """Remove staging and backup directories a killed run left behind."""
+    backups = sorted(root.glob(".adguard_tray.old-*"))
+    if backups and not (root / "adguard_tray").exists():
+        # The swap died halfway: the newest backup is the only copy left.
+        try:
+            os.replace(backups[-1], root / "adguard_tray")
+        except OSError:
+            logger.exception("Could not restore %s", backups[-1])
+            return
     for pattern in (".adguard_tray.new-*", ".adguard_tray.old-*", ".adguard-tray.py.new-*"):
         for leftover in root.glob(pattern):
             if leftover.is_dir():

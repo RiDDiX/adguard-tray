@@ -11,7 +11,6 @@ its traffic is filtered. Nothing tells the user; the page simply loads with
 ads. This module works out which case applies so the app can say so.
 """
 
-import configparser
 import glob
 import json
 import logging
@@ -20,12 +19,12 @@ import socket
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .certs import _firefox_profiles
 from .i18n import _t
+from .proxy_settings import get as _get
 from .proxy_settings import load_yaml as _load_yaml
 
 logger = logging.getLogger(__name__)
-
-HOME = Path.home()
 
 # Chromium-family managed policy files (system-wide; the dir is a build-time
 # constant, so forks either inherit /etc/chromium or patch it).
@@ -38,17 +37,6 @@ _POLICY_FILES = (
     "/etc/opt/opera/policies/managed/*.json",
 )
 _FIREFOX_POLICIES = ("/etc/firefox/policies/policies.json",)
-
-_FIREFOX_ROOTS = (
-    HOME / ".mozilla" / "firefox",
-    HOME / ".librewolf",
-    HOME / ".waterfox",
-    HOME / ".zen",
-)
-_FIREFOX_GLOBS = (
-    str(HOME / "snap" / "firefox*" / "common" / ".mozilla" / "firefox"),
-    str(HOME / ".var" / "app" / "*" / ".mozilla" / "firefox"),
-)
 
 _HTTP3_PREF = "network.http.http3.enable"
 
@@ -117,32 +105,7 @@ def chromium_policy_blocks_quic() -> list[str]:
 
 def firefox_profiles() -> list[Path]:
     """Every Gecko profile directory found via profiles.ini."""
-    roots = [str(r) for r in _FIREFOX_ROOTS]
-    for pattern in _FIREFOX_GLOBS:
-        roots.extend(sorted(glob.glob(pattern)))
-    profiles: list[Path] = []
-    for root in roots:
-        ini = Path(root) / "profiles.ini"
-        if not ini.is_file():
-            continue
-        # interpolation=None: a '%' in a profile path is data, not a format
-        parser = configparser.ConfigParser(interpolation=None)
-        try:
-            parser.read(ini, encoding="utf-8")
-        except (OSError, configparser.Error, UnicodeDecodeError) as exc:
-            logger.debug("Could not read %s: %s", ini, exc)
-            continue
-        for section in parser.sections():
-            if not section.lower().startswith("profile"):
-                continue
-            rel = parser.get(section, "Path", fallback="")
-            if not rel:
-                continue
-            relative = parser.get(section, "IsRelative", fallback="1") == "1"
-            path = (ini.parent / rel) if relative else Path(rel)
-            if path.is_dir():
-                profiles.append(path)
-    return profiles
+    return [path for _, path in _firefox_profiles()]
 
 
 # user_pref("network.http.http3.enable", false);  – and nothing else
@@ -217,16 +180,8 @@ def status(running: bool | None = None) -> QuicStatus:
     mode = str(data.get("proxy_mode", "") or "").lower()
     https = data.get("https_filtering") if isinstance(data.get("https_filtering"), dict) else {}
 
-    def flag(key: str) -> bool:
-        # Same reading as the configuration dialog: YAML 1.1 gives ints for
-        # 0/1, and anything unexpected falls back to the default (on).
-        value = https.get(key)
-        if isinstance(value, (bool, int)):
-            return bool(value)
-        return True
-
-    https_on = flag("enabled")
-    http3_filtering = flag("http3_filtering_enabled")
+    https_on = _get(https, "enabled", default=True)
+    http3_filtering = _get(https, "http3_filtering_enabled", default=True)
 
     result.firefox_profiles = firefox_profiles()
     result.firefox_disabled = sum(1 for p in result.firefox_profiles if firefox_http3_disabled(p))

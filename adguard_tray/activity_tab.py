@@ -261,8 +261,8 @@ class _BarChart(QWidget):
         if last != first:
             when += " – " + (last + timedelta(hours=1)).strftime(HOUR_FORMAT)
         QToolTip.showText(event.globalPosition().toPoint(),
-                          f"{when}\n{_number(total)} {_t('Requests')} · "
-                          f"{_number(blocked)} {_t('Blocked')}", self)
+                          f"{when}\n{ui.number(total)} {_t('Requests')} · "
+                          f"{ui.number(blocked)} {_t('Blocked')}", self)
 
 
 class ActivityTab(Page):
@@ -612,7 +612,7 @@ class ActivityTab(Page):
         # The share leads, so a narrow tile elides the word and not the number.
         caption = _t("{}% blocked", f"{blocked * 100 / total:.0f}")
         self.card_blocked.set_caption(caption)
-        self.card_blocked.set_value(_number(blocked), caption)
+        self.card_blocked.set_value(ui.number(blocked), caption)
 
     def _render(self, data: dict) -> None:
         summary = data["summary"]
@@ -621,10 +621,10 @@ class ActivityTab(Page):
             self._clear()
             return
 
-        self.card_total.set_value(_number(total))
+        self.card_total.set_value(ui.number(total))
         self._show_share(total, blocked)
-        self.card_allowed.set_value(_number(total - blocked))
-        self.card_modified.set_value(_number(summary["modified"]))
+        self.card_allowed.set_value(ui.number(total - blocked))
+        self.card_modified.set_value(ui.number(summary["modified"]))
         self.card_traffic.set_value(_format_size(summary["bytes"]))
 
         self._fill_chart(data["hours"])
@@ -651,9 +651,9 @@ class ActivityTab(Page):
         if activity is None or not activity.total:
             self._clear()
             return
-        self.card_total.set_value(_number(activity.total))
+        self.card_total.set_value(ui.number(activity.total))
         self._show_share(activity.total, activity.blocked)
-        self.card_allowed.set_value(_number(activity.allowed))
+        self.card_allowed.set_value(ui.number(activity.allowed))
         self.card_modified.set_value("–")
         self.card_traffic.set_value(_format_size(activity.bytes_total))
         self._fill_chart(activity.per_hour(limit=24))
@@ -677,7 +677,7 @@ class ActivityTab(Page):
         table.setRowCount(len(rows))
         for row, (name, count) in enumerate(rows):
             table.setItem(row, 0, QTableWidgetItem(name))
-            item = QTableWidgetItem(_format_size(count) if as_size else _number(count))
+            item = QTableWidgetItem(_format_size(count) if as_size else ui.number(count))
             item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             table.setItem(row, 1, item)
             if name == self._host:
@@ -813,15 +813,18 @@ class ActivityTab(Page):
             domain_to_rule,
             is_valid_domain,
             load_user_rules,
+            normalize_host,
             save_user_rules,
         )
 
-        domain = self._domain
-        if not domain:
+        if not self._domain:
             return
         self._load_message = False
-        if not is_valid_domain(domain):
-            self.banner.show_message(_t("Not a valid domain: {}", domain), "warning")
+        # The exact host: dropping www. could widen the rule to a whole
+        # private suffix (www.github.io), and a block must not take the site.
+        domain = normalize_host(self._domain, strip_www=False)
+        if not domain or not is_valid_domain(domain):
+            self.banner.show_message(_t("Not a valid domain: {}", self._domain), "warning")
             return
 
         if allow:
@@ -850,10 +853,6 @@ class ActivityTab(Page):
         else:
             self.banner.show_message(text, "success", timeout_ms=5000)
 
-
-def _number(value: int) -> str:
-    """Thin spaces between thousands – easier to read at a glance."""
-    return f"{value:,}".replace(",", " ")
 
 
 def _row_of(request) -> dict:

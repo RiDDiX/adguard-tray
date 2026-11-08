@@ -56,7 +56,6 @@ VERDICTS = frozenset({
     "blocked", "allowed", "error",
 })
 _BLOCKED_FLAGS = frozenset({"BLOCKED", "blocked"})
-_ALLOWED_FLAGS = frozenset({"WHITELISTED"})
 _MODIFIED_FLAGS = frozenset({"MODIFIED_CONTENT", "MODIFIED_META"})
 
 _METHOD_RE = re.compile(r"^[A-Z]{3,10}$")
@@ -80,14 +79,12 @@ class Request:
     rule: str
     size: int
     duration_ms: int
-    raw: str
     app: str = ""
     protocol: str = ""
     method: str = ""
     status: int = 0
     content_type: str = ""
     verdict: str = ""
-    rule_count: int = 0
     filter_id: int = -1
 
     @property
@@ -101,12 +98,6 @@ class Request:
         return bool(self.rule) and not self.rule.startswith("@@")
 
     @property
-    def allowed_by_rule(self) -> bool:
-        if _ALLOWED_FLAGS.intersection(self.verdict.split()):
-            return True
-        return self.rule.startswith("@@")
-
-    @property
     def modified(self) -> bool:
         return bool(_MODIFIED_FLAGS.intersection(self.verdict.split()))
 
@@ -115,8 +106,6 @@ class Request:
 class Activity:
     """Everything read from one access log."""
     requests: list[Request] = field(default_factory=list)
-    unparsed: int = 0
-    log_path: Path | None = None
     problem: str = ""
 
     @property
@@ -149,7 +138,7 @@ class Activity:
         cutoff = newest - timedelta(hours=hours)
         return Activity(
             requests=[r for r in self.requests if r.when is None or r.when >= cutoff],
-            unparsed=self.unparsed, log_path=self.log_path, problem=self.problem,
+            problem=self.problem,
         )
 
     def top_hosts(self, limit: int = 10, blocked_only: bool = False) -> list[tuple[str, int]]:
@@ -251,7 +240,9 @@ def _split_rule(body: str) -> tuple[str, str]:
     """
     body = body.rstrip("\r\n")
     if _RULE_SEP in body:
-        head, rule = body.rsplit(_RULE_SEP, 1)
+        # The first separator is the real one: nothing before it can hold
+        # " -- " (field 1 escapes its spaces), while a cosmetic rule can.
+        head, _, rule = body.partition(_RULE_SEP)
         rule = rule.strip()
         return head.rstrip(), "" if rule in _NO_RULE else rule
     if body.rstrip().endswith(" --"):                  # trailing space eaten
@@ -290,7 +281,6 @@ def _read_fields(tokens: list[str], request: Request) -> None:
     if left[5] not in ("-", ""):
         request.content_type = left[5]
 
-    request.rule_count = int(right[0])
     if filter_id:
         request.filter_id = int(filter_id.group(1))
 
@@ -345,7 +335,7 @@ def parse_line(line: str) -> Request | None:
     if not url:
         url = next((part for part in app.split() if "://" in part or "." in part), "")
     request = Request(when=when, url=url, host=_host_of(url), rule=rule,
-                      size=size, duration_ms=duration, raw=line.rstrip(), app=app)
+                      size=size, duration_ms=duration, app=app)
     _read_fields(tokens, request)
     return request
 
@@ -353,7 +343,7 @@ def parse_line(line: str) -> Request | None:
 def read_activity(max_lines: int = 5000) -> Activity:
     """Read the tail of the access log. Never raises."""
     path = access_log_path()
-    result = Activity(log_path=path)
+    result = Activity()
     try:
         size = path.stat().st_size
     except FileNotFoundError:
@@ -374,14 +364,7 @@ def read_activity(max_lines: int = 5000) -> Activity:
         return result
 
     lines = data.decode("utf-8", errors="replace").splitlines()[-max_lines:]
-    for line in lines:
-        if not line.strip():
-            continue
-        parsed = parse_line(line)
-        if parsed is None:
-            result.unparsed += 1
-        else:
-            result.requests.append(parsed)
+    result.requests = [r for r in map(parse_line, lines) if r is not None]
     return result
 
 

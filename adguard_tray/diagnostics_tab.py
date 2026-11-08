@@ -1,36 +1,24 @@
 """Maintenance page: export and import AdGuard's settings, logs, benchmark."""
 
+import contextlib
 import json
 import logging
 import zipfile
+from datetime import datetime
 from pathlib import Path
 
-from PyQt6.QtCore import QThread, QTimer, pyqtSignal
+from PyQt6.QtCore import QThread, QTimer
 from PyQt6.QtGui import QFontDatabase
 from PyQt6.QtWidgets import QFileDialog, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget
 
 from . import ui
 from .i18n import _t
-from .main import LOG_FILE
+from .main import LOG_DIR, LOG_FILE
 from .network_tab import open_folder
 from .ui import Page, Row, Spinner
+from .worker import FnWorker
 
 logger = logging.getLogger(__name__)
-
-
-class _Worker(QThread):
-    done = pyqtSignal(bool, str)
-
-    def __init__(self, fn):
-        super().__init__()
-        self._fn = fn
-
-    def run(self):
-        try:
-            ok, msg = self._fn()
-        except Exception as exc:
-            ok, msg = False, str(exc)
-        self.done.emit(ok, msg)
 
 
 def _pretty(text: str) -> str:
@@ -124,7 +112,7 @@ class DiagnosticsTab(Page):
         self._set_busy(True)
         spinner.set_busy(True)      # the row's spinner is the progress message
         self.banner.hide()
-        w = _Worker(fn)
+        w = FnWorker(fn)
 
         def _done(ok, msg):
             self._set_busy(False)
@@ -175,15 +163,34 @@ class DiagnosticsTab(Page):
                           _t("Import settings")):
             return
 
+        backup = LOG_DIR / "backups" / datetime.now().strftime("%Y%m%d-%H%M%S")
+
+        def _backup_and_import():
+            # The import replaces every setting; keep the current ones first.
+            # Broken settings are the usual reason to restore, and they can
+            # make the export fail too: import anyway and say so.
+            try:
+                backup.mkdir(parents=True, exist_ok=True)
+                saved = self.cli.export_settings(str(backup))[0]
+            except OSError:
+                saved = False
+            if not saved:
+                with contextlib.suppress(OSError):
+                    backup.rmdir()   # only if empty
+            ok, msg = self.cli.import_settings(path)
+            return ok, msg if not ok else ("" if saved else _t("Could not export the settings."))
+
         def _done(ok, msg):
             if ok:
                 # The import rewrote proxy.yaml: show it and drop edits made to the old one.
                 self.ctx.settings.load()
-                self.banner.show_message(self.ctx.restart_adguard(), "success", timeout_ms=5000)
+                note = msg or f"{_t('Settings exported')}: {backup}"
+                self.banner.show_message(f"{self.ctx.restart_adguard()}\n{note}",
+                                         "success" if not msg else "warning", timeout_ms=5000)
             else:
                 self._report(ok, msg, _t("Could not import the settings."))
 
-        self._run_action(lambda: self.cli.import_settings(path), self.spin_settings, _done)
+        self._run_action(_backup_and_import, self.spin_settings, _done)
 
     # ── Logs ──────────────────────────────────────────────────────────────
 

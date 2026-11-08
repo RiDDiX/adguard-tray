@@ -29,7 +29,6 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 DB_PATH = Path.home() / ".local" / "share" / "adguard-tray" / "activity.db"
-SCHEMA_VERSION = 1
 
 # Raw rows exist for the request list and for drilling into a domain; the
 # hourly rollups answer everything older. Two weeks of rows is enough for the
@@ -105,8 +104,6 @@ CREATE TABLE IF NOT EXISTS rule_hourly (
 class IngestResult:
     added: int = 0
     unparsed: int = 0
-    rotated: bool = False
-    truncated: bool = False
     error: str = ""
 
 
@@ -123,9 +120,6 @@ def _connect(path: Path | None = None) -> sqlite3.Connection:
     connection.execute("PRAGMA journal_mode=WAL")   # readers never wait for the writer
     connection.execute("PRAGMA synchronous=NORMAL")
     connection.executescript(_SCHEMA)
-    connection.execute(
-        "INSERT OR IGNORE INTO meta (key, value) VALUES ('schema', ?)", (str(SCHEMA_VERSION),))
-    connection.commit()
     return connection
 
 
@@ -160,8 +154,9 @@ def _head(path: Path) -> str:
 
 
 def _hour_of(when: datetime) -> int:
-    stamp = int(when.timestamp())
-    return stamp - stamp % 3600
+    # The local hour, not the UTC one: in a +5:30 zone those differ by half
+    # an hour, and the chart would put 10:10 and 10:50 into different bars.
+    return int(when.replace(minute=0, second=0, microsecond=0).timestamp())
 
 
 def _read_new(path: Path, offset: int) -> tuple[list[str], int, str, str]:
@@ -200,17 +195,21 @@ def _read_new(path: Path, offset: int) -> tuple[list[str], int, str, str]:
     return text[:-1].split("\n"), offset + end + 1, "", identity
 
 
-def _owed_generations(path: Path, previous_ino: int) -> list[Path]:
+def _owed_generations(path: Path, previous_ino: int, known_head: str) -> list[Path]:
     """The rotated files holding what we had not read yet, oldest first.
 
     Two rollovers between two passes push the file we were reading down to
     access.log.2, so looking only at .1 would drop a whole generation without
     a word. Everything from the one we know down to .1 is owed.
+
+    The first line has to match too: once the file we were reading is
+    deleted, ext4 hands its inode to the next file it creates.
     """
     for index in range(1, 10):
         candidate = path.with_name(f"{path.name}.{index}")
         try:
-            if candidate.is_file() and candidate.stat().st_ino == previous_ino:
+            if (candidate.is_file() and candidate.stat().st_ino == previous_ino
+                    and (not known_head or _head(candidate) == known_head)):
                 break
         except OSError:
             continue
@@ -231,7 +230,7 @@ def ingest(db: Path | None = None, log_path: Path | None = None) -> IngestResult
 
 
 def _ingest(db: Path | None, log_path: Path | None) -> IngestResult:
-    from .stats import access_log_path, parse_line
+    from .stats import access_log_path
 
     result = IngestResult()
     path = log_path or access_log_path()
@@ -245,10 +244,14 @@ def _ingest(db: Path | None, log_path: Path | None) -> IngestResult:
     try:
         known = _meta(connection, "log_identity")
         if not known:
-            # First run: the rotated generations still hold history.
-            backfilled = _backfill(connection, path)
-            result.added += backfilled.added
-            result.unparsed += backfilled.unparsed
+            # No cursor yet: the rotated generations still hold history, all of
+            # it on a first run, only what is newer after a pass that could not
+            # read the live log. Committed on its own, so an unreadable live
+            # log does not undo it. Strictly newer here: a pass like this
+            # repeats until the live log shows up.
+            since = _newest(connection)
+            _backfill(connection, path, result, since + 1 if since else None)
+            connection.commit()
 
         try:
             info = path.stat()
@@ -262,26 +265,28 @@ def _ingest(db: Path | None, log_path: Path | None) -> IngestResult:
         known_head = _meta(connection, "log_head")
         # Only comparable when both sides actually have a fingerprint.
         head_changed = bool(known) and bool(head) and bool(known_head) and head != known_head
+        # The inode only: st_dev of a btrfs subvolume can change across a
+        # reboot, and the head check above already catches a reused inode.
+        same_file = bool(known) and known.split(":")[-1] == str(info.st_ino)
 
-        rows: list[str] = []
         previous_ino = int(known.split(":")[-1]) if known else 0
         # Same file, now shorter than we had read: it was emptied in place.
         # This has to be decided before the replacement check, because
-        # truncation changes the opening bytes too.
-        truncated_in_place = bool(known) and known == identity and offset > info.st_size
+        # truncation changes the opening bytes too. A new first line on the
+        # same inode is a new file that inherited it, not a truncated one.
+        truncated_in_place = (same_file and offset > info.st_size
+                              and not head_changed)
         if truncated_in_place:
-            result.truncated = True
             # Emptied and refilled, or merely shortened? An unchanged first
             # line means the bytes that are left are the ones already read, so
             # starting over would count them twice.
             offset = info.st_size if (head and known_head and head == known_head) else 0
-        elif known and (known != identity or head_changed):
+        elif known and (not same_file or head_changed):
             # The file we were reading is gone: either rotation renamed it,
             # or something replaced it in place. Its tail may still be on
             # disk, and without it up to 10 MiB of requests would be lost at
             # every rollover.
-            result.rotated = True
-            owed = _owed_generations(path, previous_ino)
+            owed = _owed_generations(path, previous_ino, known_head)
             for position, older in enumerate(owed):
                 # Only the generation we were reading has a meaningful offset;
                 # any generation after it has to be read whole.
@@ -289,33 +294,27 @@ def _ingest(db: Path | None, log_path: Path | None) -> IngestResult:
                 if error:
                     result.error = error
                     return result          # leave the cursor alone and retry
-                rows.extend(lines)
+                # One generation at a time: nine of them parsed at once would
+                # hold some 900 000 requests in memory.
+                _store(connection, lines, result)
+            if not owed:
+                # More than nine rollovers since the last pass, so the file we
+                # were reading is deleted, but what came after it is still on
+                # disk. A log deleted and created anew looks the same, except
+                # that its generations were all read before; the newest stored
+                # request tells the two apart.
+                _backfill(connection, path, result, _newest(connection))
             offset = 0
 
         fresh, new_offset, error, read_identity = _read_new(path, offset)
         if error:
             result.error = error
             return result
-        rows.extend(fresh)
-
-        parsed = []
-        for line in rows:
-            if not line.strip():
-                continue
-            request = parse_line(line)
-            if request is None or request.when is None:
-                # A request without a timestamp cannot be placed in a bucket,
-                # so it would silently distort every total.
-                result.unparsed += 1
-                continue
-            parsed.append(request)
-
-        if parsed:
-            _write(connection, parsed)
-            result.added += len(parsed)
+        _store(connection, fresh, result)
         # The identity of the file the offset actually belongs to.
         _set_meta(connection, "log_identity", read_identity or identity)
         _set_meta(connection, "log_offset", str(new_offset))
+        _set_meta(connection, "last_ts", str(_newest(connection) or 0))
         if head:
             _set_meta(connection, "log_head", head)
         connection.commit()
@@ -329,16 +328,31 @@ def _ingest(db: Path | None, log_path: Path | None) -> IngestResult:
     return result
 
 
-def _backfill(connection: sqlite3.Connection, path: Path) -> IngestResult:
-    """Read the rotated generations once, oldest first.
+def _newest(connection: sqlite3.Connection) -> int | None:
+    """The newest request ever stored, in epoch seconds. Kept in meta too,
+    because retention empties the table after two quiet weeks."""
+    stored = connection.execute("SELECT MAX(ts) FROM requests").fetchone()[0]
+    newest = max(stored or 0, int(_meta(connection, "last_ts") or 0))
+    if not newest:
+        # A database from before last_ts, pruned empty: hourly is never
+        # pruned, and only hour-exact – so only as the last resort.
+        newest = connection.execute("SELECT MAX(hour) + 3599 FROM hourly").fetchone()[0] or 0
+    return newest or None
 
-    Only on a first run, when there is no cursor yet: up to nine generations
-    of history sit next to the live log, and ignoring them would start the
-    store empty on a machine that has been filtering for weeks.
+
+def _backfill(connection: sqlite3.Connection, path: Path, result: IngestResult,
+              since: int | None) -> None:
+    """Read the rotated generations whole, oldest first.
+
+    On a first run, when there is no cursor yet: up to nine generations of
+    history sit next to the live log, and ignoring them would start the
+    store empty on a machine that has been filtering for weeks. With *since*,
+    only the generations that start at or after it (epoch seconds) are read;
+    None reads them all.
     """
     from .stats import parse_line
 
-    result = IngestResult()
+    before = result.added
     for index in range(9, 0, -1):
         older = path.with_name(f"{path.name}.{index}")
         if not older.is_file():
@@ -346,21 +360,34 @@ def _backfill(connection: sqlite3.Connection, path: Path) -> IngestResult:
         lines, _, error, _ = _read_new(older, 0)
         if error:
             continue
-        parsed = []
-        for line in lines:
-            if not line.strip():
+        if since is not None:
+            # "At", not only "after": the next generation may begin within
+            # the second the last stored request was logged in.
+            first = next((r for r in map(parse_line, lines) if r and r.when), None)
+            if first is None or int(first.when.timestamp()) < since:
                 continue
-            request = parse_line(line)
-            if request is None or request.when is None:
-                result.unparsed += 1
-            else:
-                parsed.append(request)
-        if parsed:
-            _write(connection, parsed)
-            result.added += len(parsed)
-    if result.added:
-        logger.info("Backfilled %d requests from rotated logs", result.added)
-    return result
+        _store(connection, lines, result)
+    if result.added > before:
+        logger.info("Backfilled %d requests from rotated logs", result.added - before)
+
+
+def _store(connection: sqlite3.Connection, lines: list[str], result: IngestResult) -> None:
+    from .stats import parse_line
+
+    parsed = []
+    for line in lines:
+        if not line.strip():
+            continue
+        request = parse_line(line)
+        if request is None or request.when is None:
+            # A request without a timestamp cannot be placed in a bucket,
+            # so it would silently distort every total.
+            result.unparsed += 1
+            continue
+        parsed.append(request)
+    if parsed:
+        _write(connection, parsed)
+        result.added += len(parsed)
 
 
 def _write(connection: sqlite3.Connection, requests: list) -> None:
@@ -437,8 +464,7 @@ def _range(hours: int | None) -> tuple[int, int]:
     The rollups are keyed by hour, so an unaligned start would drop the bucket
     the range begins in and the cards would disagree with the request list.
     """
-    now = int(time.time())
-    end = now - now % 3600 + 3600
+    end = _hour_of(datetime.now()) + 3600
     return (0 if hours is None else end - hours * 3600), end
 
 
@@ -449,80 +475,9 @@ def summary(hours: int | None = 24, db: Path | None = None) -> dict:
     try:
         row = connection.execute(
             "SELECT COALESCE(SUM(total),0), COALESCE(SUM(blocked),0),"
-            " COALESCE(SUM(modified),0), COALESCE(SUM(bytes),0), MIN(hour), MAX(hour)"
+            " COALESCE(SUM(modified),0), COALESCE(SUM(bytes),0)"
             " FROM hourly WHERE hour >= ? AND hour < ?", (start, end)).fetchone()
-        return {
-            "total": row[0], "blocked": row[1], "modified": row[2], "bytes": row[3],
-            "first_hour": row[4], "last_hour": row[5],
-        }
-    finally:
-        connection.close()
-
-
-def per_hour(hours: int = 24, db: Path | None = None) -> list[tuple[datetime, int, int]]:
-    """(hour, total, blocked) for the last *hours*, quiet hours included."""
-    connection = _connect(db)
-    try:
-        if connection.execute("SELECT MAX(hour) FROM hourly").fetchone()[0] is None:
-            return []
-        # Anchored on the clock: a quiet proxy should show empty hours, not
-        # yesterday's bars under a "last 24 hours" label.
-        now = int(time.time())
-        last = now - now % 3600
-        rows = dict(
-            (hour, (total, blocked)) for hour, total, blocked in connection.execute(
-                "SELECT hour, total, blocked FROM hourly WHERE hour > ?",
-                (last - hours * 3600,)))
-    finally:
-        connection.close()
-    out = []
-    for back in range(max(1, hours) - 1, -1, -1):
-        hour = last - back * 3600
-        total, blocked = rows.get(hour, (0, 0))
-        out.append((datetime.fromtimestamp(hour), total, blocked))
-    return out
-
-
-def top_hosts(hours: int | None = 24, limit: int = 10, blocked_only: bool = False,
-              by_bytes: bool = False, db: Path | None = None) -> list[tuple[str, int]]:
-    start, end = _range(hours)
-    column = "bytes" if by_bytes else ("blocked" if blocked_only else "total")
-    connection = _connect(db)
-    try:
-        return [(host, value) for host, value in connection.execute(
-            f"SELECT host, SUM({column}) AS value FROM domain_hourly"
-            " WHERE hour >= ? AND hour < ? GROUP BY host HAVING value > 0"
-            " ORDER BY value DESC, host LIMIT ?", (start, end, limit))]
-    finally:
-        connection.close()
-
-
-def top_rules(hours: int | None = 24, limit: int = 10,
-              db: Path | None = None) -> list[tuple[str, int]]:
-    start, end = _range(hours)
-    connection = _connect(db)
-    try:
-        return [(rule, hits) for rule, hits in connection.execute(
-            "SELECT rule, SUM(hits) AS n FROM rule_hourly WHERE hour >= ? AND hour < ?"
-            " GROUP BY rule ORDER BY n DESC, rule LIMIT ?", (start, end, limit))]
-    finally:
-        connection.close()
-
-
-def recent(hours: int | None = 24, limit: int = 500, host: str = "",
-           db: Path | None = None) -> list[sqlite3.Row]:
-    """The newest raw requests, optionally for one domain."""
-    start, end = _range(hours)
-    connection = _connect(db)
-    connection.row_factory = sqlite3.Row
-    try:
-        if host:
-            return connection.execute(
-                "SELECT * FROM requests WHERE ts >= ? AND ts < ? AND host = ?"
-                " ORDER BY ts DESC LIMIT ?", (start, end, host, limit)).fetchall()
-        return connection.execute(
-            "SELECT * FROM requests WHERE ts >= ? AND ts < ?"
-            " ORDER BY ts DESC LIMIT ?", (start, end, limit)).fetchall()
+        return {"total": row[0], "blocked": row[1], "modified": row[2], "bytes": row[3]}
     finally:
         connection.close()
 
@@ -549,11 +504,13 @@ def dashboard(hours: int | None = 24, chart_hours: int = 24, host: str = "",
                         "modified": row[2], "bytes": row[3]},
             "hours": _chart(connection, chart_hours),
         }
-        for key, column in (("blocked", "blocked"), ("active", "total"), ("traffic", "bytes")):
-            data[key] = [(name, value) for name, value in connection.execute(
-                f"SELECT host, SUM({column}) AS value FROM domain_hourly"
-                " WHERE hour >= ? AND hour < ? GROUP BY host HAVING value > 0"
-                " ORDER BY value DESC, host LIMIT ?", (start, end, limit))]
+        # One scan for all three lists; the domain detail is the largest table.
+        hosts = connection.execute(
+            "SELECT host, SUM(total), SUM(blocked), SUM(bytes) FROM domain_hourly"
+            " WHERE hour >= ? AND hour < ? GROUP BY host", (start, end)).fetchall()
+        for key, column in (("active", 1), ("blocked", 2), ("traffic", 3)):
+            data[key] = sorted(((row[0], row[column]) for row in hosts if row[column] > 0),
+                               key=lambda pair: (-pair[1], pair[0]))[:limit]
         data["rules"] = [(name, hits) for name, hits in connection.execute(
             "SELECT rule, SUM(hits) AS n FROM rule_hourly WHERE hour >= ? AND hour < ?"
             " GROUP BY rule ORDER BY n DESC, rule LIMIT ?", (start, end, limit))]
@@ -572,12 +529,16 @@ def dashboard(hours: int | None = 24, chart_hours: int = 24, host: str = "",
 
 
 def _chart(connection: sqlite3.Connection, hours: int) -> list[tuple[datetime, int, int]]:
-    now = int(time.time())
-    last = now - now % 3600
-    rows = dict(
-        (hour, (total, blocked)) for hour, total, blocked in connection.execute(
+    last = _hour_of(datetime.now())
+    rows: dict[int, tuple[int, int]] = {}
+    for hour, total, blocked in connection.execute(
             "SELECT hour, total, blocked FROM hourly WHERE hour > ? AND hour <= ?",
-            (last - hours * 3600, last)))
+            (last - hours * 3600 - 1800, last + 1800)):
+        # Folded onto local hours: older databases keyed them by UTC hour,
+        # which is half an hour off in zones like +5:30.
+        key = _hour_of(datetime.fromtimestamp(hour))
+        old_total, old_blocked = rows.get(key, (0, 0))
+        rows[key] = (old_total + total, old_blocked + blocked)
     if not rows and not connection.execute("SELECT 1 FROM hourly LIMIT 1").fetchone():
         return []
     out = []

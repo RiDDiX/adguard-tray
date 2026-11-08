@@ -14,6 +14,7 @@ import shutil
 from dataclasses import dataclass
 
 from .cli import _run
+from .proxy_settings import get
 
 BINARY = "adguardvpn-cli"
 _OPT_BINARY = "/opt/adguardvpn_cli/adguardvpn-cli"   # official script without the symlink
@@ -73,7 +74,15 @@ def read_config(binary: str) -> tuple[VpnConfig | None, str]:
 
 def set_socks_mode(binary: str) -> tuple[VpnConfig | None, str]:
     """Switch the VPN to SOCKS5 mode; it applies the next time the VPN connects."""
-    return _config([binary, "config", "set-mode", "socks"])
+    # What set-mode prints is not documented; the SOCKS address comes from show.
+    code, out, err = _run([binary, "config", "set-mode", "socks"], timeout=15, stdin_data="")
+    if code != 0:
+        return None, (err or out).strip()
+    config, error = read_config(binary)
+    if config is not None and config.mode != "socks":
+        # Exit 0 without switching, e.g. when it wants a login first.
+        return None, (err or out).strip() or error
+    return config, error
 
 
 def skips_outbound_proxy(apps, names: tuple[str, ...]) -> bool:
@@ -83,5 +92,5 @@ def skips_outbound_proxy(apps, names: tuple[str, ...]) -> bool:
             continue
         pattern = str(rule.get("name", "")).lower()
         if pattern and any(fnmatch.fnmatchcase(name.lower(), pattern) for name in names):
-            return bool(rule.get("skip_outbound_proxy", False))
+            return get(rule, "skip_outbound_proxy", default=False)
     return False

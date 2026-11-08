@@ -1,6 +1,7 @@
 """XDG autostart entry for adguard-tray (~/.config/autostart/adguard-tray.desktop)."""
 
 import logging
+import os
 import shlex
 from pathlib import Path
 
@@ -8,7 +9,7 @@ from ._allowlist import write_atomic
 
 logger = logging.getLogger(__name__)
 
-AUTOSTART_DIR = Path.home() / ".config" / "autostart"
+AUTOSTART_DIR = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "autostart"
 AUTOSTART_FILE = AUTOSTART_DIR / "adguard-tray.desktop"
 
 
@@ -45,10 +46,15 @@ def set_autostart(enable: bool, exec_path) -> tuple[bool, str]:
 
 def _xdg_quote(arg: str) -> str:
     """Quote one Exec argument per the XDG Desktop Entry spec."""
-    if not arg or any(c in arg for c in ' \t"\'\\><~|&;$*?#()`'):
+    if not arg or any(c in arg for c in ' \t\n"\'\\><~|&;$*?#()`'):
         escaped = arg.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$").replace("`", "\\`")
-        return f'"{escaped}"'
-    return arg
+        arg = f'"{escaped}"'
+    return arg.replace("%", "%%")       # field codes are expanded inside quotes too
+
+
+def _xdg_escape(value: str) -> str:
+    """String-value escaping, applied on top of the Exec quoting."""
+    return value.replace("\\", "\\\\").replace("\n", "\\n")
 
 
 def desktop_entry(exec_path) -> str:
@@ -68,7 +74,7 @@ def desktop_entry(exec_path) -> str:
     # "python3 /path/app.py" → check the script, not the interpreter
     tryexec = parts[1] if len(parts) > 1 and parts[0].endswith(("python", "python3")) else parts[0]
     return _DESKTOP_TEMPLATE.format(
-        exec=" ".join(_xdg_quote(p) for p in parts), tryexec=tryexec
+        exec=_xdg_escape(" ".join(_xdg_quote(p) for p in parts)), tryexec=_xdg_escape(tryexec)
     )
 
 

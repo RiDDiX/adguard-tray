@@ -107,12 +107,7 @@ class _ActionRunnable(QRunnable):
 
     @pyqtSlot()
     def run(self) -> None:
-        try:
-            ok, msg = self._fn()
-        except Exception as exc:
-            logger.exception("Unexpected error in action runnable")
-            ok, msg = False, str(exc)
-        self.signals.done.emit(ok, msg)
+        self.signals.done.emit(*safe_call(self._fn))
 
 
 class _FilterLoader(QThread):
@@ -177,6 +172,7 @@ class AdGuardTray(QSystemTrayIcon):
         # Coalesce rapid-fire restart triggers (e.g. user flips 4 filters in a
         # row → one pkexec prompt instead of four).
         self._restart_pending = False
+        self._restart_retry = False
         self._quit_after_restart = False
         self._restart_debouncer = QTimer(self)
         self._restart_debouncer.setSingleShot(True)
@@ -672,10 +668,7 @@ class AdGuardTray(QSystemTrayIcon):
             self._last_error = ""
         else:
             self._report_error(msg or _t("Command failed"))
-        # Refresh immediately – cli.stop() already verified the state
-        self.worker.refresh()
-        # Second check to catch delayed state changes
-        QTimer.singleShot(2000, self.worker.refresh)
+        self._refresh_status_soon()
 
     def _refresh_status_soon(self) -> None:
         """Re-poll now and once more after the CLI settled."""
@@ -697,7 +690,7 @@ class AdGuardTray(QSystemTrayIcon):
             # would silently turn it back on. Ambiguous states (UNKNOWN/ERROR)
             # still restart: dropping a config change is worse there.
             logger.info("Skipping queued restart, AdGuard is not running")
-            self._restart_pending = False
+            self._restart_pending = self._restart_retry = False
             if self._quit_after_restart:
                 self.app.quit()
             return
@@ -709,23 +702,38 @@ class AdGuardTray(QSystemTrayIcon):
             return
         self._restart_pending = False
         self._set_busy(True)
-        if self.config.notifications_enabled:
+        if self.config.notifications_enabled and not self._restart_retry:
             notify("AdGuard Tray", _t("Restarting AdGuard…"), tray=self)
-        self._run_async(self.cli.restart, self._on_restart_done)
+        self._restart_retry = False
+        self._run_async(self._restart_if_running, self._on_restart_done)
+
+    def _restart_if_running(self) -> tuple[bool, str]:
+        # _last_status can predate a stop that just finished; ask the CLI.
+        if self.cli.get_status().status in (AdGuardStatus.INACTIVE, AdGuardStatus.NOT_INSTALLED):
+            logger.info("Skipping queued restart, AdGuard is not running")
+            return True, ""
+        return self.cli.restart()
 
     def _on_restart_done(self, ok: bool, msg: str) -> None:
         self._set_busy(False)
+        if not ok and msg == _t("Another action is still running"):
+            # An Overview start/stop holds the CLI; try again once it is done,
+            # the status check above then skips it if AdGuard ended up off.
+            # A pkexec prompt can hold it for a minute: retry quietly.
+            self._restart_retry = True
+            QTimer.singleShot(2000, self._restart_cli_async)
+            return
         if ok:
             self._last_error = ""
-            if self.config.notifications_enabled:
+            # An empty message means the restart was skipped (see above).
+            if msg and self.config.notifications_enabled:
                 notify("AdGuard Tray", _t("AdGuard restarted."), tray=self)
         else:
             self._report_error(_t("Restart failed: {}", msg or _t("Unknown error")))
         if self._quit_after_restart:
             self.app.quit()
             return
-        self.worker.refresh()
-        QTimer.singleShot(2000, self.worker.refresh)
+        self._refresh_status_soon()
 
     # ── Manager window ────────────────────────────────────────────────────
 

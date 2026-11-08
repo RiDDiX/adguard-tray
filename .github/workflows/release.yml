@@ -18,6 +18,14 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Check version
+        # The self-update compares these, a mismatch makes every update abort.
+        run: |
+          INIT=$(python -c "import adguard_tray; print(adguard_tray.__version__)")
+          TOML=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          echo "tag ${GITHUB_REF_NAME#v}, __init__.py $INIT, pyproject.toml $TOML"
+          [ "${GITHUB_REF_NAME#v}" = "$INIT" ] && [ "$INIT" = "$TOML" ]
+
       - name: Install ruff
         run: pip install ruff
 
@@ -87,8 +95,8 @@ jobs:
         id: changelog
         run: |
           # Get the previous tag
-          PREV_TAG=$(git tag --sort=-version:refname | head -2 | tail -1)
-          if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "$GITHUB_REF_NAME" ]; then
+          PREV_TAG=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          if [ -z "$PREV_TAG" ]; then
             CHANGES="Initial release"
           else
             # grep exits 1 when every commit is chore: – don't fail the release for that
@@ -107,7 +115,7 @@ jobs:
           tar czf adguard-tray-${{ steps.version.outputs.version }}.tar.gz \
             --transform "s,^,adguard-tray-${{ steps.version.outputs.version }}/," \
             adguard_tray/ adguard-tray.py adguard-tray.desktop \
-            pyproject.toml requirements.txt LICENSE README.md install.sh
+            pyproject.toml LICENSE README.md install.sh
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

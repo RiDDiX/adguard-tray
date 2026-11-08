@@ -283,37 +283,6 @@ class Row(QWidget):
             p.drawRoundedRect(QRectF(self.rect()).adjusted(1, 1, -1, -1), RADIUS - 1, RADIUS - 1)
 
 
-class Badge(QWidget):
-    """A small pill with an upper-case word, e.g. ACTIVE."""
-
-    def __init__(self, text: str = "", tone: str = "info", parent=None) -> None:
-        super().__init__(parent)
-        self._text, self._tone = text, tone
-        self.setFont(scaled_font(self, 0.8, bold=True))
-        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-
-    def set(self, text: str, tone: str) -> None:
-        self._text, self._tone = text, tone
-        self.setAccessibleName(text)
-        self.updateGeometry()
-        self.update()
-
-    def sizeHint(self) -> QSize:
-        fm = self.fontMetrics()
-        return QSize(fm.horizontalAdvance(self._text.upper()) + 18, fm.height() + 6)
-
-    def paintEvent(self, _event) -> None:
-        tok = theme.tokens()
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(tok.badge[self._tone])
-        r = QRectF(self.rect())
-        p.drawRoundedRect(r, r.height() / 2, r.height() / 2)
-        p.setPen(tok.tone_text[self._tone])
-        p.drawText(r, Qt.AlignmentFlag.AlignCenter, self._text.upper())
-
-
 class StatTile(QToolButton):
     """A big number with a caption. Clickable when it leads somewhere."""
 
@@ -852,6 +821,11 @@ def list_card(tree: QTreeWidget) -> Card:
     card = Card(padding=4)
     card.add(tree)
     return card
+
+
+def number(value: int) -> str:
+    """Thin spaces between thousands – easier to read at a glance."""
+    return f"{value:,}".replace(",", " ")
 
 
 def one_line(text: str) -> str:

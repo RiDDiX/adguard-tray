@@ -11,6 +11,7 @@ else should be replaced with the value the window loaded.
 """
 
 import logging
+import re
 from pathlib import Path
 
 import yaml
@@ -26,11 +27,43 @@ PROXY_YAML = Path.home() / ".local" / "share" / "adguard-cli" / "proxy.yaml"
 
 # ── YAML helpers ─────────────────────────────────────────────────────────────
 
+class _Loader(yaml.SafeLoader):
+    """YAML 1.2 scalars, as adguard-cli (Go) reads them.
+
+    PyYAML's 1.1 rules turn a plain off/on/yes/no into a bool and 80:59 into
+    a base-60 int, and Apply would write that back for keys nobody touched.
+    """
+
+
+_Loader.yaml_implicit_resolvers = {
+    first: [(tag, regexp) for tag, regexp in resolvers
+            if tag not in ("tag:yaml.org,2002:bool", "tag:yaml.org,2002:int",
+                           "tag:yaml.org,2002:float", "tag:yaml.org,2002:value")]
+    for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
+_Loader.add_implicit_resolver("tag:yaml.org,2002:bool",
+                              re.compile(r"^(?:true|True|TRUE|false|False|FALSE)$"), list("tTfF"))
+# Before float, which matches plain integers as well.
+_Loader.add_implicit_resolver("tag:yaml.org,2002:int",
+                              re.compile(r"^(?:[-+]?[0-9]+|0x[0-9a-fA-F]+|0o[0-7]+)$"), list("-+0123456789"))
+_Loader.add_implicit_resolver("tag:yaml.org,2002:float", re.compile(
+    r"^(?:[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?"
+    r"|[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$"), list("-+.0123456789"))
+# Decimal: 1.1 would read 010 as octal. An explicit !!int 0x10 keeps 1.1 rules.
+_Loader.add_constructor("tag:yaml.org,2002:int", lambda loader, node: (
+    int(text) if (text := loader.construct_scalar(node)).lstrip("+-").isdigit()
+    else int(text, 0) if text[:2] in ("0x", "0o")
+    else yaml.SafeLoader.construct_yaml_int(loader, node)))
+
+# How adguard-cli reads a hand-written YAML 1.1 bool into a bool field.
+_YAML11_BOOLS = {"y": True, "yes": True, "on": True, "n": False, "no": False, "off": False}
+
+
 def load_yaml() -> dict:
     """proxy.yaml as a dict; {} when it is missing or unreadable."""
     try:
-        data = yaml.safe_load(PROXY_YAML.read_text(encoding="utf-8")) or {}
-    except (OSError, yaml.YAMLError) as exc:
+        data = yaml.load(PROXY_YAML.read_text(encoding="utf-8"), Loader=_Loader) or {}
+    except (OSError, ValueError, yaml.YAMLError) as exc:
         logger.error("Failed to load proxy.yaml: %s", exc)
         return {}
     return data if isinstance(data, dict) else {}
@@ -70,7 +103,8 @@ def get(data: dict, *keys, default=None):
     if node is None:
         return default
     if isinstance(default, bool):
-        # YAML 1.1 has on/off/yes/no, and safe_load gives ints for 0/1.
+        if isinstance(node, str):
+            return _YAML11_BOOLS.get(node.lower(), default)
         return bool(node) if isinstance(node, (bool, int)) else default
     if isinstance(default, int) and isinstance(node, bool):
         return default  # a bool is not a port or a thread count
@@ -238,7 +272,8 @@ def bind_raw_edit(model: ProxySettings, widget: QLineEdit, key: tuple, default: 
         pushing.append(True)
         try:
             if text == shown(original).strip():
-                model.set(key, original)
+                # The file's value, None for a missing key: not an edit either way.
+                model.set(key, model.original(key))
             elif isinstance(original, list):
                 model.set(key, text.split())
             else:
@@ -389,7 +424,7 @@ if __name__ == "__main__":
     PROXY_YAML.write_text(PROXY_YAML.read_text().replace("keep_me: 1", "keep_me: 2"))
     ok, err = m.apply()
     assert ok, err
-    data = yaml.safe_load(PROXY_YAML.read_text())
+    data = load_yaml()
     assert data["keep_me"] == 2 and data["dns_filtering"]["upstream"] == ["a", "b", "c"]
     assert data["https_filtering"]["enabled"] is False and data["filtered_ports"] == "80:5221"
     assert m.dirty() == 0 and not a.isChecked()

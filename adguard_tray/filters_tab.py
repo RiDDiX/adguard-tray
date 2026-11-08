@@ -101,7 +101,8 @@ class FilterList(QWidget):
         self.page, self.ctx, self.dns, self._fit = page, ctx, dns, fit
         self._workers: list[QThread] = []
         self._map: dict[int, FilterEntry] = {}
-        self._busy = False
+        self._busy_n = 0            # running jobs: a load can overlap a change
+        self._acting = False        # a CLI change is running
         self._again = False         # a reload asked for while busy
         self._empty = ""            # what an empty list says, once loaded
         self._held = 0              # scroll added to keep rows still under a banner
@@ -148,6 +149,10 @@ class FilterList(QWidget):
                 rename_error=_t("Could not set filter title"),
             )
         self._build()
+
+    @property
+    def _busy(self) -> bool:
+        return self._busy_n > 0
 
     def _build(self) -> None:
         lay = QVBoxLayout(self)
@@ -497,6 +502,7 @@ class FilterList(QWidget):
     def _run_update(self) -> None:
         if self._busy:
             return
+        self._acting = True
         self._set_busy(True)
         self._say(_t("Updating filters… (can take up to 2 minutes)"), "info")
         cli = self.ctx.cli
@@ -504,6 +510,7 @@ class FilterList(QWidget):
 
     def _on_updated(self, result) -> None:
         ok, msg = result
+        self._acting = False
         self._set_busy(False)
         if ok:
             # Stays until closed: the output behind Details is worth reading.
@@ -516,12 +523,19 @@ class FilterList(QWidget):
 
     def _act(self, fn, *args, done: str, error: str, on_fail=None) -> None:
         """Run a CLI change; on success restart AdGuard and reload the list."""
+        if self._acting:
+            # Confirmed in a dialog while another change started: one at a time.
+            if on_fail:
+                on_fail()
+            return
+        self._acting = True
         self._set_busy(True)
         self._start(lambda: safe_call(fn, *args),
                     lambda result: self._on_acted(result, done, error, on_fail))
 
     def _on_acted(self, result, done: str, error: str, on_fail) -> None:
         ok, msg = result
+        self._acting = False
         self._set_busy(False)
         if not ok:
             if on_fail:
@@ -593,7 +607,8 @@ class FilterList(QWidget):
     def _set_busy(self, busy: bool) -> None:
         # The list stays enabled (no grey flash, focus and scroll stay put);
         # eventFilter swallows clicks and Space on it meanwhile.
-        self._busy = busy
+        self._busy_n += 1 if busy else -1
+        busy = self._busy
         for widget in (self.scope, self.btn_add, self.btn_update):
             if widget is not None:
                 widget.setEnabled(not busy)

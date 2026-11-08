@@ -28,12 +28,9 @@ from .manager_window import (
 )
 from .proxy_settings import add_switch, gate, guard
 from .ui import Page
+from .worker import FnWorker
 
 logger = logging.getLogger(__name__)
-
-def _number(value: int) -> str:
-    """Thin spaces between thousands, as on the Activity page."""
-    return f"{value:,}".replace(",", " ")
 
 
 def _blocked_24h() -> tuple[int, int, str]:
@@ -79,21 +76,6 @@ def _license_summary(masked: str) -> str:
     if parts:
         return " · ".join(parts)
     return next((line.strip() for line in masked.splitlines() if line.strip()), "")
-
-
-class _Worker(QThread):
-    done = pyqtSignal(bool, str)
-
-    def __init__(self, fn):
-        super().__init__()
-        self._fn = fn
-
-    def run(self):
-        try:
-            ok, msg = self._fn()
-        except Exception as exc:
-            ok, msg = False, str(exc)
-        self.done.emit(ok, msg)
 
 
 class _LoadWorker(QThread):
@@ -296,7 +278,7 @@ class OverviewTab(Page):
 
         exceptions = data.get("exceptions")
         if isinstance(exceptions, int):
-            self.tiles["exceptions"].set_value(_number(exceptions))
+            self.tiles["exceptions"].set_value(ui.number(exceptions))
         else:
             self.tiles["exceptions"].set_value("–", str(exceptions))
             failed.append(("exceptions", str(exceptions)))
@@ -305,8 +287,8 @@ class OverviewTab(Page):
         note = ""
         if isinstance(blocked, tuple):
             count, total, note = blocked
-            hint = _t("of {} requests in the last 24 hours", _number(total))
-            self.tiles["blocked"].set_value("–" if note and not total else _number(count), hint)
+            hint = _t("of {} requests in the last 24 hours", ui.number(total))
+            self.tiles["blocked"].set_value("–" if note and not total else ui.number(count), hint)
         else:
             self.tiles["blocked"].set_value("–", str(blocked))
             failed.append(("blocked", str(blocked)))
@@ -409,7 +391,7 @@ class OverviewTab(Page):
             return
         self._acting = True
         self._set_busy()
-        w = _Worker(fn)
+        w = FnWorker(fn)
 
         def _done(ok, msg):
             self._acting = False

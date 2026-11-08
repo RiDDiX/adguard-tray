@@ -14,6 +14,7 @@ import logging
 from PyQt6.QtCore import (
     QObject,
     QRunnable,
+    QThread,
     QThreadPool,
     QTimer,
     pyqtSignal,
@@ -45,6 +46,23 @@ def safe_result(fn, result_cls, **kwargs):
     except Exception as exc:
         logger.exception("CLI list call failed")
         return result_cls(error=str(exc))
+
+
+class FnWorker(QThread):
+    """Runs an (ok, msg)-returning call off the GUI thread; emits done(ok, msg).
+
+    The caller keeps a reference until `finished`: a QThread collected while
+    running aborts the process.
+    """
+
+    done = pyqtSignal(bool, str)
+
+    def __init__(self, fn) -> None:
+        super().__init__()
+        self._fn = fn
+
+    def run(self) -> None:
+        self.done.emit(*safe_call(self._fn))
 
 
 class _Signals(QObject):
