@@ -16,7 +16,7 @@ import signal
 import sys
 from pathlib import Path
 
-from PyQt6.QtCore import QLockFile, QTimer
+from PyQt6.QtCore import QLockFile, Qt, QTimer
 from PyQt6.QtWidgets import QApplication, QMessageBox, QPushButton, QSystemTrayIcon
 
 from . import installer
@@ -246,6 +246,7 @@ def _dependency_doctor(cli: AdGuardCLI) -> None:
     logger.warning("adguard-cli binary not found: %r", binary)
 
     msg = QMessageBox()
+    msg.setWindowModality(Qt.WindowModality.NonModal)    # a parentless QMessageBox is application modal
     msg.setWindowTitle(_t("adguard-cli not found"))
     msg.setIcon(QMessageBox.Icon.Warning)
     msg.setText(_t(
@@ -267,15 +268,19 @@ def _dependency_doctor(cli: AdGuardCLI) -> None:
     # quit() gives up when a window refuses to close.
     msg.setEscapeButton(btn_continue)
 
-    def _clicked(btn) -> None:
+    def _forget() -> None:
         global _doctor_box
+        _doctor_box = None
+
+    def _clicked(btn) -> None:
         # No terminal found: the command still has to reach the user.
         opened = btn is btn_terminal and installer.open_in_terminal(installer.install_command("adguard-cli"))
         if btn is btn_copy or (btn is btn_terminal and not opened):
             clipboard = QApplication.clipboard()
             if clipboard:
                 clipboard.setText(_INSTALL_CMD)
-        _doctor_box = None
+        # After this signal: dropping the last reference here deletes the box inside its own click.
+        QTimer.singleShot(0, _forget)
 
     msg.buttonClicked.connect(_clicked)
     _doctor_box = msg  # keep alive – nothing else references the box

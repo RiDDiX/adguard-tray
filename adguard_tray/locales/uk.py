@@ -1133,8 +1133,8 @@ STRINGS: dict[str, str] = {
         "Відкрити в терміналі",
     "AdGuard VPN":
         "AdGuard VPN",
-    "AdGuard's VPN for Linux (adguardvpn-cli) runs next to AdGuard CLI. AdGuard Tray checks that their settings fit together; it does not connect the VPN or log in.":
-        "VPN від AdGuard для Linux (adguardvpn-cli) працює поряд з AdGuard CLI. AdGuard Tray перевіряє, чи узгоджені їхні налаштування; він не підключає VPN і не виконує вхід.",
+    "AdGuard's VPN for Linux (adguardvpn-cli) runs next to AdGuard CLI. AdGuard Tray checks that their settings fit together; log in and connect on the VPN page.":
+        "VPN від AdGuard для Linux (adguardvpn-cli) працює поряд з AdGuard CLI. AdGuard Tray перевіряє, чи узгоджені їхні налаштування; увійти й підключитися можна на сторінці VPN.",
     "Install…":
         "Встановити…",
     "Outbound proxy":
@@ -1167,4 +1167,46 @@ STRINGS: dict[str, str] = {
         "Встановлено · режим TUN",
     "Installed · {} mode":
         "Встановлено · режим {}",
+    "VPN":
+        "VPN",
+    "Account":
+        "Обліковий запис",
+    "Connection":
+        "Підключення",
+    "Location":
+        "Локація",
+    "Fastest location":
+        "Найшвидша локація",
+    "Connect":
+        "Підключити",
+    "Disconnect":
+        "Відключити",
+    "Log in":
+        "Увійти",
+    "Log out":
+        "Вийти",
+    "Logged in":
+        "Вхід виконано",
+    "Not logged in":
+        "Вхід не виконано",
+    "Open in browser":
+        "Відкрити в браузері",
+    "Authorize in your browser":
+        "Авторизуйтеся в браузері",
+    "Not installed. Install adguardvpn-cli to log in to AdGuard VPN here.":
+        "Не встановлено. Встановіть adguardvpn-cli, щоб входити в AdGuard VPN звідси.",
+    "Could not open the browser. Copy the link instead.":
+        "Не вдалося відкрити браузер. Скопіюйте посилання вручну.",
+    "Could not start adguardvpn-cli.":
+        "Не вдалося запустити adguardvpn-cli.",
+    "adguardvpn-cli failed with exit code {}":
+        "adguardvpn-cli завершився з помилкою, код виходу {}",
+    "AdGuard VPN asks for your password in the terminal window.":
+        "AdGuard VPN запитує пароль у вікні термінала.",
+    "No terminal app was found. The command is on the clipboard: paste it into a terminal.":
+        "Не знайдено жодного термінала. Команду скопійовано в буфер обміну: вставте її в термінал.",
+    "AdGuard VPN was disconnected to change its mode. Connect again.":
+        "AdGuard VPN відключено, щоб змінити режим. Підключіть його знову.",
+    "AdGuard no longer sends its traffic through AdGuard VPN. Press Apply to save this.":
+        "AdGuard більше не спрямовує свій трафік через AdGuard VPN. Натисніть «Застосувати», щоб зберегти зміну.",
 }

@@ -78,6 +78,7 @@ jobs:
           from adguard_tray.https_tab import HttpsTab
           from adguard_tray.stealth_tab import StealthTab
           from adguard_tray.network_tab import NetworkTab
+          from adguard_tray.vpn_tab import VpnTab
           from adguard_tray.diagnostics_tab import DiagnosticsTab
           from adguard_tray.preferences_tab import PreferencesTab
           from adguard_tray.about_tab import AboutTab

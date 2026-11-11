@@ -22,7 +22,7 @@ Taken in real Plasma, GNOME and Hyprland sessions running headless in containers
 - Shows AdGuard status in the tray (green = running, grey = stopped, red = error)
 - Start / stop / restart from the tray menu
 - Toggle individual filters without opening a terminal
-- Manager window with a sidebar: Overview, Activity, Filters, DNS, Userscripts, Exceptions, HTTPS, Stealth mode, Network, Maintenance, Settings, About — every adguard-cli setting on the page it belongs to, no nested dialogs
+- Manager window with a sidebar: Overview, Activity, Filters, DNS, Userscripts, Exceptions, HTTPS, Stealth mode, Network, VPN, Maintenance, Settings, About — every adguard-cli setting on the page it belongs to, no nested dialogs
 - Changes to AdGuard's own settings collect in one Apply bar, so several switches cost one restart
 - Manage userscripts (install, enable/disable, remove)
 - Update all filters with one click
@@ -34,7 +34,8 @@ Taken in real Plasma, GNOME and Hyprland sessions running headless in containers
 - Update check for adguard-tray itself, with one-click install where the files belong to us
 - Install the HTTPS certificate into Chromium-based browsers (Brave, Chrome, ungoogled-chromium, Vivaldi, …) and Firefox-family profiles
 - HTTP/3 (QUIC) check: tells you when browsers can bypass filtering
-- Works next to AdGuard VPN CLI: warns when the two settings would loop and fixes it with one click; outbound proxy setting on the Network page
+- AdGuard VPN CLI from the same window: log in, pick a location, connect and disconnect, switch between TUN and SOCKS5 mode
+- One switch routes AdGuard through the VPN, so the two run together instead of looping; outbound proxy setting on the Network page
 - Guided settings for sites that refuse to load behind the proxy
 - `--version`, `--check-update` and `--update` flags
 
@@ -331,21 +332,32 @@ WireGuard on port 443 and some video calls — so the app does not do it for you
 ## AdGuard VPN
 
 [AdGuard VPN CLI](https://github.com/AdguardTeam/AdGuardVPNCLI) and adguard-cli can run at the
-same time. AdGuard Tray does not control the VPN — it does not connect, disconnect or log in —
-but the **Network** page shows whether `adguardvpn-cli` is installed and in which mode, and
-checks that the two fit together.
+same time. The **VPN** page drives `adguardvpn-cli`:
+
+- **Log in** starts the CLI's browser login and shows its link. **Log out** ends the session.
+- Pick a location, or type a city, country or ISO code, and press **Connect**. **Disconnect** stops
+  the VPN. The tray menu has both under **AdGuard VPN**; there, Connect takes the fastest location.
+- **Mode** switches between TUN and SOCKS5. A connected VPN is disconnected first, because the CLI
+  would otherwise restart it on its own.
+- In TUN mode the CLI needs root and asks for the password through `sudo`, so **Connect** opens a
+  terminal window for it. SOCKS5 mode needs no password.
+
+AdGuard Tray never runs `adguardvpn-cli` as root itself and keeps no credentials; the session
+belongs to the CLI.
 
 One combination does not work, and AdGuard says so itself
 ([AdGuard CLI and AdGuard VPN CLI](https://adguard.com/kb/adguard-for-linux/vpn-cli-interaction/)):
 the VPN in **TUN** mode while adguard-cli filters in **automatic** mode. Traffic then loops between
-the two. A fresh VPN install starts in TUN mode, so the Network page warns as soon as both are set
-up like that, and **Route AdGuard through the VPN** applies AdGuard's recommended setup:
+the two. A fresh VPN install starts in TUN mode, so the VPN and Network pages warn as soon as both
+are set up like that. The switch **Route AdGuard through the VPN** on the VPN page applies AdGuard's
+recommended setup:
 
 1. `adguardvpn-cli config set-mode socks` — the VPN offers a SOCKS5 proxy (default `127.0.0.1:1080`) instead of a tunnel
 2. adguard-cli's outbound proxy points at that address (`outbound_proxy` in `proxy.yaml`, also editable on the Network page)
 3. the app rule `*vpn*` with *Skip outbound proxy* stays in place (adguard-cli ships it; it is added if missing), so the VPN's own traffic does not go back into itself
 
-Press **Apply** afterwards, and reconnect the VPN if it was connected. The other way out is
+Press **Apply** afterwards, and connect the VPN again if it was connected. Turning the switch off
+disables the outbound proxy again and leaves the rest alone. The other way out is
 adguard-cli in manual mode with the VPN in TUN mode; then only apps set to use AdGuard's proxy are
 filtered.
 

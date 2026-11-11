@@ -1133,8 +1133,8 @@ STRINGS: dict[str, str] = {
         "Terminalde aç",
     "AdGuard VPN":
         "AdGuard VPN",
-    "AdGuard's VPN for Linux (adguardvpn-cli) runs next to AdGuard CLI. AdGuard Tray checks that their settings fit together; it does not connect the VPN or log in.":
-        "AdGuard'ın Linux için VPN uygulaması (adguardvpn-cli), AdGuard CLI ile yan yana çalışır. AdGuard Tray, ikisinin ayarlarının uyumlu olup olmadığını denetler; VPN bağlantısı kurmaz ve oturum açmaz.",
+    "AdGuard's VPN for Linux (adguardvpn-cli) runs next to AdGuard CLI. AdGuard Tray checks that their settings fit together; log in and connect on the VPN page.":
+        "AdGuard'ın Linux için VPN uygulaması (adguardvpn-cli), AdGuard CLI ile yan yana çalışır. AdGuard Tray, ikisinin ayarlarının uyumlu olup olmadığını denetler; oturum açma ve bağlanma VPN sayfasında yapılır.",
     "Install…":
         "Kur…",
     "Outbound proxy":
@@ -1167,4 +1167,46 @@ STRINGS: dict[str, str] = {
         "Kurulu · TUN modu",
     "Installed · {} mode":
         "Kurulu · {} modu",
+    "VPN":
+        "VPN",
+    "Account":
+        "Hesap",
+    "Connection":
+        "Bağlantı",
+    "Location":
+        "Konum",
+    "Fastest location":
+        "En hızlı konum",
+    "Connect":
+        "Bağlan",
+    "Disconnect":
+        "Bağlantıyı kes",
+    "Log in":
+        "Oturum aç",
+    "Log out":
+        "Oturumu kapat",
+    "Logged in":
+        "Oturum açık",
+    "Not logged in":
+        "Oturum açık değil",
+    "Open in browser":
+        "Tarayıcıda aç",
+    "Authorize in your browser":
+        "Tarayıcınızda yetkilendirin",
+    "Not installed. Install adguardvpn-cli to log in to AdGuard VPN here.":
+        "Kurulu değil. AdGuard VPN'de buradan oturum açmak için adguardvpn-cli'yi kurun.",
+    "Could not open the browser. Copy the link instead.":
+        "Tarayıcı açılamadı. Bunun yerine bağlantı adresini kopyalayın.",
+    "Could not start adguardvpn-cli.":
+        "adguardvpn-cli başlatılamadı.",
+    "adguardvpn-cli failed with exit code {}":
+        "adguardvpn-cli {} çıkış koduyla başarısız oldu",
+    "AdGuard VPN asks for your password in the terminal window.":
+        "AdGuard VPN, terminal penceresinde parolanızı soruyor.",
+    "No terminal app was found. The command is on the clipboard: paste it into a terminal.":
+        "Terminal uygulaması bulunamadı. Komut panoya kopyalandı: bir terminale yapıştırın.",
+    "AdGuard VPN was disconnected to change its mode. Connect again.":
+        "Modunu değiştirmek için AdGuard VPN'in bağlantısı kesildi. Yeniden bağlanın.",
+    "AdGuard no longer sends its traffic through AdGuard VPN. Press Apply to save this.":
+        "AdGuard artık trafiğini AdGuard VPN üzerinden göndermiyor. Bunu kaydetmek için “Uygula” düğmesine basın.",
 }

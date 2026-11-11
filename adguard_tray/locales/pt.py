@@ -1133,8 +1133,8 @@ STRINGS: dict[str, str] = {
         "Abrir em um terminal",
     "AdGuard VPN":
         "AdGuard VPN",
-    "AdGuard's VPN for Linux (adguardvpn-cli) runs next to AdGuard CLI. AdGuard Tray checks that their settings fit together; it does not connect the VPN or log in.":
-        "O AdGuard VPN para Linux (adguardvpn-cli) é executado junto com o AdGuard CLI. O AdGuard Tray verifica se as configurações dos dois são compatíveis; ele não conecta a VPN nem faz login.",
+    "AdGuard's VPN for Linux (adguardvpn-cli) runs next to AdGuard CLI. AdGuard Tray checks that their settings fit together; log in and connect on the VPN page.":
+        "O AdGuard VPN para Linux (adguardvpn-cli) é executado junto com o AdGuard CLI. O AdGuard Tray verifica se as configurações dos dois são compatíveis; faça login e conecte-se na página VPN.",
     "Install…":
         "Instalar…",
     "Outbound proxy":
@@ -1167,4 +1167,46 @@ STRINGS: dict[str, str] = {
         "Instalado · modo TUN",
     "Installed · {} mode":
         "Instalado · modo {}",
+    "VPN":
+        "VPN",
+    "Account":
+        "Conta",
+    "Connection":
+        "Conexão",
+    "Location":
+        "Local",
+    "Fastest location":
+        "Local mais rápido",
+    "Connect":
+        "Conectar",
+    "Disconnect":
+        "Desconectar",
+    "Log in":
+        "Entrar",
+    "Log out":
+        "Sair",
+    "Logged in":
+        "Conectado",
+    "Not logged in":
+        "Não conectado",
+    "Open in browser":
+        "Abrir no navegador",
+    "Authorize in your browser":
+        "Autorize no seu navegador",
+    "Not installed. Install adguardvpn-cli to log in to AdGuard VPN here.":
+        "Não instalado. Instale o adguardvpn-cli para fazer login no AdGuard VPN por aqui.",
+    "Could not open the browser. Copy the link instead.":
+        "Não foi possível abrir o navegador. Copie o link.",
+    "Could not start adguardvpn-cli.":
+        "Não foi possível iniciar o adguardvpn-cli.",
+    "adguardvpn-cli failed with exit code {}":
+        "O adguardvpn-cli falhou com o código de saída {}",
+    "AdGuard VPN asks for your password in the terminal window.":
+        "O AdGuard VPN pede sua senha na janela do terminal.",
+    "No terminal app was found. The command is on the clipboard: paste it into a terminal.":
+        "Nenhum aplicativo de terminal foi encontrado. O comando está na área de transferência: cole-o em um terminal.",
+    "AdGuard VPN was disconnected to change its mode. Connect again.":
+        "O AdGuard VPN foi desconectado para mudar de modo. Conecte novamente.",
+    "AdGuard no longer sends its traffic through AdGuard VPN. Press Apply to save this.":
+        "O AdGuard não envia mais seu tráfego pelo AdGuard VPN. Clique em Aplicar para salvar essa alteração.",
 }

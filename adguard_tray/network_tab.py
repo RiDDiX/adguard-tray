@@ -14,7 +14,7 @@ from .ui import Banner, Page, Row, one_line
 
 logger = logging.getLogger(__name__)
 
-OUTBOUND = "outbound_proxy"
+OUTBOUND = vpn.OUTBOUND
 _PROXY_TYPES = ("HTTP", "HTTPS", "SOCKS4", "SOCKS5")    # adguard-cli's spelling in proxy.yaml
 
 
@@ -35,7 +35,10 @@ class _VpnWorker(QThread):
         try:
             path = vpn.find()
             if path:
-                config, error = (vpn.set_socks_mode if self.switch else vpn.read_config)(path)
+                if self.switch:
+                    config, error, _stopped = vpn.change_mode(path, "socks")
+                else:
+                    config, error = vpn.read_config(path)
         except Exception as exc:
             logger.exception("adguardvpn-cli call failed")
             error = str(exc)
@@ -70,7 +73,7 @@ class NetworkTab(Page):
         vpn_card = self.section(
             _t("AdGuard VPN"),
             _t("AdGuard's VPN for Linux (adguardvpn-cli) runs next to AdGuard CLI. AdGuard Tray checks "
-               "that their settings fit together; it does not connect the VPN or log in."))
+               "that their settings fit together; log in and connect on the VPN page."))
         self.vpn_conflict = Banner()
         vpn_card.add(self.vpn_conflict)
         self.btn_vpn_install = QPushButton(_t("Install…"))
@@ -167,10 +170,7 @@ class NetworkTab(Page):
                 self._check_vpn(True)
 
     def _show_conflict(self) -> None:
-        s = self.ctx.settings
-        loop = (self._vpn is not None and self._vpn.mode == "tun" and s.available
-                and s.value(("proxy_mode",), "auto") == "auto")
-        if not loop:
+        if not vpn.loops(self.ctx.settings, self._vpn):
             self.vpn_conflict.hide()
             return
         self.vpn_conflict.show_message(
@@ -186,15 +186,7 @@ class NetworkTab(Page):
                                      details=error)
             self._check_vpn()
             return
-        s = self.ctx.settings
-        s.set((OUTBOUND, "enabled"), True, False)
-        s.set((OUTBOUND, "mode"), "SOCKS5", "HTTP")
-        s.set((OUTBOUND, "host"), config.socks_host, "localhost")
-        s.set((OUTBOUND, "port"), config.socks_port, 3128)
-        # Without this rule the VPN's own traffic would go into the proxy it is.
-        apps = s.value(("apps",), [])
-        if not vpn.skips_outbound_proxy(apps, (vpn.BINARY, path)):
-            s.set(("apps",), [dict(vpn.VPN_RULE), *apps], [])
+        vpn.route_through(self.ctx.settings, config, path)
         self._vpn_checked(path, config, "")
         self.banner.show_message(
             _t("AdGuard VPN now uses SOCKS5 mode. Press Apply to send AdGuard's traffic through it, "

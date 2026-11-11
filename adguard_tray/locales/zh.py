@@ -1151,8 +1151,8 @@ STRINGS: dict[str, str] = {
         "在终端中打开",
     "AdGuard VPN":
         "AdGuard VPN",
-    "AdGuard's VPN for Linux (adguardvpn-cli) runs next to AdGuard CLI. AdGuard Tray checks that their settings fit together; it does not connect the VPN or log in.":
-        "AdGuard 的 Linux 版 VPN（adguardvpn-cli）可与 AdGuard CLI 同时运行。AdGuard Tray 会检查两者的设置是否兼容，但不会连接 VPN，也不会登录。",
+    "AdGuard's VPN for Linux (adguardvpn-cli) runs next to AdGuard CLI. AdGuard Tray checks that their settings fit together; log in and connect on the VPN page.":
+        "AdGuard 的 Linux 版 VPN（adguardvpn-cli）可与 AdGuard CLI 同时运行。AdGuard Tray 会检查两者的设置是否兼容；登录和连接请在 VPN 页面中进行。",
     "Install…":
         "安装…",
     "Outbound proxy":
@@ -1185,4 +1185,46 @@ STRINGS: dict[str, str] = {
         "已安装 · TUN 模式",
     "Installed · {} mode":
         "已安装 · {} 模式",
+    "VPN":
+        "VPN",
+    "Account":
+        "账户",
+    "Connection":
+        "连接",
+    "Location":
+        "位置",
+    "Fastest location":
+        "最快位置",
+    "Connect":
+        "连接",
+    "Disconnect":
+        "断开连接",
+    "Log in":
+        "登录",
+    "Log out":
+        "退出登录",
+    "Logged in":
+        "已登录",
+    "Not logged in":
+        "未登录",
+    "Open in browser":
+        "在浏览器中打开",
+    "Authorize in your browser":
+        "在浏览器中授权",
+    "Not installed. Install adguardvpn-cli to log in to AdGuard VPN here.":
+        "未安装。安装 adguardvpn-cli 后即可在此登录 AdGuard VPN。",
+    "Could not open the browser. Copy the link instead.":
+        "无法打开浏览器。请改为复制链接。",
+    "Could not start adguardvpn-cli.":
+        "无法启动 adguardvpn-cli。",
+    "adguardvpn-cli failed with exit code {}":
+        "adguardvpn-cli 运行失败，退出代码 {}",
+    "AdGuard VPN asks for your password in the terminal window.":
+        "AdGuard VPN 会在终端窗口中要求输入密码。",
+    "No terminal app was found. The command is on the clipboard: paste it into a terminal.":
+        "未找到终端应用。命令已复制到剪贴板，请将其粘贴到终端中。",
+    "AdGuard VPN was disconnected to change its mode. Connect again.":
+        "为切换模式，AdGuard VPN 已断开连接。请重新连接。",
+    "AdGuard no longer sends its traffic through AdGuard VPN. Press Apply to save this.":
+        "AdGuard 的流量不再经由 AdGuard VPN 传输。点击“应用”以保存此更改。",
 }

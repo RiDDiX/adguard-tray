@@ -1133,8 +1133,8 @@ STRINGS: dict[str, str] = {
         "ターミナルで開く",
     "AdGuard VPN":
         "AdGuard VPN",
-    "AdGuard's VPN for Linux (adguardvpn-cli) runs next to AdGuard CLI. AdGuard Tray checks that their settings fit together; it does not connect the VPN or log in.":
-        "AdGuardのLinux向けVPN（adguardvpn-cli）はAdGuard CLIと並行して動作します。AdGuard Trayは両者の設定が適合しているかを確認しますが、VPNへの接続やログインは行いません。",
+    "AdGuard's VPN for Linux (adguardvpn-cli) runs next to AdGuard CLI. AdGuard Tray checks that their settings fit together; log in and connect on the VPN page.":
+        "AdGuardのLinux向けVPN（adguardvpn-cli）はAdGuard CLIと並行して動作します。AdGuard Trayは両者の設定が適合しているかを確認します。ログインと接続はVPNページで行えます。",
     "Install…":
         "インストール…",
     "Outbound proxy":
@@ -1167,4 +1167,46 @@ STRINGS: dict[str, str] = {
         "インストール済み · TUNモード",
     "Installed · {} mode":
         "インストール済み · {}モード",
+    "VPN":
+        "VPN",
+    "Account":
+        "アカウント",
+    "Connection":
+        "接続",
+    "Location":
+        "ロケーション",
+    "Fastest location":
+        "最速のロケーション",
+    "Connect":
+        "接続",
+    "Disconnect":
+        "切断",
+    "Log in":
+        "ログイン",
+    "Log out":
+        "ログアウト",
+    "Logged in":
+        "ログイン済み",
+    "Not logged in":
+        "未ログイン",
+    "Open in browser":
+        "ブラウザで開く",
+    "Authorize in your browser":
+        "ブラウザで認証",
+    "Not installed. Install adguardvpn-cli to log in to AdGuard VPN here.":
+        "インストールされていません。ここからAdGuard VPNにログインするには、adguardvpn-cliをインストールしてください。",
+    "Could not open the browser. Copy the link instead.":
+        "ブラウザを開けませんでした。代わりにリンクをコピーしてください。",
+    "Could not start adguardvpn-cli.":
+        "adguardvpn-cliを起動できませんでした。",
+    "adguardvpn-cli failed with exit code {}":
+        "adguardvpn-cliが終了コード{}で失敗しました",
+    "AdGuard VPN asks for your password in the terminal window.":
+        "AdGuard VPNがターミナルウィンドウでパスワードを求めています。",
+    "No terminal app was found. The command is on the clipboard: paste it into a terminal.":
+        "ターミナルアプリが見つかりませんでした。コマンドをクリップボードにコピーしました。ターミナルに貼り付けてください。",
+    "AdGuard VPN was disconnected to change its mode. Connect again.":
+        "モードを変更するため、AdGuard VPNを切断しました。もう一度接続してください。",
+    "AdGuard no longer sends its traffic through AdGuard VPN. Press Apply to save this.":
+        "AdGuardのトラフィックはAdGuard VPNを経由しなくなりました。保存するには「適用」を押してください。",
 }

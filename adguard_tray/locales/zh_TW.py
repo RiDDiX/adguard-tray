@@ -1133,8 +1133,8 @@ STRINGS: dict[str, str] = {
         "在終端機中開啟",
     "AdGuard VPN":
         "AdGuard VPN",
-    "AdGuard's VPN for Linux (adguardvpn-cli) runs next to AdGuard CLI. AdGuard Tray checks that their settings fit together; it does not connect the VPN or log in.":
-        "AdGuard 的 Linux 版 VPN（adguardvpn-cli）會與 AdGuard CLI 並行運作。AdGuard Tray 會檢查兩者的設定是否相容，但不會連線到 VPN，也不會登入。",
+    "AdGuard's VPN for Linux (adguardvpn-cli) runs next to AdGuard CLI. AdGuard Tray checks that their settings fit together; log in and connect on the VPN page.":
+        "AdGuard 的 Linux 版 VPN（adguardvpn-cli）會與 AdGuard CLI 並行運作。AdGuard Tray 會檢查兩者的設定是否相容；登入和連線請在 VPN 頁面進行。",
     "Install…":
         "安裝…",
     "Outbound proxy":
@@ -1167,4 +1167,46 @@ STRINGS: dict[str, str] = {
         "已安裝 · TUN 模式",
     "Installed · {} mode":
         "已安裝 · {} 模式",
+    "VPN":
+        "VPN",
+    "Account":
+        "帳戶",
+    "Connection":
+        "連線",
+    "Location":
+        "位置",
+    "Fastest location":
+        "最快的位置",
+    "Connect":
+        "連線",
+    "Disconnect":
+        "中斷連線",
+    "Log in":
+        "登入",
+    "Log out":
+        "登出",
+    "Logged in":
+        "已登入",
+    "Not logged in":
+        "未登入",
+    "Open in browser":
+        "在瀏覽器中開啟",
+    "Authorize in your browser":
+        "在瀏覽器中授權",
+    "Not installed. Install adguardvpn-cli to log in to AdGuard VPN here.":
+        "未安裝。安裝 adguardvpn-cli 後即可在此登入 AdGuard VPN。",
+    "Could not open the browser. Copy the link instead.":
+        "無法開啟瀏覽器。請改為複製連結。",
+    "Could not start adguardvpn-cli.":
+        "無法啟動 adguardvpn-cli。",
+    "adguardvpn-cli failed with exit code {}":
+        "adguardvpn-cli 執行失敗，結束代碼 {}",
+    "AdGuard VPN asks for your password in the terminal window.":
+        "AdGuard VPN 會在終端機視窗中要求輸入密碼。",
+    "No terminal app was found. The command is on the clipboard: paste it into a terminal.":
+        "找不到終端機應用程式。命令已複製到剪貼簿，請將其貼到終端機中執行。",
+    "AdGuard VPN was disconnected to change its mode. Connect again.":
+        "為了切換模式，AdGuard VPN 已中斷連線。請重新連線。",
+    "AdGuard no longer sends its traffic through AdGuard VPN. Press Apply to save this.":
+        "AdGuard 的流量不再經由 AdGuard VPN 傳送。按下「套用」以儲存此變更。",
 }

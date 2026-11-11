@@ -2,7 +2,7 @@
 Manager window – everything adguard-tray can show or change, one page each.
 
 A sidebar picks the page. Pages are built the first time they are opened, so
-opening the window starts one page's workers, not twelve.
+opening the window starts one page's workers, not thirteen.
 
 Settings that live in adguard-cli's proxy.yaml are edited through one shared
 model (proxy_settings.ProxySettings) on whichever page they belong to. Their
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 # Page indices used by callers that want to open a specific page.
 (PAGE_OVERVIEW, PAGE_ACTIVITY, PAGE_FILTERS, PAGE_DNS, PAGE_USERSCRIPTS, PAGE_EXCEPTIONS,
- PAGE_HTTPS, PAGE_STEALTH, PAGE_NETWORK, PAGE_MAINTENANCE, PAGE_SETTINGS, PAGE_ABOUT) = range(12)
+ PAGE_HTTPS, PAGE_STEALTH, PAGE_NETWORK, PAGE_VPN, PAGE_MAINTENANCE, PAGE_SETTINGS, PAGE_ABOUT) = range(13)
 
 
 def _pages():
@@ -68,6 +68,8 @@ def _pages():
          ("view-private", "security-medium-symbolic"), "stealth_tab", "StealthTab"),
         (system, "network", _t("Network"),
          ("network-wired-symbolic", "network-wired"), "network_tab", "NetworkTab"),
+        (system, "vpn", _t("VPN"),
+         ("network-vpn-symbolic", "network-vpn", "security-high-symbolic"), "vpn_tab", "VpnTab"),
         (system, "maintenance", _t("Maintenance"),
          ("system-run-symbolic", "tools-report-bug", "applications-engineering-symbolic"),
          "diagnostics_tab", "DiagnosticsTab"),
@@ -201,7 +203,10 @@ class ManagerWindow(QMainWindow):
         outer.addWidget(right, 1)
         self.setCentralWidget(central)
 
-        QShortcut(QKeySequence(QKeySequence.StandardKey.Refresh), self, self.refresh_current)
+        # F5 as the tooltip says, plus the desktop's own key: on GNOME the standard one is Ctrl+R only.
+        refresh = QKeySequence.keyBindings(QKeySequence.StandardKey.Refresh)
+        for keys in {"F5", *(k.toString() for k in refresh)}:
+            QShortcut(QKeySequence(keys), self, self.refresh_current)
         QShortcut(QKeySequence(QKeySequence.StandardKey.Find), self, self._focus_search)
         for number in range(1, 10):
             QShortcut(QKeySequence(f"Alt+{number}"), self,

@@ -17,6 +17,11 @@ Menu structure (English default – translated at runtime via i18n):
        [✓] AdGuard Popup Blocker
        ─────────
        Manage userscripts…
+  ▸  AdGuard VPN         ► (submenu, lazy-loaded; only when adguardvpn-cli is installed)
+       VPN is disconnected
+       Connect / Disconnect
+       ─────────
+       VPN
   ─────────────────────────────────────
   Open AdGuard Tray      (Manager window, Overview page)
   Activity
@@ -30,12 +35,14 @@ Left-click opens the Manager; opening the menu re-polls the status.
 """
 
 import logging
+import shlex
 import time
 
 from PyQt6.QtCore import QObject, QRunnable, Qt, QThread, QThreadPool, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
+from . import installer, vpn
 from .autostart import autostart_enabled, set_autostart
 from .cli import (
     AdGuardCLI,
@@ -54,6 +61,7 @@ from .manager_window import (
     PAGE_OVERVIEW,
     PAGE_SETTINGS,
     PAGE_USERSCRIPTS,
+    PAGE_VPN,
     ManagerWindow,
 )
 from .notifications import notify
@@ -138,6 +146,18 @@ class _UserscriptToggle(QThread):
         ok, msg = safe_call(fn, self.name)
         self.done.emit(ok, msg, self.name, self.enable)
 
+class _VpnLoader(QThread):
+    done = pyqtSignal(object)  # (path, VpnStatus, VpnConfig | None)
+    def __init__(self, path): super().__init__(); self.path = path
+    def run(self):
+        try:
+            status = vpn.status(self.path)
+            # The mode only matters for Connect.
+            config = vpn.read_config(self.path)[0] if status.logged_in and vpn.is_disconnected(status.text) else None
+        except Exception as exc:  # noqa: BLE001
+            status, config = vpn.VpnStatus(False, error=str(exc)), None
+        self.done.emit((self.path, status, config))
+
 
 # ── Main tray class ────────────────────────────────────────────────────────
 
@@ -164,6 +184,9 @@ class AdGuardTray(QSystemTrayIcon):
         self._us_sig: tuple | None = None
         self._filter_placeholder: QAction | None = None
         self._us_placeholder: QAction | None = None
+        self._loading_vpn = False
+        self._vpn_placeholder: QAction | None = None
+        self._vpn_sig: tuple | None = None
         self._last_notify: tuple[AdGuardStatus, AdGuardStatus, float] | None = None
         self._last_error = ""
         self._last_error_at = 0.0
@@ -239,6 +262,11 @@ class AdGuardTray(QSystemTrayIcon):
             self._us_menu, _t("Manage userscripts…"), lambda: self._show_manager(PAGE_USERSCRIPTS)
         )
         menu.addMenu(self._us_menu)
+
+        self._vpn_menu = QMenu(_t("AdGuard VPN"))
+        self._vpn_menu.aboutToShow.connect(self._load_vpn_submenu)
+        self._vpn_tail = self._seed_submenu(self._vpn_menu, _t("VPN"), lambda: self._show_manager(PAGE_VPN))
+        menu.addMenu(self._vpn_menu).setVisible(bool(vpn.find()))
 
         menu.addSeparator()
 
@@ -329,6 +357,7 @@ class AdGuardTray(QSystemTrayIcon):
         # AboutToShow does arrive. No-op on KDE, which asks per submenu.
         self._load_filter_submenu()
         self._load_userscript_submenu()
+        self._load_vpn_submenu()
         # The Settings page or the desktop's own autostart tool may have changed it.
         self._act_autostart.setChecked(autostart_enabled())
 
@@ -518,6 +547,74 @@ class AdGuardTray(QSystemTrayIcon):
                 act.blockSignals(False)
                 break
         self._report_error(msg)
+
+    # ── AdGuard VPN submenu (lazy) ─────────────────────────────────────────
+
+    def _load_vpn_submenu(self) -> None:
+        path = vpn.find()
+        self._vpn_menu.menuAction().setVisible(bool(path))
+        if not path or self._loading_vpn:
+            return
+        self._loading_vpn = True
+        if self._submenu_is_empty(self._vpn_menu, self._vpn_tail):
+            self._vpn_placeholder = QAction(_t("Checking…"), self._vpn_menu)
+            self._vpn_placeholder.setEnabled(False)
+            self._vpn_menu.insertAction(self._vpn_tail[0], self._vpn_placeholder)
+
+        w = _VpnLoader(path)
+        w.done.connect(self._populate_vpn_submenu)
+        w.finished.connect(lambda: self._discard_thread(w))
+        self._bg_threads.append(w)
+        w.start()
+
+    def _populate_vpn_submenu(self, result) -> None:
+        self._loading_vpn = False
+        self._drop_placeholder(self._vpn_menu, "_vpn_placeholder")
+        path, status, config = result
+        if status.error:
+            text = _t("Error: {}", status.error.strip().splitlines()[0])
+        elif not status.logged_in:
+            text = _t("Not logged in")
+        else:
+            text = status.text.splitlines()[0] if status.text else _t("Logged in")
+        signature = (path, text, status.logged_in, config.mode if config else None)
+        if signature == self._vpn_sig:
+            # A rebuild while the submenu opens makes GNOME's indicator close it again.
+            return
+        self._vpn_sig = signature
+        line = QAction(text, self._vpn_menu)
+        line.setEnabled(False)
+        new_actions = [line]
+        if status.logged_in:
+            if vpn.is_disconnected(status.text):
+                act = QAction(_t("Connect"), self._vpn_menu)
+                act.triggered.connect(lambda: self._vpn_connect(path, config))
+            else:
+                act = QAction(_t("Disconnect"), self._vpn_menu)
+                act.triggered.connect(lambda: self._run_async(lambda: vpn.disconnect(path), self._on_vpn_done))
+            new_actions.append(act)
+        self._replace_submenu_items(self._vpn_menu, self._vpn_tail, new_actions, self._vpn_tail[0])
+
+    def _vpn_connect(self, path: str, config) -> None:
+        if config is None or config.mode != "tun":
+            self._run_async(lambda: vpn.connect(path, None), self._on_vpn_done)
+            return
+        # TUN needs root: the CLI asks for the password through sudo, which needs a terminal.
+        command = shlex.join(vpn.connect_command(path, None))
+        if not installer.open_in_terminal(command):
+            clipboard = QApplication.clipboard()
+            if clipboard:
+                clipboard.setText(command)
+            self._report_error(_t("No terminal app was found. The command is on the clipboard: paste it into a terminal."))
+        elif self.config.notifications_enabled:
+            notify(_t("AdGuard VPN"), _t("AdGuard VPN asks for your password in the terminal window."), tray=self)
+
+    def _on_vpn_done(self, ok: bool, msg: str) -> None:
+        if not ok:
+            self._report_error(msg or _t("Command failed"))
+        page = self._page_if_showing(PAGE_VPN)
+        if page is not None:
+            page.on_shown()
 
     # ── Status updates ─────────────────────────────────────────────────────
 

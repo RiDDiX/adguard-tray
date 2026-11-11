@@ -1133,8 +1133,8 @@ STRINGS: dict[str, str] = {
         "터미널에서 열기",
     "AdGuard VPN":
         "AdGuard VPN",
-    "AdGuard's VPN for Linux (adguardvpn-cli) runs next to AdGuard CLI. AdGuard Tray checks that their settings fit together; it does not connect the VPN or log in.":
-        "AdGuard의 Linux용 VPN(adguardvpn-cli)은 AdGuard CLI와 함께 실행됩니다. AdGuard Tray는 두 프로그램의 설정이 서로 맞는지 확인할 뿐, VPN에 연결하거나 로그인하지는 않습니다.",
+    "AdGuard's VPN for Linux (adguardvpn-cli) runs next to AdGuard CLI. AdGuard Tray checks that their settings fit together; log in and connect on the VPN page.":
+        "AdGuard의 Linux용 VPN(adguardvpn-cli)은 AdGuard CLI와 함께 실행됩니다. AdGuard Tray는 두 프로그램의 설정이 서로 맞는지 확인합니다. 로그인과 연결은 VPN 페이지에서 하세요.",
     "Install…":
         "설치…",
     "Outbound proxy":
@@ -1167,4 +1167,46 @@ STRINGS: dict[str, str] = {
         "설치됨 · TUN 모드",
     "Installed · {} mode":
         "설치됨 · {} 모드",
+    "VPN":
+        "VPN",
+    "Account":
+        "계정",
+    "Connection":
+        "연결",
+    "Location":
+        "위치",
+    "Fastest location":
+        "가장 빠른 위치",
+    "Connect":
+        "연결",
+    "Disconnect":
+        "연결 해제",
+    "Log in":
+        "로그인",
+    "Log out":
+        "로그아웃",
+    "Logged in":
+        "로그인됨",
+    "Not logged in":
+        "로그인되지 않음",
+    "Open in browser":
+        "브라우저에서 열기",
+    "Authorize in your browser":
+        "브라우저에서 인증",
+    "Not installed. Install adguardvpn-cli to log in to AdGuard VPN here.":
+        "설치되지 않았습니다. 여기에서 AdGuard VPN에 로그인하려면 adguardvpn-cli를 설치하세요.",
+    "Could not open the browser. Copy the link instead.":
+        "브라우저를 열 수 없습니다. 대신 링크를 복사하세요.",
+    "Could not start adguardvpn-cli.":
+        "adguardvpn-cli를 시작하지 못했습니다.",
+    "adguardvpn-cli failed with exit code {}":
+        "adguardvpn-cli가 실패했습니다(종료 코드 {})",
+    "AdGuard VPN asks for your password in the terminal window.":
+        "AdGuard VPN이 터미널 창에서 비밀번호를 요청합니다.",
+    "No terminal app was found. The command is on the clipboard: paste it into a terminal.":
+        "터미널 앱을 찾을 수 없습니다. 명령이 클립보드에 복사되어 있으니 터미널에 붙여 넣으세요.",
+    "AdGuard VPN was disconnected to change its mode. Connect again.":
+        "모드를 변경하기 위해 AdGuard VPN의 연결을 해제했습니다. 다시 연결하세요.",
+    "AdGuard no longer sends its traffic through AdGuard VPN. Press Apply to save this.":
+        "이제 AdGuard의 트래픽이 AdGuard VPN을 거치지 않습니다. 저장하려면 “적용”을 누르세요.",
 }
