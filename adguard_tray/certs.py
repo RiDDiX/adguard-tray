@@ -220,7 +220,7 @@ def _nicknames(certutil: str, db: Path) -> list[str]:
     """Every nickname in the database, one entry per certificate."""
     proc = subprocess.run(
         [certutil, "-d", f"sql:{db}", "-L"],
-        capture_output=True, timeout=30, check=False,
+        capture_output=True, stdin=subprocess.DEVNULL, timeout=30, check=False,
     )
     out = proc.stdout.decode("utf-8", errors="replace")
     # Rows are "<nickname padded> <trust flags>"; a prefix match would also
@@ -270,7 +270,7 @@ def _export_cert(certutil: str, db: Path, nickname: str) -> bytes:
     """The stored certificate as PEM, so a failed replacement can be undone."""
     proc = subprocess.run(
         [certutil, "-d", f"sql:{db}", "-L", "-n", nickname, "-a"],
-        capture_output=True, timeout=30, check=False,
+        capture_output=True, stdin=subprocess.DEVNULL, timeout=30, check=False,
     )
     return proc.stdout if proc.returncode == 0 and b"BEGIN CERTIFICATE" in proc.stdout else b""
 
@@ -278,7 +278,7 @@ def _export_cert(certutil: str, db: Path, nickname: str) -> bytes:
 def _add_cert(certutil: str, db: Path, nickname: str, pem_file: Path) -> tuple[bool, str]:
     proc = subprocess.run(
         [certutil, "-d", f"sql:{db}", "-A", "-n", nickname, "-t", "C,,", "-i", str(pem_file)],
-        capture_output=True, timeout=30, check=False,
+        capture_output=True, stdin=subprocess.DEVNULL, timeout=30, check=False,
     )
     if proc.returncode == 0:
         return True, ""
@@ -333,7 +333,7 @@ def install_ca(ca_path: Path, nickname: str, targets: list[CertTarget]) -> list[
             for _ in range(20):
                 purge = subprocess.run(
                     [certutil, "-d", f"sql:{target.path}", "-D", "-n", nickname],
-                    capture_output=True, timeout=30, check=False,
+                    capture_output=True, stdin=subprocess.DEVNULL, timeout=30, check=False,
                 )
                 if purge.returncode != 0:
                     break

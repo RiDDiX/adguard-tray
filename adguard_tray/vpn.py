@@ -59,8 +59,7 @@ def parse_config(text: str) -> VpnConfig:
 
 
 def _config(args: list[str]) -> tuple[VpnConfig | None, str]:
-    # Empty stdin: a question it might ask ends at once instead of waiting 15 s.
-    code, out, err = _run(args, timeout=15, stdin_data="")
+    code, out, err = _run(args, timeout=15)
     config = parse_config(out) if code == 0 else None
     if config is None or not config.mode:
         return None, (err or out).strip()
@@ -75,7 +74,7 @@ def read_config(binary: str) -> tuple[VpnConfig | None, str]:
 def set_socks_mode(binary: str) -> tuple[VpnConfig | None, str]:
     """Switch the VPN to SOCKS5 mode; it applies the next time the VPN connects."""
     # What set-mode prints is not documented; the SOCKS address comes from show.
-    code, out, err = _run([binary, "config", "set-mode", "socks"], timeout=15, stdin_data="")
+    code, out, err = _run([binary, "config", "set-mode", "socks"], timeout=15)
     if code != 0:
         return None, (err or out).strip()
     config, error = read_config(binary)

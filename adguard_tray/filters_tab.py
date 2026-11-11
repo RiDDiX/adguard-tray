@@ -104,6 +104,7 @@ class FilterList(QWidget):
         self._busy_n = 0            # running jobs: a load can overlap a change
         self._acting = False        # a CLI change is running
         self._again = False         # a reload asked for while busy
+        self._failed = None         # a change's (text, details), kept over a failing reload
         self._empty = ""            # what an empty list says, once loaded
         self._held = 0              # scroll added to keep rows still under a banner
         self._content_y = 0
@@ -271,6 +272,9 @@ class FilterList(QWidget):
 
     def _on_loaded(self, result: FilterListResult) -> None:
         self._set_busy(False)
+        failed = self._failed
+        if not self._again:
+            self._failed = None
         scroll = self.tree.verticalScrollBar().value()
         current = self.tree.currentItem()
         current_id = current.data(0, _ID) if current is not None else None
@@ -281,7 +285,10 @@ class FilterList(QWidget):
             self.tree.blockSignals(False)
             self.caption.setText("")
             self._empty = ""
-            self._fail(self.txt["load_error"], result.error)
+            if failed:
+                self._fail(failed[0], f"{failed[1]}\n{result.error}")
+            else:
+                self._fail(self.txt["load_error"], result.error)
             self._apply_search(self.search.text())
             if self._again:
                 self.load()
@@ -516,7 +523,8 @@ class FilterList(QWidget):
             # Stays until closed: the output behind Details is worth reading.
             self._say(f"{_t('Update completed.')} {self.ctx.restart_adguard()}", "success", details=msg)
         else:
-            self._fail(_t("Update failed."), msg)
+            self._failed = (_t("Update failed."), msg)
+            self._fail(*self._failed)
         self.load()
 
     # ── Plumbing ───────────────────────────────────────────────────────────
@@ -541,6 +549,8 @@ class FilterList(QWidget):
             if on_fail:
                 on_fail()
             self._fail(error, msg)
+            if self._busy or self._again:   # busy here means a load is in flight
+                self._failed = (error, msg)
             if self._again:
                 self.load()
             return

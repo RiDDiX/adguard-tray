@@ -101,7 +101,7 @@ def detect_install() -> Install:
     if pacman:
         try:
             result = subprocess.run([pacman, "-Qoq", str(marker)],
-                                    capture_output=True, text=True, timeout=10)
+                                    capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=10)
         except (OSError, subprocess.SubprocessError) as exc:
             logger.debug("pacman -Qoq failed: %s", exc)
         else:

@@ -20,6 +20,7 @@ Filter list output format (after ANSI strip):
 import json
 import logging
 import re
+import signal
 import subprocess
 import threading
 import time
@@ -28,6 +29,7 @@ from enum import Enum
 from pathlib import Path
 
 from .i18n import _t
+from .userscript_relay import _log_url, _userscript_source
 
 _USERSCRIPTS_DIR = Path.home() / ".local" / "share" / "adguard-cli" / "userscripts"
 
@@ -37,6 +39,7 @@ _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 _PORT_RE = re.compile(r"127\.0\.0\.1:(\d+)")
 _RUNNING_RE = re.compile(r"\b(is running|has started)\b")
 _STOPPED_RE = re.compile(r"\b(is not running|has been stopped)\b")
+_CLI_ERROR_PREFIX_RE = re.compile(r"^error(?::|$)", re.IGNORECASE)
 
 
 def _strip_ansi(text: str) -> str:
@@ -52,6 +55,7 @@ _FAILURE_KEYWORDS = (
     "no userscripts matching",
     "no filters matching",
     "before filters can be enabled",
+    "multiple userscripts match",
 )
 
 
@@ -71,8 +75,30 @@ def _clip(text: str) -> str:
     return text if len(text) <= _MAX_OUTPUT else text[:_MAX_OUTPUT] + "\n…"
 
 
+def _cli_error(err: str, out: str) -> str:
+    """CLI failure text for callers: both streams, each line once, without the CLI's "Error:" prefix."""
+    # The CLI may print its reason on stdout and a generic error on stderr,
+    # and every caller adds its own "Error:" frame.
+    lines = dict.fromkeys(
+        line for s in (err, out) for raw in s.splitlines()
+        if (line := _CLI_ERROR_PREFIX_RE.sub("", raw.strip(), count=1).strip())
+    )
+    return _clip("\n".join(lines))
+
+
 def _valid_url(url: str) -> bool:
     return url.lower().startswith(("http://", "https://"))
+
+
+_URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
+
+
+def _log_text(text: str) -> str:
+    """CLI output with every URL in its _log_url form."""
+    def _clean(m: re.Match) -> str:
+        url = m.group(0).rstrip(".,;:!?)]}'\"")
+        return _log_url(url) + m.group(0)[len(url):]
+    return _URL_RE.sub(_clean, text)
 
 
 def mask_license(raw: str) -> str:
@@ -105,7 +131,8 @@ def _run(args: list[str], timeout: int = 15, stdin_data: str | None = None) -> t
     try:
         p = subprocess.Popen(
             args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            stdin=subprocess.PIPE if stdin_data is not None else None,
+            # Never the tray's own stdin: a CLI prompt would read the launching terminal.
+            stdin=subprocess.PIPE if stdin_data is not None else subprocess.DEVNULL,
         )
         try:
             raw_out, raw_err = p.communicate(
@@ -170,7 +197,7 @@ class AdGuardCLI:
                 ),
             )
         if code < 0:
-            return StatusResult(AdGuardStatus.ERROR, err or _t("Unknown error retrieving status"))
+            return StatusResult(AdGuardStatus.ERROR, _cli_error(err, "") or _t("Unknown error retrieving status"))
 
         combined = (out + " " + err).lower()
 
@@ -199,8 +226,8 @@ class AdGuardCLI:
                 logger.warning("adguard-cli status failed (exit %d): %s", code, _clip(err))
             self._last_status_error = err
             status = AdGuardStatus.ERROR if fallback.status == AdGuardStatus.UNKNOWN else fallback.status
-            return StatusResult(status, _clip(err), proxy_port, filtering_enabled)
-        return StatusResult(fallback.status, out or err, proxy_port, filtering_enabled)
+            return StatusResult(status, _cli_error(err, ""), proxy_port, filtering_enabled)
+        return StatusResult(fallback.status, out or _cli_error(err, ""), proxy_port, filtering_enabled)
 
     def _systemctl_fallback(self, original: str) -> StatusResult:
         code, out, _ = _run(["systemctl", "is-active", "adguard-cli"], timeout=5)
@@ -261,7 +288,9 @@ class AdGuardCLI:
                 return True, _t("AdGuard via systemctl {} ok", "stop")
             if code2 == 126:
                 return False, _t("Authentication cancelled")
-            return False, _clip(err2 or out2) or _t("Could not stop AdGuard – process may still be running")
+            if code2 == 127:
+                return False, _t("Authorization failed")
+            return False, _cli_error(err2, out2) or _t("Could not stop AdGuard – process may still be running")
         if cli_says_stopped:
             return ok, msg
         if self.get_status().status == AdGuardStatus.ACTIVE:
@@ -322,7 +351,7 @@ class AdGuardCLI:
         # Attempt 1: direct. Its output is returned alongside the final
         # message: the fallbacks' errors hide the real cause (e.g. "socket busy").
         code, out, err = _run([self.BINARY, cmd])
-        first_error = err or out
+        first_error = _cli_error(err, out)
         if code == 0:
             logger.info("adguard-cli %s succeeded (direct)", cmd)
             return True, _clip(out) or _t("AdGuard {} ok", cmd), first_error
@@ -330,7 +359,7 @@ class AdGuardCLI:
             # Binary missing – pkexec would only raise pointless prompts.
             return False, err, first_error
 
-        logger.info("Direct %s failed (exit %d): %s – trying pkexec", cmd, code, err or out)
+        logger.info("Direct %s failed (exit %d): %s – trying pkexec", cmd, code, _log_text(err or out))
 
         # Attempt 2: pkexec adguard-cli
         code2, out2, err2 = _run(["pkexec", self.BINARY, cmd], timeout=60)
@@ -348,7 +377,7 @@ class AdGuardCLI:
             # by force-killing and prompting again.
             return False, _t("Authentication cancelled"), ""
         if code2 == 127:
-            logger.error("pkexec authorization failed (exit 127): %s", err2)
+            logger.error("pkexec authorization failed (exit 127): %s", _log_text(err2))
             return False, _t("Authorization failed"), ""
         if code2 == -2:
             # The prompt may still be open; the systemctl fallback would stack a second one.
@@ -356,7 +385,7 @@ class AdGuardCLI:
             return False, err2, ""
 
         logger.info("pkexec adguard-cli %s failed (exit %d): %s – trying systemctl",
-                    cmd, code2, err2 or out2)
+                    cmd, code2, _log_text(err2 or out2))
 
         # Attempt 3: pkexec systemctl
         systemctl_cmd = {"start": "start", "stop": "stop", "restart": "restart"}.get(cmd)
@@ -371,13 +400,13 @@ class AdGuardCLI:
                 return False, _t("Authentication cancelled"), ""
             if code3 == 127:
                 return False, _t("Authorization failed"), ""
-            final_err = err3 or out3
+            final_err = _cli_error(err3, out3)
         else:
-            final_err = err2 or out2 or err or out
+            final_err = _cli_error(err2, out2) or first_error
 
-        msg = _clip(final_err or first_error) or _t("'{}' failed – insufficient privileges?", cmd)
+        msg = final_err or first_error or _t("'{}' failed – insufficient privileges?", cmd)
         logger.error("All privilege attempts for '%s' failed. First error: %s | last error: %s",
-                     cmd, first_error, final_err)
+                     cmd, _log_text(first_error), _log_text(final_err))
         return False, msg, first_error
 
     # ── Filter management ──────────────────────────────────────────────────
@@ -389,7 +418,7 @@ class AdGuardCLI:
             args.append("--all")
         code, out, err = _run(args, timeout=20)
         if code != 0:
-            return FilterListResult(error=_clip(err or out) or _t("Could not retrieve filter list"))
+            return FilterListResult(error=_cli_error(err, out) or _t("Could not retrieve filter list"))
         return _parse_filter_list(out)
 
     def _simple(
@@ -406,9 +435,15 @@ class AdGuardCLI:
             if done_log:
                 logger.info("%s", done_log)
             return True, _clip(out) or ok_msg
-        msg = _clip(err or out) or fail_msg
+        msg = _cli_error(err, out) or fail_msg
+        if code < 0 and code not in (-1, -2, -3):    # -1/-2/-3 are _run's own: not found, timeout, OSError
+            try:
+                sig = signal.Signals(-code).name
+            except ValueError:
+                sig = f"signal {-code}"
+            msg = "\n".join(filter(None, (fail_msg, f"adguard-cli crashed ({sig})", _cli_error(err, out))))
         if label:
-            logger.error("%s failed: %s", label, msg)
+            logger.error("%s failed: %s", label, _log_text(msg))
         return False, msg
 
     def enable_filter(self, filter_id: int) -> tuple[bool, str]:
@@ -451,7 +486,7 @@ class AdGuardCLI:
         """
         code, out, err = _run([self.BINARY, "userscripts", "list"], timeout=15)
         if code != 0:
-            return UserscriptListResult(error=_clip(err or out) or _t("Could not retrieve userscript list"))
+            return UserscriptListResult(error=_cli_error(err, out) or _t("Could not retrieve userscript list"))
         parsed = _parse_userscript_list(out)
 
         # Build filesystem inventory: real_id → (real_id, title).
@@ -465,8 +500,11 @@ class AdGuardCLI:
                     title = real_id
                     try:
                         data = json.loads(meta.read_text(encoding="utf-8"))
-                        title = data.get("name") or real_id
-                    except (OSError, json.JSONDecodeError) as exc:
+                        if not isinstance(data, dict):
+                            raise ValueError(f"expected an object, got {type(data).__name__}")
+                        name = data.get("name")
+                        title = name.strip() if isinstance(name, str) and name.strip() else real_id
+                    except (OSError, ValueError) as exc:
                         logger.warning("meta.json read failed for %s: %s", meta, exc)
                     real.append((real_id, title))
         except OSError as exc:
@@ -536,8 +574,17 @@ class AdGuardCLI:
     def install_userscript(self, url: str) -> tuple[bool, str]:
         if not _valid_url(url):
             return False, _t("URL must start with http:// or https://")
-        return self._simple(["userscripts", "install", url], _t("Userscript installed"),
-                            _t("Installation failed"), f"install_userscript({url})", timeout=30)
+
+        def install(source: str) -> tuple[bool, str]:
+            return self._simple(["userscripts", "install", source], _t("Userscript installed"),
+                                _t("Installation failed"), f"install_userscript({_log_url(url)})", timeout=30)
+
+        # The CLI first: a probe would cost every install a GET and consume one-time URLs.
+        first = install(url)
+        if first[0]:
+            return first
+        with _userscript_source(url) as source:
+            return first if source == url else install(source)
 
     # ── DNS filter management ─────────────────────────────────────────────
 
@@ -547,7 +594,7 @@ class AdGuardCLI:
             args.append("--all")
         code, out, err = _run(args, timeout=20)
         if code != 0:
-            return FilterListResult(error=_clip(err or out) or _t("Could not retrieve DNS filter list"))
+            return FilterListResult(error=_cli_error(err, out) or _t("Could not retrieve DNS filter list"))
         return _parse_filter_list(out)
 
     def enable_dns_filter(self, filter_id: int) -> tuple[bool, str]:
@@ -565,7 +612,7 @@ class AdGuardCLI:
         if title:
             args += ["--title", title]
         return self._simple(args, _t("DNS filter installed"), _t("Installation failed"),
-                            f"install_dns_filter({url})", timeout=30)
+                            f"install_dns_filter({_log_url(url)})", timeout=30)
 
     def remove_dns_filter(self, filter_id: int) -> tuple[bool, str]:
         return self._simple(["dns", "filters", "remove", str(filter_id)], _t("DNS filter {} removed", filter_id),
@@ -605,7 +652,7 @@ class AdGuardCLI:
         if title:
             args += ["--title", title]
         return self._simple(args, _t("Filter installed"), _t("Installation failed"),
-                            f"install_filter_ext({url})", timeout=30)
+                            f"install_filter_ext({_log_url(url)})", timeout=30)
 
     # ── Config (adguard-cli config get/set) ───────────────────────────────
 

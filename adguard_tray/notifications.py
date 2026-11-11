@@ -71,9 +71,11 @@ def notify(
                 # error must not be swallowed by the status change it caused.
                 *(["--hint", f"string:x-canonical-private-synchronous:{replace_tag}"]
                   if replace_tag else []),
+                "--",
                 title,
                 body,
             ],
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
         )

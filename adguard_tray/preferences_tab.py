@@ -20,7 +20,7 @@ _LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
 
 def _looks_like_adguard_cli(path: str) -> bool:
     try:
-        r = subprocess.run([path, "--version"], capture_output=True, timeout=5)
+        r = subprocess.run([path, "--version"], capture_output=True, stdin=subprocess.DEVNULL, timeout=5)
     except (OSError, subprocess.TimeoutExpired):
         return False
     out = (r.stdout + r.stderr).decode("utf-8", errors="replace").lower()

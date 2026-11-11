@@ -104,6 +104,7 @@ class UserscriptsTab(ui.Page):
         self._busy_n = 0            # running jobs: a load can overlap a change
         self._acting = False        # a CLI change is running
         self._again = False
+        self._failed = ""           # a change's error, kept over a failing reload
 
         self._build_ui()        # the shell's on_shown() does the first load
 
@@ -195,8 +196,9 @@ class UserscriptsTab(ui.Page):
     def _on_loaded(self, result: UserscriptListResult) -> None:
         self._set_busy(False)
         if self._again:             # the tray changed something while this ran
-            self._load()
+            self.refresh()
             return
+        failed, self._failed = self._failed, ""
         try:
             self.tree.itemChanged.disconnect(self._on_item_changed)
         except TypeError:
@@ -207,8 +209,13 @@ class UserscriptsTab(ui.Page):
         if result.error:
             self.lbl_count.setText("")
             self.empty.set("")
-            self.banner.show_message(_t("Could not retrieve userscript list"), "danger",
-                                     details=result.error)
+            if failed:
+                self.banner.show_message(_t("Error: {}", failed.splitlines()[0]), "danger",
+                                         details=f"{failed}\n{result.error}")
+            else:
+                self.banner.show_message(_t("Could not retrieve userscript list"), "danger",
+                                         details=result.error)
+            self.tree.itemChanged.connect(self._on_item_changed)
             return
 
         active = sum(1 for s in result.scripts if s.enabled)
@@ -254,7 +261,7 @@ class UserscriptsTab(ui.Page):
         self._set_busy(False)
         if ok:
             self.banner.show_message(self.ctx.restart_adguard(), "success", timeout_ms=5000)
-            self._load()
+            self.refresh()
             return
         for i in range(self.tree.topLevelItemCount()):
             child = self.tree.topLevelItem(i)
@@ -263,8 +270,8 @@ class UserscriptsTab(ui.Page):
                     0, Qt.CheckState.Checked if not new_enabled else Qt.CheckState.Unchecked
                 )
                 break
-        self._fail(msg)
         self.tree.itemChanged.connect(self._on_item_changed)
+        self._fail(msg)
 
     # ── Install ───────────────────────────────────────────────────────────
 
@@ -291,9 +298,9 @@ class UserscriptsTab(ui.Page):
         if ok:
             self.banner.show_message(f"{_t('Userscript installed.')} {self.ctx.restart_adguard()}",
                                      "success", timeout_ms=5000)
-            self._load()
+            self.refresh()
         else:
-            self._fail(msg)
+            self._fail(msg)         # a failed install can leave files on disk
 
     # ── Remove ────────────────────────────────────────────────────────────
 
@@ -335,9 +342,9 @@ class UserscriptsTab(ui.Page):
             removed = _t("'{}' removed.", s.title if s else name)
             self.banner.show_message(f"{removed} {self.ctx.restart_adguard()}", "success",
                                      timeout_ms=5000)
-            self._load()
+            self.refresh()
         else:
-            self._fail(msg)
+            self._fail(msg)         # a partial remove changes the list
 
     # ── Helpers ───────────────────────────────────────────────────────────
 
@@ -362,8 +369,8 @@ class UserscriptsTab(ui.Page):
         lines = msg.splitlines() or [""]
         self.banner.show_message(_t("Error: {}", lines[0]), "danger",
                                  details=msg if len(lines) > 1 else "")
-        if self._again:
-            self._load()
+        self._failed = msg
+        self.refresh()
 
     def _set_busy(self, busy: bool) -> None:
         self._busy_n += 1 if busy else -1

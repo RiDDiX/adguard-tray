@@ -610,7 +610,7 @@ class AdGuardTray(QSystemTrayIcon):
         if self.config.notifications_enabled:
             # Not "critical": those never expire and bypass do-not-disturb on
             # KDE and dunst, which is too much for a cancelled prompt.
-            notify(_t("AdGuard Tray – Error"), msg, tray=self)
+            notify(_t("AdGuard Tray – Error"), first_line[:300], tray=self)
 
     def _set_busy(self, busy: bool) -> None:
         self._busy = busy
