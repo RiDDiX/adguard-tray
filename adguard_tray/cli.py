@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 _PORT_RE = re.compile(r"127\.0\.0\.1:(\d+)")
+_VERSION_RE = re.compile(r"AdGuard CLI[^\d\n]*?(\d+(?:\.\d+)+(?:[-+]\w+(?:[.+-]\w+)*)?)", re.IGNORECASE)
 _RUNNING_RE = re.compile(r"\b(is running|has started)\b")
 _STOPPED_RE = re.compile(r"\b(is not running|has been stopped)\b")
 _CLI_ERROR_PREFIX_RE = re.compile(r"^error(?::|$)", re.IGNORECASE)
@@ -176,9 +177,9 @@ class AdGuardCLI:
         """Return adguard-cli version string (e.g. '1.3.45'), or empty on error."""
         code, out, _ = _run([self.BINARY, "--version"], timeout=5)
         if code == 0 and out:
-            # Output: "AdGuard CLI v1.3.45"
-            parts = out.strip().rsplit("v", 1)
-            return parts[-1] if len(parts) == 2 else out.strip()
+            # Output: "AdGuard CLI v1.3.45", possibly followed by component versions
+            m = _VERSION_RE.search(out)
+            return m.group(1) if m else ""
         return ""
 
     # ── Status ─────────────────────────────────────────────────────────────

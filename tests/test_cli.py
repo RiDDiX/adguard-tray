@@ -26,6 +26,32 @@ def fake_run(monkeypatch):
     return calls, result
 
 
+@pytest.mark.parametrize("out, expected", [
+    ("AdGuard CLI v1.3.45", "1.3.45"),
+    ("AdGuard CLI v1.5.1\nfilter-list-manager v2.7.0", "1.5.1"),
+    ("AdGuard CLI v1.5.1 (filter-list-manager v2.7.0)", "1.5.1"),
+    ("filter-list-manager v2.7.0\nAdGuard CLI v1.5.1", "1.5.1"),
+    ("AdGuard CLI version 1.5.1", "1.5.1"),
+    ("AdGuard CLI 1.5.1-beta.2", "1.5.1-beta.2"),
+    ("AdGuard CLI v1.5.1-nightly+abc.1", "1.5.1-nightly+abc.1"),
+    ("AdGuard CLI v1.5.1.", "1.5.1"),
+    ("AdGuard CLI\nfilter-list-manager v2.7.0", ""),
+    ("unexpected output", ""),
+])
+def test_get_version_takes_cli_version(fake_run, out, expected):
+    _, result = fake_run
+    result[0] = (0, out, "")
+    assert cli.AdGuardCLI().get_version() == expected
+
+
+def test_get_version_empty_on_failure(fake_run):
+    _, result = fake_run
+    result[0] = (1, "AdGuard CLI v1.5.1", "")
+    assert cli.AdGuardCLI().get_version() == ""
+    result[0] = (0, "", "")
+    assert cli.AdGuardCLI().get_version() == ""
+
+
 def test_install_failure_keeps_cli_error_and_url(fake_run):
     calls, result = fake_run
     result[0] = (1, "", "Error: Failed to install userscript")
