@@ -611,6 +611,8 @@ STRINGS: dict[str, str] = {
         "Reklam engelleme kapalı, bu nedenle aşağıdaki filtre listeleri etkisizdir.",
     "AdGuard CLI":
         "AdGuard CLI",
+    "AdGuard CLI asks for your password in the terminal window.":
+        "AdGuard CLI, terminal penceresinde parolanızı soruyor.",
     "AdGuard CLI downloads and installs its newest build.":
         "AdGuard CLI en yeni derlemesini indirip kurar.",
     "AdGuard CLI forgets the license on this computer. You will have to activate it again.":
@@ -895,6 +897,8 @@ STRINGS: dict[str, str] = {
         "Bazı sayılar yüklenemedi.",
     "Source code":
         "Kaynak kodu",
+    "Start AdGuard CLI at boot":
+        "Sistem açılışında AdGuard CLI'yi başlat",
     "Start AdGuard Tray when I log in":
         "Oturum açtığımda AdGuard Tray'i başlat",
     "Startup":
@@ -943,6 +947,8 @@ STRINGS: dict[str, str] = {
         "Yalnızca el ile modda kullanılır.",
     "Userscripts update together with filters.":
         "Kullanıcı betikleri filtrelerle birlikte güncellenir.",
+    "Uses the system service that adguard-cli installs itself. Asks for your password in a terminal window.":
+        "adguard-cli'nin kendi kurduğu sistem hizmetini kullanır. Parolanızı bir terminal penceresinde sorar.",
     "Uses XDG autostart (~/.config/autostart).":
         "XDG otomatik başlatma kullanılır (~/.config/autostart).",
     "Waiting for authorization…":

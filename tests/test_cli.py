@@ -369,3 +369,24 @@ def test_install_userscript_uses_30s_timeout_for_both_attempts(monkeypatch):
                         lambda url: contextlib.nullcontext("http://127.0.0.1:1/x.user.js"))
     assert not cli.AdGuardCLI().install_userscript(URL)[0]
     assert timeouts == [30, 30]
+
+
+@pytest.mark.parametrize("result, expected", [
+    ((0, "enabled", ""), True),
+    ((1, "disabled", ""), False),
+    ((1, "masked", ""), False),
+    ((0, "static", ""), False),
+    ((1, "", ""), False),               # no unit installed
+    ((-1, "", "Binary not found: systemctl"), False),
+])
+def test_service_enabled(fake_run, result, expected):
+    calls, results = fake_run
+    results[0] = result
+    assert cli.AdGuardCLI().service_enabled() is expected
+    assert calls == [["systemctl", "is-enabled", "adguard-cli.service"]]
+
+
+def test_service_command_uses_the_configured_binary():
+    adguard = cli.AdGuardCLI("/opt/adguard-cli/adguard-cli")
+    assert adguard.service_command(True) == ["/opt/adguard-cli/adguard-cli", "install-service"]
+    assert adguard.service_command(False) == ["/opt/adguard-cli/adguard-cli", "install-service", "--uninstall"]

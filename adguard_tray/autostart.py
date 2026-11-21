@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import shlex
 from pathlib import Path
 
@@ -20,11 +21,20 @@ def autostart_enabled() -> bool:
     X-GNOME-Autostart-enabled=false instead of deleting it.
     """
     try:
-        text = AUTOSTART_FILE.read_text(encoding="utf-8")
+        text = AUTOSTART_FILE.read_text(encoding="utf-8-sig")
     except (OSError, ValueError):
         return False
-    lowered = text.lower()
-    return "hidden=true" not in lowered and "x-gnome-autostart-enabled=false" not in lowered
+    entry = {}
+    group = ""
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("["):
+            group = line
+        elif group == "[Desktop Entry]" and not line.startswith("#") and "=" in line:
+            key, value = line.split("=", 1)
+            entry[key.strip().lower()] = value.strip().lower()
+    return (bool(entry.get("exec")) and entry.get("hidden") != "true"
+            and entry.get("x-gnome-autostart-enabled") != "false")
 
 
 def set_autostart(enable: bool, exec_path) -> tuple[bool, str]:
@@ -72,7 +82,7 @@ def desktop_entry(exec_path) -> str:
     else:
         parts = list(exec_path) or [""]
     # "python3 /path/app.py" → check the script, not the interpreter
-    tryexec = parts[1] if len(parts) > 1 and parts[0].endswith(("python", "python3")) else parts[0]
+    tryexec = parts[1] if len(parts) > 1 and re.fullmatch(r"python[\d.]*", Path(parts[0]).name) else parts[0]
     return _DESKTOP_TEMPLATE.format(
         exec=_xdg_escape(" ".join(_xdg_quote(p) for p in parts)), tryexec=_xdg_escape(tryexec)
     )

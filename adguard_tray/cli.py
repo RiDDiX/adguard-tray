@@ -239,6 +239,15 @@ class AdGuardCLI:
             return StatusResult(AdGuardStatus.INACTIVE, original)
         return StatusResult(AdGuardStatus.UNKNOWN, original)
 
+    def service_enabled(self) -> bool:
+        """True when the boot service from `adguard-cli install-service` is enabled."""
+        _, out, _ = _run(["systemctl", "is-enabled", "adguard-cli.service"], timeout=5)
+        return out.strip() == "enabled"
+
+    def service_command(self, install: bool) -> list[str]:
+        # Runs sudo itself, so it needs a terminal and the user's own HOME (not pkexec).
+        return [self.BINARY, "install-service"] + ([] if install else ["--uninstall"])
+
     # ── Control commands ───────────────────────────────────────────────────
 
     def _exclusive(self, fn) -> tuple[bool, str]:

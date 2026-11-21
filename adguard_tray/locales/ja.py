@@ -611,6 +611,8 @@ STRINGS: dict[str, str] = {
         "広告ブロックがオフのため、以下のフィルタリストは機能しません。",
     "AdGuard CLI":
         "AdGuard CLI",
+    "AdGuard CLI asks for your password in the terminal window.":
+        "AdGuard CLIがターミナルウィンドウでパスワードを求めています。",
     "AdGuard CLI downloads and installs its newest build.":
         "AdGuard CLIが最新ビルドをダウンロードしてインストールします。",
     "AdGuard CLI forgets the license on this computer. You will have to activate it again.":
@@ -895,6 +897,8 @@ STRINGS: dict[str, str] = {
         "一部の件数を読み込めませんでした。",
     "Source code":
         "ソースコード",
+    "Start AdGuard CLI at boot":
+        "システム起動時にAdGuard CLIを起動する",
     "Start AdGuard Tray when I log in":
         "ログイン時にAdGuard Trayを起動する",
     "Startup":
@@ -943,6 +947,8 @@ STRINGS: dict[str, str] = {
         "手動モードでのみ使用されます。",
     "Userscripts update together with filters.":
         "ユーザースクリプトはフィルタと一緒に更新されます。",
+    "Uses the system service that adguard-cli installs itself. Asks for your password in a terminal window.":
+        "adguard-cli自身がインストールするシステムサービスを使用します。ターミナルウィンドウでパスワードを求められます。",
     "Uses XDG autostart (~/.config/autostart).":
         "XDGの自動起動（~/.config/autostart）を使用します。",
     "Waiting for authorization…":

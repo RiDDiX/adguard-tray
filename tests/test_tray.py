@@ -1,5 +1,6 @@
 import os
 import shlex
+import threading
 import time
 from types import SimpleNamespace
 
@@ -9,7 +10,7 @@ import pytest  # noqa: E402
 from PyQt6.QtCore import QThreadPool  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
 
-from adguard_tray import installer, tray, vpn  # noqa: E402
+from adguard_tray import installer, tray, vpn, worker  # noqa: E402
 from adguard_tray.cli import AdGuardStatus, FilterListResult, StatusResult, UserscriptListResult  # noqa: E402
 from adguard_tray.config import Config  # noqa: E402
 
@@ -155,3 +156,83 @@ def test_vpn_status_error_shows_first_line(make_tray, fake_vpn):
     fake_vpn.status = vpn.VpnStatus(False, "", "adguardvpn-cli failed with exit code 3\ndetails")
     t = make_tray()
     assert list(vpn_entries(t)) == ["Error: adguardvpn-cli failed with exit code 3", "VPN"]
+
+
+class SlowStatus:
+    """get_status that reads the state when called, then blocks until released."""
+
+    def __init__(self, status):
+        self.status = status
+        self.release = threading.Event()
+        self.started = 0
+
+    def get_status(self):
+        self.started += 1
+        status = self.status
+        self.release.wait(5)
+        return StatusResult(status)
+
+
+def settle():
+    QThreadPool.globalInstance().waitForDone()
+    QTest.qWait(20)
+
+
+def started_worker(fake):
+    w = worker.StatusWorker(fake)
+    seen = []
+    w.status_updated.connect(lambda r: seen.append(r.status))
+    w.start()
+    wait_for(lambda: fake.started == 1)
+    return w, seen
+
+
+def poll_once(status, act):
+    fake = SlowStatus(AdGuardStatus.ACTIVE)
+    w, seen = started_worker(fake)
+    act(w)
+    fake.status = status
+    fake.release.set()
+    wait_for(lambda: seen)
+    settle()
+    w.stop()
+    return fake, seen
+
+
+def test_refresh_during_a_poll_drops_the_older_result():
+    # The poll started before a stop; the tray's refresh after it must not report "active".
+    fake, seen = poll_once(AdGuardStatus.INACTIVE, lambda w: w.refresh())
+    assert seen == [AdGuardStatus.INACTIVE]
+    assert fake.started == 2
+
+
+def test_timer_tick_during_a_poll_keeps_its_result():
+    fake, seen = poll_once(AdGuardStatus.INACTIVE, lambda w: w._timer.timeout.emit())
+    assert seen == [AdGuardStatus.ACTIVE]
+    assert fake.started == 1
+
+
+def test_refresh_during_a_poll_then_stop_starts_nothing():
+    fake = SlowStatus(AdGuardStatus.ACTIVE)
+    w, seen = started_worker(fake)
+    w.refresh()
+    w.stop()        # tray shutdown
+    fake.release.set()
+    settle()
+    assert fake.started == 1
+    assert seen == []
+
+
+def test_refresh_without_a_pending_poll_emits_its_result():
+    fake = SlowStatus(AdGuardStatus.ACTIVE)
+    fake.release.set()
+    w, seen = started_worker(fake)
+    wait_for(lambda: seen)
+    settle()
+    fake.status = AdGuardStatus.INACTIVE
+    w.refresh()
+    wait_for(lambda: len(seen) == 2)
+    settle()
+    w.stop()
+    assert seen == [AdGuardStatus.ACTIVE, AdGuardStatus.INACTIVE]
+    assert fake.started == 2

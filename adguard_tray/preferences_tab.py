@@ -2,20 +2,26 @@
 
 import logging
 import os
+import shlex
+import shutil
 import subprocess
+import time
 
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QThread, QTimer, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QComboBox, QFileDialog, QLineEdit, QPushButton, QSpinBox
 
-from . import theme, ui
+from . import installer, theme, ui
 from .autostart import autostart_enabled, set_autostart
 from .config import save_config
 from .i18n import LANGUAGES, _t
 from .ui import Page, Row, Switch
+from .worker import FnWorker
 
 logger = logging.getLogger(__name__)
 
 _LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
+POLL_MS = 3000          # boot service state while the user types the password
+POLL_FOR = 120          # seconds
 
 
 def _looks_like_adguard_cli(path: str) -> bool:
@@ -25,6 +31,10 @@ def _looks_like_adguard_cli(path: str) -> bool:
         return False
     out = (r.stdout + r.stderr).decode("utf-8", errors="replace").lower()
     return "adguard cli" in out
+
+
+def _password_hint() -> str:
+    return _t("AdGuard CLI asks for your password in the terminal window.")
 
 
 def _quietly(widget, setter, value) -> None:
@@ -86,6 +96,20 @@ class PreferencesTab(Page):
         self.sw_autostart.toggled.connect(self._set_autostart)
         startup.add_row(Row(_t("Start AdGuard Tray when I log in"),
                             _t("Uses XDG autostart (~/.config/autostart)."), self.sw_autostart))
+        self.sw_boot = Switch()
+        self.sw_boot.toggled.connect(self._set_boot)
+        self.boot_row = startup.add_row(Row(
+            _t("Start AdGuard CLI at boot"),
+            _t("Uses the system service that adguard-cli installs itself. "
+               "Asks for your password in a terminal window."),
+            self.sw_boot))
+        self.boot_row.setHidden(not shutil.which("systemctl"))
+        self._boot_worker: FnWorker | None = None
+        self._boot_want = False
+        self._boot_end = 0.0
+        self._boot_poll = QTimer(self)
+        self._boot_poll.timeout.connect(self._sync_boot)
+        self._sync_boot()
 
         checks = self.section(_t("Status checks"))
         self.spin_interval = QSpinBox()
@@ -127,6 +151,8 @@ class PreferencesTab(Page):
     def on_shown(self) -> None:
         # The desktop's own autostart settings may have changed the entry.
         _quietly(self.sw_autostart, self.sw_autostart.setChecked, autostart_enabled())
+        if not self._boot_poll.isActive():     # mid-install it would flip the switch back
+            self._sync_boot()
 
     # ── Saving ─────────────────────────────────────────────────────────────
 
@@ -179,6 +205,48 @@ class PreferencesTab(Page):
         if not ok:
             _quietly(self.sw_autostart, self.sw_autostart.setChecked, autostart_enabled())
             self.banner.show_message(_t("Could not change the autostart entry."), "danger", details=err)
+
+    # ── adguard-cli boot service ───────────────────────────────────────────
+
+    def _set_boot(self, on: bool) -> None:
+        # install-service runs sudo itself, which needs a terminal; its exit code says nothing.
+        command = shlex.join(self.ctx.cli.service_command(on))
+        if not installer.open_in_terminal(command):
+            clipboard = QApplication.clipboard()
+            if clipboard:
+                clipboard.setText(command)
+            self.banner.show_message(
+                _t("No terminal app was found. The command is on the clipboard: paste it into a terminal."),
+                "warning", details=command)
+            _quietly(self.sw_boot, self.sw_boot.setChecked, not on)
+            return
+        self.banner.show_message(_password_hint(), "info", details=command)
+        # A second terminal before the first one is done would race it.
+        self.sw_boot.setEnabled(False)
+        self._boot_want = on
+        self._boot_end = time.monotonic() + POLL_FOR
+        self._boot_poll.start(POLL_MS)
+
+    def _sync_boot(self) -> None:
+        if self._boot_worker is not None or self.boot_row.isHidden():
+            return
+        self.sw_boot.setEnabled(False)      # until the read shows the real state
+        w = self._boot_worker = FnWorker(lambda: (self.ctx.cli.service_enabled(), ""))
+        w.done.connect(self._boot_read)
+        w.finished.connect(lambda: self._workers.remove(w) if w in self._workers else None)
+        self._workers.append(w)
+        w.start()
+
+    def _boot_read(self, on: bool, _msg: str) -> None:
+        self._boot_worker = None
+        if self._boot_poll.isActive():
+            if on != self._boot_want and time.monotonic() < self._boot_end:
+                return
+            self._boot_poll.stop()
+            if self.banner.text.text() == _password_hint():     # done, or nobody typed one in time
+                self.banner.hide()
+        _quietly(self.sw_boot, self.sw_boot.setChecked, on)
+        self.sw_boot.setEnabled(True)
 
     # ── adguard-cli path ───────────────────────────────────────────────────
 

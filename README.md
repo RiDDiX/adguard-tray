@@ -142,6 +142,8 @@ Turn on **Settings → Startup → Start AdGuard Tray when I log in**, or add it
 
 The entry goes to `~/.config/autostart/adguard-tray.desktop` (standard XDG autostart).
 
+To start AdGuard CLI itself at boot, turn on **Settings → Startup → Start AdGuard CLI at boot**. It runs `adguard-cli install-service` in a terminal window, which asks for your password. Turning it off runs `adguard-cli install-service --uninstall`.
+
 ---
 
 ## Tray menu

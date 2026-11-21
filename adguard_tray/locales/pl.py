@@ -611,6 +611,8 @@ STRINGS: dict[str, str] = {
         "Blokowanie reklam jest wyłączone, więc poniższe listy filtrów nie działają.",
     "AdGuard CLI":
         "AdGuard CLI",
+    "AdGuard CLI asks for your password in the terminal window.":
+        "AdGuard CLI prosi o hasło w oknie terminala.",
     "AdGuard CLI downloads and installs its newest build.":
         "AdGuard CLI pobierze i zainstaluje najnowszą wersję.",
     "AdGuard CLI forgets the license on this computer. You will have to activate it again.":
@@ -895,6 +897,8 @@ STRINGS: dict[str, str] = {
         "Nie udało się wczytać niektórych wartości.",
     "Source code":
         "Kod źródłowy",
+    "Start AdGuard CLI at boot":
+        "Uruchamiaj AdGuard CLI przy starcie systemu",
     "Start AdGuard Tray when I log in":
         "Uruchamiaj AdGuard Tray po zalogowaniu",
     "Startup":
@@ -943,6 +947,8 @@ STRINGS: dict[str, str] = {
         "Używane tylko w trybie ręcznym.",
     "Userscripts update together with filters.":
         "Skrypty użytkownika są aktualizowane razem z filtrami.",
+    "Uses the system service that adguard-cli installs itself. Asks for your password in a terminal window.":
+        "Korzysta z usługi systemowej, którą adguard-cli instaluje samodzielnie. Prosi o hasło w oknie terminala.",
     "Uses XDG autostart (~/.config/autostart).":
         "Używa mechanizmu autostartu XDG (~/.config/autostart).",
     "Waiting for authorization…":

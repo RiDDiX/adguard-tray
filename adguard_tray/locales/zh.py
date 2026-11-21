@@ -629,6 +629,8 @@ STRINGS: dict[str, str] = {
         "广告拦截已关闭，下面的过滤器列表不会生效。",
     "AdGuard CLI":
         "AdGuard CLI",
+    "AdGuard CLI asks for your password in the terminal window.":
+        "AdGuard CLI 会在终端窗口中要求输入密码。",
     "AdGuard CLI downloads and installs its newest build.":
         "AdGuard CLI 将下载并安装其最新版本。",
     "AdGuard CLI forgets the license on this computer. You will have to activate it again.":
@@ -913,6 +915,8 @@ STRINGS: dict[str, str] = {
         "部分统计数据无法加载。",
     "Source code":
         "源代码",
+    "Start AdGuard CLI at boot":
+        "开机时启动 AdGuard CLI",
     "Start AdGuard Tray when I log in":
         "登录时启动 AdGuard Tray",
     "Startup":
@@ -961,6 +965,8 @@ STRINGS: dict[str, str] = {
         "仅在手动模式下使用。",
     "Userscripts update together with filters.":
         "用户脚本会随过滤器一起更新。",
+    "Uses the system service that adguard-cli installs itself. Asks for your password in a terminal window.":
+        "使用 adguard-cli 自行安装的系统服务。会在终端窗口中要求输入密码。",
     "Uses XDG autostart (~/.config/autostart).":
         "使用 XDG 自动启动（~/.config/autostart）。",
     "Waiting for authorization…":

@@ -113,6 +113,7 @@ class StatusWorker(QObject):
         self._timer.timeout.connect(self._enqueue)
         self._running = False
         self._pending = False  # guard against overlapping checks
+        self._stale = False    # the pending check predates a refresh() request
 
     # ── Public API ─────────────────────────────────────────────────────────
 
@@ -130,6 +131,9 @@ class StatusWorker(QObject):
     def refresh(self) -> None:
         """Force an immediate out-of-band status check."""
         logger.debug("Manual refresh requested")
+        # A check already running may predate what the caller just changed.
+        if self._pending:
+            self._stale = True
         self._enqueue()
 
     def set_interval(self, seconds: int) -> None:
@@ -149,4 +153,9 @@ class StatusWorker(QObject):
 
     def _on_result(self, result) -> None:
         self._pending = False
+        if self._stale:
+            self._stale = False
+            if self._running:
+                self._enqueue()
+            return
         self.status_updated.emit(result)
