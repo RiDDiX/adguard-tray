@@ -170,6 +170,10 @@ class AdGuardCLI:
         # Tray menu and Overview both drive start/stop; one at a time.
         self._action_lock = threading.Lock()
         self._last_status_error = ""
+        self._last_answer: StatusResult | None = None
+        self._action_epoch = 0
+        self._answer_lock = threading.Lock()
+        self._unit_tried = False
 
     # ── Version ────────────────────────────────────────────────────────────
 
@@ -185,6 +189,21 @@ class AdGuardCLI:
     # ── Status ─────────────────────────────────────────────────────────────
 
     def get_status(self) -> StatusResult:
+        epoch = self._action_epoch
+        result, failed = self._read_status()
+        if self._action_lock.locked():
+            # While start/stop/restart runs, neither replay nor remember: its checks need fresh evidence.
+            return result
+        with self._answer_lock:
+            if failed:
+                # A single failed status call says nothing about the proxy, so the previous answer stands once.
+                last, self._last_answer = self._last_answer, None
+                return last or result
+            if epoch == self._action_epoch:
+                self._last_answer = result
+        return result
+
+    def _read_status(self) -> tuple[StatusResult, bool]:
         code, out, err = _run([self.BINARY, "status"])
 
         if code == -1:
@@ -196,9 +215,9 @@ class AdGuardCLI:
                     "  curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/release/install.sh | sh -s -- -v\n"
                     "  paru -S adguard-cli-bin"
                 ),
-            )
+            ), False
         if code < 0:
-            return StatusResult(AdGuardStatus.ERROR, _cli_error(err, "") or _t("Unknown error retrieving status"))
+            return StatusResult(AdGuardStatus.ERROR, _cli_error(err, "") or _t("Unknown error retrieving status")), True
 
         combined = (out + " " + err).lower()
 
@@ -208,14 +227,14 @@ class AdGuardCLI:
         filtering_enabled = "enabled" in combined
 
         if _RUNNING_RE.search(combined):
-            return StatusResult(AdGuardStatus.ACTIVE, out, proxy_port, filtering_enabled)
+            return StatusResult(AdGuardStatus.ACTIVE, out, proxy_port, filtering_enabled), False
 
         if _STOPPED_RE.search(combined):
             # adguard-cli may lack a PID file when managed by systemd → verify
             fallback = self._systemctl_fallback(out)
             if fallback.status == AdGuardStatus.ACTIVE:
-                return StatusResult(AdGuardStatus.ACTIVE, out, proxy_port, filtering_enabled)
-            return StatusResult(AdGuardStatus.INACTIVE, out, proxy_port, filtering_enabled)
+                return StatusResult(AdGuardStatus.ACTIVE, out, proxy_port, filtering_enabled), False
+            return StatusResult(AdGuardStatus.INACTIVE, out, proxy_port, filtering_enabled), False
 
         # Ambiguous output → fallback to systemctl, but keep what we parsed
         logger.debug("Status output ambiguous, checking systemctl: %r", out)
@@ -227,8 +246,10 @@ class AdGuardCLI:
                 logger.warning("adguard-cli status failed (exit %d): %s", code, _clip(err))
             self._last_status_error = err
             status = AdGuardStatus.ERROR if fallback.status == AdGuardStatus.UNKNOWN else fallback.status
-            return StatusResult(status, _cli_error(err, ""), proxy_port, filtering_enabled)
-        return StatusResult(fallback.status, out or _cli_error(err, ""), proxy_port, filtering_enabled)
+            # An active unit is evidence; only a down or unknown one leaves the call without an answer.
+            return (StatusResult(status, _cli_error(err, ""), proxy_port, filtering_enabled),
+                    fallback.status != AdGuardStatus.ACTIVE)
+        return StatusResult(fallback.status, out or _cli_error(err, ""), proxy_port, filtering_enabled), False
 
     def _systemctl_fallback(self, original: str) -> StatusResult:
         code, out, _ = _run(["systemctl", "is-active", "adguard-cli"], timeout=5)
@@ -254,8 +275,13 @@ class AdGuardCLI:
         if not self._action_lock.acquire(blocking=False):
             return False, _t("Another action is still running")
         try:
+            self._unit_tried = False
             return fn()
         finally:
+            # An answer whose status call began before the action ended must not be remembered after it.
+            with self._answer_lock:
+                self._last_answer = None
+                self._action_epoch += 1
             self._action_lock.release()
 
     def start(self) -> tuple[bool, str]:
@@ -357,7 +383,13 @@ class AdGuardCLI:
           1. adguard-cli <cmd>              (no privilege needed if configured)
           2. pkexec adguard-cli <cmd>       (polkit GUI prompt)
           3. pkexec systemctl <cmd> adguard-cli  (fallback via systemd)
+        While the boot unit is enabled but down, start goes through the unit first.
         """
+        if cmd in ("start", "restart"):
+            result = self._unit_start(cmd)
+            if result is not None:
+                return result
+
         # Attempt 1: direct. Its output is returned alongside the final
         # message: the fallbacks' errors hide the real cause (e.g. "socket busy").
         code, out, err = _run([self.BINARY, cmd])
@@ -398,7 +430,8 @@ class AdGuardCLI:
                     cmd, code2, _log_text(err2 or out2))
 
         # Attempt 3: pkexec systemctl
-        systemctl_cmd = {"start": "start", "stop": "stop", "restart": "restart"}.get(cmd)
+        # Skipped after the unit path: it already asked systemd, a second ask is a second prompt.
+        systemctl_cmd = None if self._unit_tried else {"start": "start", "stop": "stop", "restart": "restart"}.get(cmd)
         if systemctl_cmd:
             code3, out3, err3 = _run(
                 ["pkexec", "systemctl", systemctl_cmd, "adguard-cli"], timeout=60
@@ -418,6 +451,37 @@ class AdGuardCLI:
         logger.error("All privilege attempts for '%s' failed. First error: %s | last error: %s",
                      cmd, _log_text(first_error), _log_text(final_err))
         return False, msg, first_error
+
+    def _unit_start(self, cmd: str) -> tuple[bool, str, str] | None:
+        if self._unit_tried or not self.service_enabled():
+            return None
+        # is-enabled reads the unit file; without a reachable manager is-active prints "unknown" or nothing.
+        state = _run(["systemctl", "is-active", "adguard-cli"], timeout=5)[1].strip()
+        if state not in ("inactive", "failed", "activating"):
+            return None
+        code, out, err = _run([self.BINARY, "status"])
+        combined = (out + " " + err).lower()
+        if not _STOPPED_RE.search(combined) or _RUNNING_RE.search(combined):
+            return None
+        # restart, not start: it also ends the retry loop a failed boot start leaves behind.
+        self._unit_tried = True
+        code, out, err = _run(["pkexec", "systemctl", "restart", "adguard-cli"], timeout=60)
+        if code == 0:
+            logger.info("systemctl restart adguard-cli succeeded (pkexec, %s)", cmd)
+            return True, _t("AdGuard via systemctl {} ok", cmd), ""
+        if code == 126:
+            logger.info("pkexec authentication cancelled (exit 126)")
+            return False, _t("Authentication cancelled"), ""
+        if code == -2:
+            # The prompt may still be open; the direct attempts would stack a second one.
+            msg = _cli_error(err, out) or _t("'{}' failed – insufficient privileges?", cmd)
+            logger.error("systemctl restart adguard-cli for '%s' failed (exit %d): %s", cmd, code, _log_text(msg))
+            return False, msg, ""
+        # A unit that cannot start (stale ExecStart, start-limit-hit) must not hide what the CLI itself says.
+        logger.log(logging.INFO if code in (127, -1, -3) else logging.WARNING,
+                   "systemctl restart adguard-cli for '%s' failed (exit %d): %s – trying direct %s",
+                   cmd, code, _log_text(_cli_error(err, out)), cmd)
+        return None
 
     # ── Filter management ──────────────────────────────────────────────────
 

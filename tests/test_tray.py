@@ -236,3 +236,89 @@ def test_refresh_without_a_pending_poll_emits_its_result():
     w.stop()
     assert seen == [AdGuardStatus.ACTIVE, AdGuardStatus.INACTIVE]
     assert fake.started == 2
+
+
+STOPPED = "AdGuard has been stopped."
+STARTED = "AdGuard is now active – protection running."
+
+
+@pytest.fixture
+def status_tray(make_tray, monkeypatch):
+    t = make_tray()
+    wait_for(lambda: t._last_status is not None)  # the startup poll
+    t._last_status = None
+    t.config.notifications_enabled = True
+    t.sent = []
+    monkeypatch.setattr(tray, "notify", lambda title, body, **kw: t.sent.append(body))
+    return t
+
+
+def push(t, status, message=""):
+    t._on_status_result(StatusResult(status, message))
+
+
+def test_first_status_is_not_notified(status_tray):
+    push(status_tray, AdGuardStatus.ACTIVE)
+    assert status_tray.sent == []
+
+
+def test_status_change_notifies_once(status_tray):
+    push(status_tray, AdGuardStatus.ACTIVE)
+    push(status_tray, AdGuardStatus.INACTIVE)
+    assert status_tray.sent == [STOPPED]
+    push(status_tray, AdGuardStatus.INACTIVE)
+    assert status_tray.sent == [STOPPED]
+
+
+def test_flapping_status_notifies_every_change_so_the_last_popup_is_current(status_tray):
+    for status in (AdGuardStatus.ACTIVE, AdGuardStatus.INACTIVE, AdGuardStatus.ACTIVE, AdGuardStatus.INACTIVE):
+        push(status_tray, status)
+    assert status_tray.sent == [STOPPED, STARTED, STOPPED]
+
+
+def test_error_status_message_goes_into_tooltip(status_tray):
+    push(status_tray, AdGuardStatus.ERROR, "adguard-cli timed out")
+    assert "Error: adguard-cli timed out" in status_tray.toolTip().splitlines()
+
+
+@pytest.fixture
+def restart_tray(make_tray):
+    t = make_tray()
+    wait_for(lambda: t._last_status is not None)
+    t.calls = []
+    t.cli.get_status = lambda: t.calls.append("status") or StatusResult(AdGuardStatus.ACTIVE)
+    t.cli.restart = lambda: t.calls.append("restart") or (True, "restarted")
+    t._refresh_status_soon = lambda: None  # no 2 s re-poll timer left behind
+    t._restart_pending = True
+    return t
+
+
+@pytest.mark.parametrize("status", [AdGuardStatus.INACTIVE, AdGuardStatus.NOT_INSTALLED])
+def test_queued_restart_is_dropped_while_adguard_is_off(restart_tray, status):
+    restart_tray._last_status = status
+    restart_tray._fire_pending_restart()
+    wait_action_done()
+    assert not restart_tray._restart_pending
+    assert restart_tray.calls == []
+
+
+def test_queued_restart_runs_while_adguard_is_active(restart_tray):
+    restart_tray._last_status = AdGuardStatus.ACTIVE
+    restart_tray._fire_pending_restart()
+    wait_action_done()
+    assert restart_tray.calls == ["status", "restart"]
+    assert not restart_tray._restart_pending
+    assert not restart_tray._busy
+
+
+@pytest.mark.parametrize(("status", "expected", "restarts"), [
+    (AdGuardStatus.INACTIVE, (True, ""), 0),
+    (AdGuardStatus.ACTIVE, (False, "boom"), 1),
+    (AdGuardStatus.ERROR, (False, "boom"), 1),
+])
+def test_restart_if_running_asks_the_cli_first(status, expected, restarts):
+    restarted = []
+    cli = SimpleNamespace(get_status=lambda: StatusResult(status),
+                          restart=lambda: restarted.append(1) or (False, "boom"))
+    assert tray.AdGuardTray._restart_if_running(SimpleNamespace(cli=cli)) == expected
+    assert len(restarted) == restarts

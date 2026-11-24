@@ -26,6 +26,15 @@ def fake_run(monkeypatch):
     return calls, result
 
 
+def _unit_disabled(run):
+    """Fake _run that answers `systemctl is-enabled` with "disabled" itself and passes other calls to run."""
+    def wrapped(args, timeout=15, stdin_data=None):
+        if args[:2] == ["systemctl", "is-enabled"]:
+            return 1, "disabled", ""
+        return run(args, timeout, stdin_data)
+    return wrapped
+
+
 @pytest.mark.parametrize("out, expected", [
     ("AdGuard CLI v1.3.45", "1.3.45"),
     ("AdGuard CLI v1.5.1\nfilter-list-manager v2.7.0", "1.5.1"),
@@ -178,7 +187,7 @@ def test_list_error_drops_cli_error_prefix(fake_run, method, result_type):
 
 def test_privileged_command_keeps_credentials_out_of_log(monkeypatch, caplog):
     results = iter([(1, "", "Error: https://h.example/p?token=abc: 403")] * 3)
-    monkeypatch.setattr(cli, "_run", lambda args, timeout=15, stdin_data=None: next(results))
+    monkeypatch.setattr(cli, "_run", _unit_disabled(lambda args, timeout=15, stdin_data=None: next(results)))
     with caplog.at_level(logging.INFO, logger="adguard_tray.cli"):
         cli.AdGuardCLI()._privileged_command("start")
     assert "https://h.example/p: 403" in caplog.text
@@ -187,7 +196,7 @@ def test_privileged_command_keeps_credentials_out_of_log(monkeypatch, caplog):
 
 def test_privileged_command_error_drops_cli_error_prefix(monkeypatch):
     results = iter([(1, "", "Error: socket busy"), (1, "", "Error: still busy"), (1, "Error: unit failed", "")])
-    monkeypatch.setattr(cli, "_run", lambda args, timeout=15, stdin_data=None: next(results))
+    monkeypatch.setattr(cli, "_run", _unit_disabled(lambda args, timeout=15, stdin_data=None: next(results)))
     assert cli.AdGuardCLI()._privileged_command("start") == (False, "unit failed", "socket busy")
 
 
@@ -242,7 +251,7 @@ def test_privileged_command_pkexec_exit_stops_fallbacks(monkeypatch, code, expec
         calls.append(args)
         return next(results)
 
-    monkeypatch.setattr(cli, "_run", run)
+    monkeypatch.setattr(cli, "_run", _unit_disabled(run))
     ok, msg, first_error = cli.AdGuardCLI()._privileged_command("start")
     assert (ok, msg, first_error) == (False, cli._t(expected), "")
     assert [c[0] for c in calls] == ["adguard-cli", "pkexec"]
@@ -279,7 +288,7 @@ def test_run_does_not_inherit_stdin():
 
 def test_privileged_command_127_log_keeps_credentials_out(monkeypatch, caplog):
     results = iter([(1, "", "x"), (127, "", "Error: https://u:pw@h.example/p?token=abc denied")])
-    monkeypatch.setattr(cli, "_run", lambda args, timeout=15, stdin_data=None: next(results))
+    monkeypatch.setattr(cli, "_run", _unit_disabled(lambda args, timeout=15, stdin_data=None: next(results)))
     with caplog.at_level(logging.INFO, logger="adguard_tray.cli"):
         assert cli.AdGuardCLI()._privileged_command("start")[1] == cli._t("Authorization failed")
     assert "https://h.example/p denied" in caplog.text
@@ -390,3 +399,416 @@ def test_service_command_uses_the_configured_binary():
     adguard = cli.AdGuardCLI("/opt/adguard-cli/adguard-cli")
     assert adguard.service_command(True) == ["/opt/adguard-cli/adguard-cli", "install-service"]
     assert adguard.service_command(False) == ["/opt/adguard-cli/adguard-cli", "install-service", "--uninstall"]
+
+
+IS_ENABLED = ["systemctl", "is-enabled", "adguard-cli.service"]
+IS_ACTIVE = ["systemctl", "is-active", "adguard-cli"]
+UNIT_RESTART = ["pkexec", "systemctl", "restart", "adguard-cli"]
+UNIT_STOP = ["pkexec", "systemctl", "stop", "adguard-cli"]
+RUNNING = (0, "AdGuard CLI is running on 127.0.0.1:3129", "")
+STOPPED = (0, "AdGuard CLI is not running", "")
+FAILED = (1, "", "Error: cannot read proxy.yaml")
+TIMED_OUT = (-2, "", "Command timed out after 15s")
+
+
+def _unit_run(monkeypatch, enabled=(0, "enabled", ""), active=(3, "inactive", ""), restart=(0, "", ""),
+              status=STOPPED, direct=(1, "", "Error: no privileges")):
+    """Fake _run for the boot unit; every other call fails like a CLI without privileges."""
+    calls = []
+
+    def run(args, timeout=15, stdin_data=None):
+        calls.append((args, timeout))
+        if args == IS_ENABLED:
+            return enabled
+        if args == IS_ACTIVE:
+            return active
+        if args == UNIT_RESTART:
+            return restart
+        if args == ["adguard-cli", "status"]:
+            return status
+        if args in (["adguard-cli", "start"], ["adguard-cli", "restart"]):
+            return direct
+        return 1, "", "Error: no privileges"
+
+    monkeypatch.setattr(cli, "_run", run)
+    return calls
+
+
+@pytest.mark.parametrize("cmd", ["start", "restart"])
+@pytest.mark.parametrize("active", [(3, "inactive", ""), (3, "failed", ""), (3, "activating", "")])
+def test_enabled_unit_down_starts_through_the_unit(monkeypatch, cmd, active):
+    calls = _unit_run(monkeypatch, active=active)
+    assert cli.AdGuardCLI()._privileged_command(cmd) == (True, cli._t("AdGuard via systemctl {} ok", cmd), "")
+    assert calls == [(IS_ENABLED, 5), (IS_ACTIVE, 5), (["adguard-cli", "status"], 15), (UNIT_RESTART, 60)]
+
+
+@pytest.mark.parametrize("cmd", ["start", "restart"])
+@pytest.mark.parametrize("status", [STOPPED, RUNNING])
+@pytest.mark.parametrize("active", [
+    (0, "active", ""),
+    (3, "deactivating", ""),
+    (4, "unknown", ""),
+    (1, "", "Failed to connect to bus: No such file or directory"),
+])
+def test_enabled_unit_not_down_goes_direct(monkeypatch, cmd, status, active):
+    calls = _unit_run(monkeypatch, active=active, status=status, direct=(0, "started", ""))
+    assert cli.AdGuardCLI()._privileged_command(cmd) == (True, "started", "started")
+    assert [args for args, _ in calls] == [IS_ENABLED, IS_ACTIVE, ["adguard-cli", cmd]]
+
+
+@pytest.mark.parametrize("cmd", ["start", "restart"])
+@pytest.mark.parametrize("status", [
+    RUNNING,
+    (0, "adguard-cli has been stopped\nAdGuard CLI is running on 127.0.0.1:3129", ""),
+    TIMED_OUT,
+    FAILED,
+    (0, "AdGuard CLI status unavailable", ""),
+])
+def test_enabled_unit_down_goes_direct_unless_the_proxy_is_stopped(monkeypatch, cmd, status):
+    calls = _unit_run(monkeypatch, status=status, direct=(0, "started", ""))
+    assert cli.AdGuardCLI()._privileged_command(cmd) == (True, "started", "started")
+    assert [args for args, _ in calls] == [IS_ENABLED, IS_ACTIVE, ["adguard-cli", "status"], ["adguard-cli", cmd]]
+
+
+@pytest.mark.parametrize("cmd", ["start", "restart"])
+@pytest.mark.parametrize("enabled", [(1, "disabled", ""), (-1, "", "Binary not found: systemctl")])
+def test_start_without_enabled_unit_keeps_attempt_order(monkeypatch, cmd, enabled):
+    calls = _unit_run(monkeypatch, enabled=enabled, restart=(1, "", "Error: no privileges"))
+    assert cli.AdGuardCLI()._privileged_command(cmd) == (False, "no privileges", "no privileges")
+    assert [args for args, _ in calls] == [
+        IS_ENABLED, ["adguard-cli", cmd], ["pkexec", "adguard-cli", cmd],
+        ["pkexec", "systemctl", cmd, "adguard-cli"],
+    ]
+
+
+@pytest.mark.parametrize("restart, expected", [
+    ((126, "", ""), ("Authentication cancelled",)),
+    ((-2, "", "Command timed out after 60s"), ("Command timed out after 60s",)),
+    ((-2, "", ""), ("'{}' failed – insufficient privileges?", "start")),
+])
+def test_enabled_unit_failure_is_final(monkeypatch, restart, expected):
+    calls = _unit_run(monkeypatch, restart=restart)
+    assert cli.AdGuardCLI()._privileged_command("start") == (False, cli._t(*expected), "")
+    assert [args for args, _ in calls] == [IS_ENABLED, IS_ACTIVE, ["adguard-cli", "status"], UNIT_RESTART]
+
+
+@pytest.mark.parametrize("cmd", ["start", "restart"])
+@pytest.mark.parametrize("restart, level", [
+    ((1, "hint", "Error: unit failed"), logging.WARNING),
+    ((1, "", ""), logging.WARNING),
+    ((127, "", "Error: not authorized"), logging.INFO),
+    ((-1, "", "Binary not found: pkexec"), logging.INFO),
+    ((-3, "", "[Errno 13] Permission denied: 'pkexec'"), logging.INFO),
+])
+def test_enabled_unit_failure_falls_back_to_the_direct_attempt(monkeypatch, caplog, cmd, restart, level):
+    calls = _unit_run(monkeypatch, restart=restart, direct=(0, "started", ""))
+    with caplog.at_level(logging.INFO, logger="adguard_tray.cli"):
+        assert cli.AdGuardCLI()._privileged_command(cmd) == (True, "started", "started")
+    assert [args for args, _ in calls] == [
+        IS_ENABLED, IS_ACTIVE, ["adguard-cli", "status"], UNIT_RESTART, ["adguard-cli", cmd],
+    ]
+    assert [r.levelno for r in caplog.records if "systemctl restart adguard-cli" in r.getMessage()] == [level]
+
+
+def test_start_socket_busy_retry_does_not_ask_for_the_unit_again(monkeypatch):
+    calls = _unit_run(monkeypatch, restart=(1, "", "Error: unit failed"))
+    inner = cli._run
+    direct = iter([(1, "", "Error: socket busy"), (0, "started", "")])
+
+    def run(args, timeout=15, stdin_data=None):
+        if args == ["adguard-cli", "start"]:
+            calls.append((args, timeout))
+            return next(direct)
+        return inner(args, timeout, stdin_data)
+
+    monkeypatch.setattr(cli, "_run", run)
+    monkeypatch.setattr(cli.time, "sleep", lambda s: None)
+    adguard = cli.AdGuardCLI()
+    kills = []
+    monkeypatch.setattr(adguard, "_force_kill", lambda: kills.append(len(calls)))
+    assert adguard.start() == (True, "started")
+    assert [args for args, _ in calls] == [
+        IS_ENABLED, IS_ACTIVE, ["adguard-cli", "status"], UNIT_RESTART,
+        ["adguard-cli", "start"], ["pkexec", "adguard-cli", "start"], ["adguard-cli", "start"],
+    ]
+    assert kills == [6]
+
+
+def test_failed_unit_restart_skips_the_systemctl_fallback(monkeypatch):
+    calls = _unit_run(monkeypatch, restart=(1, "", "Error: unit failed"), direct=(1, "", "Error: direct failed"))
+    assert cli.AdGuardCLI()._privileged_command("restart") == (False, "no privileges", "direct failed")
+    assert [args for args, _ in calls] == [
+        IS_ENABLED, IS_ACTIVE, ["adguard-cli", "status"], UNIT_RESTART,
+        ["adguard-cli", "restart"], ["pkexec", "adguard-cli", "restart"],
+    ]
+
+
+def test_each_action_tries_the_unit_once(monkeypatch):
+    calls = _unit_run(monkeypatch, restart=(1, "", "Error: unit failed"), direct=(0, "started", ""))
+    adguard = cli.AdGuardCLI()
+    assert adguard.start() == (True, "started")
+    assert adguard.start() == (True, "started")
+    assert [args for args, _ in calls] == 2 * [
+        IS_ENABLED, IS_ACTIVE, ["adguard-cli", "status"], UNIT_RESTART, ["adguard-cli", "start"],
+    ]
+
+
+def test_stop_never_asks_for_the_unit(monkeypatch):
+    calls = _unit_run(monkeypatch)
+    cli.AdGuardCLI()._privileged_command("stop")
+    assert [args for args, _ in calls] == [
+        ["adguard-cli", "stop"], ["pkexec", "adguard-cli", "stop"], ["pkexec", "systemctl", "stop", "adguard-cli"],
+    ]
+
+
+@pytest.mark.parametrize("retry, expected", [
+    ([(0, "started", "")], (True, "started")),
+    ([(1, "", "Error: socket busy"), (1, "", "still busy"), (1, "", "unit failed")], (False, "unit failed")),
+])
+def test_start_socket_busy_force_kills_and_retries_once(monkeypatch, retry, expected):
+    results = iter([(1, "", "Error: socket busy"), (1, "", "still busy"), (1, "", "unit failed"), *retry])
+    calls = []
+
+    def run(args, timeout=15, stdin_data=None):
+        calls.append(args)
+        return next(results)
+
+    monkeypatch.setattr(cli, "_run", _unit_disabled(run))
+    monkeypatch.setattr(cli.time, "sleep", lambda s: None)
+    adguard = cli.AdGuardCLI()
+    kills = []
+    monkeypatch.setattr(adguard, "_force_kill", lambda: kills.append(len(calls)))
+    assert adguard.start() == expected
+    assert kills == [3]
+    assert len(calls) == 3 + len(retry)
+
+
+@pytest.mark.parametrize("status, started", [
+    (cli.AdGuardStatus.INACTIVE, True),
+    (cli.AdGuardStatus.ERROR, True),
+    (cli.AdGuardStatus.UNKNOWN, True),
+    (cli.AdGuardStatus.ACTIVE, False),
+])
+def test_restart_falls_back_to_start_unless_active(monkeypatch, status, started):
+    monkeypatch.setattr(cli.time, "sleep", lambda s: None)
+    adguard = cli.AdGuardCLI()
+    starts = []
+    monkeypatch.setattr(adguard, "_privileged_command", lambda cmd: (True, f"{cmd} ok", ""))
+    monkeypatch.setattr(adguard, "get_status", lambda: cli.StatusResult(status))
+    monkeypatch.setattr(adguard, "_start", lambda: starts.append(1) or (True, "start ok"))
+    assert adguard.restart() == ((True, "start ok") if started else (True, "restart ok"))
+    assert len(starts) == started
+
+
+def _status_run(monkeypatch, unit="inactive"):
+    status = [RUNNING]
+
+    def run(args, timeout=15, stdin_data=None):
+        if args == IS_ACTIVE:
+            return (0 if unit == "active" else 3), unit, ""
+        return status[0]
+
+    monkeypatch.setattr(cli, "_run", run)
+    return status
+
+
+@pytest.mark.parametrize("before", [RUNNING, STOPPED])
+@pytest.mark.parametrize("failure, fallback", [(FAILED, cli.AdGuardStatus.INACTIVE), (TIMED_OUT, cli.AdGuardStatus.ERROR)])
+def test_get_status_keeps_answer_over_one_failed_call(monkeypatch, before, failure, fallback):
+    status = _status_run(monkeypatch)
+    status[0] = before
+    adguard = cli.AdGuardCLI()
+    answer = adguard.get_status()
+    status[0] = failure
+    assert adguard.get_status() == answer
+    assert adguard.get_status().status == fallback
+
+
+@pytest.mark.parametrize("unit, failure, expected", [
+    ("inactive", FAILED, cli.AdGuardStatus.INACTIVE),
+    ("inactive", TIMED_OUT, cli.AdGuardStatus.ERROR),
+    ("active", FAILED, cli.AdGuardStatus.ACTIVE),
+])
+def test_get_status_failure_without_answer_falls_back_at_once(monkeypatch, unit, failure, expected):
+    status = _status_run(monkeypatch, unit)
+    status[0] = failure
+    assert cli.AdGuardCLI().get_status().status == expected
+
+
+def test_get_status_failed_call_with_the_unit_active_is_an_answer(monkeypatch):
+    status = _status_run(monkeypatch)
+    status[0] = STOPPED
+    adguard = cli.AdGuardCLI()
+    assert adguard.get_status().status == cli.AdGuardStatus.INACTIVE
+    status = _status_run(monkeypatch, "active")
+    status[0] = FAILED
+    answer = adguard.get_status()
+    assert answer == cli.StatusResult(cli.AdGuardStatus.ACTIVE, "cannot read proxy.yaml")
+    status[0] = TIMED_OUT
+    assert adguard.get_status() == answer
+    assert adguard.get_status().status == cli.AdGuardStatus.ERROR
+
+
+@pytest.mark.parametrize("action", ["start", "stop", "restart"])
+def test_get_status_does_not_replay_answer_across_an_action(monkeypatch, action):
+    status = _status_run(monkeypatch)
+    adguard = cli.AdGuardCLI()
+    adguard.get_status()
+    status[0] = FAILED
+    during = []
+
+    def act():
+        during.append(adguard.get_status().status)
+        status[0] = RUNNING
+        adguard.get_status()
+        status[0] = FAILED
+        return True, ""
+
+    monkeypatch.setattr(adguard, f"_{action}", act)
+    assert getattr(adguard, action)() == (True, "")
+    assert during == [cli.AdGuardStatus.INACTIVE]
+    assert adguard.get_status().status == cli.AdGuardStatus.INACTIVE
+
+
+def test_stop_force_kill_does_not_escalate_on_one_failed_status_call(monkeypatch):
+    calls = []
+
+    def run(args, timeout=15, stdin_data=None):
+        calls.append(args)
+        if args == IS_ACTIVE:
+            return 3, "inactive", ""
+        if args == ["adguard-cli", "status"]:
+            return TIMED_OUT if ["pkill", "-x", "adguard_root_he"] in calls else RUNNING
+        return 0, "", ""
+
+    monkeypatch.setattr(cli, "_run", run)
+    monkeypatch.setattr(cli.time, "sleep", lambda s: None)
+    adguard = cli.AdGuardCLI()
+    assert adguard.get_status().status == cli.AdGuardStatus.ACTIVE
+    assert adguard.stop() == (True, cli._t("AdGuard stopped (forced)"))
+    assert ["pkill", "-x", "adguard_root_he"] in calls
+    assert not [c for c in calls if c[:2] == ["pkexec", "pkill"]]
+
+
+def test_get_status_neither_replays_nor_remembers_while_the_lock_is_held(monkeypatch):
+    status = _status_run(monkeypatch)
+    adguard = cli.AdGuardCLI()
+    adguard._action_lock.acquire()
+    assert adguard.get_status().status == cli.AdGuardStatus.ACTIVE
+    adguard._action_lock.release()
+    status[0] = FAILED
+    assert adguard.get_status().status == cli.AdGuardStatus.INACTIVE
+
+    status[0] = RUNNING
+    adguard.get_status()
+    adguard._action_lock.acquire()
+    status[0] = FAILED
+    assert adguard.get_status().status == cli.AdGuardStatus.INACTIVE
+    adguard._action_lock.release()
+
+
+def test_get_status_overlapping_the_end_of_an_action_is_not_remembered(monkeypatch):
+    status = _status_run(monkeypatch)
+    adguard = cli.AdGuardCLI()
+    inner = cli._run
+
+    def run(args, timeout=15, stdin_data=None):
+        if args == ["adguard-cli", "status"] and status[0] == RUNNING:
+            assert adguard._exclusive(lambda: (True, "")) == (True, "")
+        return inner(args, timeout, stdin_data)
+
+    monkeypatch.setattr(cli, "_run", run)
+    assert adguard.get_status().status == cli.AdGuardStatus.ACTIVE
+    status[0] = FAILED
+    assert adguard.get_status().status == cli.AdGuardStatus.INACTIVE
+
+
+def test_get_status_remembers_the_latest_answer(monkeypatch):
+    status = _status_run(monkeypatch)
+    adguard = cli.AdGuardCLI()
+    assert adguard.get_status().status == cli.AdGuardStatus.ACTIVE
+    status[0] = (0, "AdGuard CLI status unavailable", "")
+    answer = adguard.get_status()
+    assert answer.status == cli.AdGuardStatus.INACTIVE
+    status[0] = TIMED_OUT
+    assert adguard.get_status() == answer
+
+
+@pytest.mark.parametrize("unit, started", [("inactive", True), ("active", False)])
+def test_restart_checks_a_failed_status_call_without_replay(monkeypatch, unit, started):
+    status = _status_run(monkeypatch, unit)
+    monkeypatch.setattr(cli.time, "sleep", lambda s: None)
+    adguard = cli.AdGuardCLI()
+    assert adguard.get_status().status == cli.AdGuardStatus.ACTIVE
+    status[0] = FAILED
+    starts = []
+    monkeypatch.setattr(adguard, "_privileged_command", lambda cmd: (True, f"{cmd} ok", ""))
+    monkeypatch.setattr(adguard, "_start", lambda: starts.append(1) or (True, "start ok"))
+    assert adguard.restart() == ((True, "start ok") if started else (True, "restart ok"))
+    assert len(starts) == started
+
+
+@pytest.mark.parametrize("code, ok, msg", [
+    (0, True, ("AdGuard via systemctl {} ok", "stop")),
+    (126, False, ("Authentication cancelled",)),
+])
+def test_stop_active_unit_stops_the_unit(monkeypatch, code, ok, msg):
+    calls = []
+
+    def run(args, timeout=15, stdin_data=None):
+        calls.append(args)
+        if args == IS_ACTIVE:
+            return 0, "active", ""
+        if args == UNIT_STOP:
+            return code, "", ""
+        return 0, "adguard-cli has been stopped", ""
+
+    monkeypatch.setattr(cli, "_run", run)
+    monkeypatch.setattr(cli.time, "sleep", lambda s: None)
+    assert cli.AdGuardCLI().stop() == (ok, cli._t(*msg))
+    assert calls == [["adguard-cli", "stop"], ["adguard-cli", "status"], IS_ACTIVE, UNIT_STOP]
+
+
+@pytest.mark.parametrize("status_out, expected", [
+    ("adguard-cli has been stopped", (True, "stop ok")),
+    ("", (True, "stop ok")),
+    ("AdGuard CLI is running", (True, "forced")),
+])
+def test_stop_force_kills_only_a_proxy_still_running(monkeypatch, status_out, expected):
+    calls = []
+
+    def run(args, timeout=15, stdin_data=None):
+        calls.append(args)
+        if args == IS_ACTIVE:
+            return 3, "inactive", ""
+        if args == ["adguard-cli", "stop"]:
+            return 0, "stop ok", ""
+        return 0, status_out, ""
+
+    monkeypatch.setattr(cli, "_run", run)
+    monkeypatch.setattr(cli.time, "sleep", lambda s: None)
+    adguard = cli.AdGuardCLI()
+    monkeypatch.setattr(adguard, "_force_kill", lambda: (True, "forced"))
+    assert adguard.stop() == expected
+    assert UNIT_STOP not in calls
+
+
+def test_force_kill_escalates_to_pkexec_when_user_pkill_leaves_it_running(monkeypatch):
+    calls = []
+
+    def run(args, timeout=15, stdin_data=None):
+        calls.append(args)
+        if args == ["adguard-cli", "status"]:
+            escalated = ["pkexec", "pkill", "-x", "adguard_root_he"] in calls
+            return 0, "AdGuard CLI is not running" if escalated else "AdGuard CLI is running", ""
+        if args == IS_ACTIVE:
+            return 3, "inactive", ""
+        return 1, "", ""    # pkill: the root helper can't be signalled from the user session
+
+    monkeypatch.setattr(cli, "_run", run)
+    monkeypatch.setattr(cli.time, "sleep", lambda s: None)
+    assert cli.AdGuardCLI()._force_kill() == (True, cli._t("AdGuard stopped (forced)"))
+    assert [c for c in calls if "pkill" in c] == [
+        ["pkill", "-x", "adguard-cli"], ["pkill", "-x", "adguard_root_he"],
+        ["pkexec", "pkill", "-x", "adguard-cli"], ["pkexec", "pkill", "-x", "adguard_root_he"],
+    ]

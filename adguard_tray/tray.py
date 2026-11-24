@@ -187,7 +187,6 @@ class AdGuardTray(QSystemTrayIcon):
         self._loading_vpn = False
         self._vpn_placeholder: QAction | None = None
         self._vpn_sig: tuple | None = None
-        self._last_notify: tuple[AdGuardStatus, AdGuardStatus, float] | None = None
         self._last_error = ""
         self._last_error_at = 0.0
         self._cli_version: str = ""
@@ -657,20 +656,7 @@ class AdGuardTray(QSystemTrayIcon):
         self._update_menu_state(result.status)
 
         if old is not None and old != result.status and self.config.notifications_enabled:
-            # Dedup keyed on the (old, new) transition pair, not a single
-            # timestamp — that way ACTIVE→ERROR doesn't suppress a follow-up
-            # ERROR→INACTIVE within the window.
-            now = time.monotonic()
-            last = self._last_notify
-            same_transition = (
-                last is not None
-                and last[0] == old
-                and last[1] == result.status
-                and now - last[2] < 10.0
-            )
-            if not same_transition:
-                self._last_notify = (old, result.status, now)
-                self._notify_change(old, result.status)
+            self._notify_change(old, result.status)
 
         # If the CLI just (re)appeared, refresh the version label.
         if (old == AdGuardStatus.NOT_INSTALLED) ^ (result.status == AdGuardStatus.NOT_INSTALLED):

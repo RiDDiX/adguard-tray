@@ -403,7 +403,7 @@ class OverviewTab(Page):
                 self.banner.show_message(success, "success", timeout_ms=5000)
                 if self._on_status_change:
                     self._on_status_change()
-            elif msg == _t("Authentication cancelled"):
+            elif msg in (_t("Authentication cancelled"), _t("Another action is still running")):
                 self.banner.show_message(msg, "info", timeout_ms=5000)
             elif msg and "\n" not in msg and len(msg) <= 160:
                 self.banner.show_message(f"{failure}\n{msg}", "danger")
