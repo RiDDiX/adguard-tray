@@ -1,7 +1,7 @@
 # Maintainer: RiDDiX <github@egu-rel.de>
 
 pkgname=adguard-tray
-pkgver=2.4.0
+pkgver=2.4.1
 pkgrel=1
 pkgdesc="System tray monitor and controller for adguard-cli (KDE Plasma & Hyprland)"
 arch=('any')
